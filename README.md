@@ -18,6 +18,8 @@ An AI Agent skill that wraps the [Bitget Wallet ToB API](https://web3.bitget.com
 | **Batch Tx Info** | Batch transaction statistics for multiple tokens | "Compare volume for SOL and ETH" |
 | **Historical Coins** | Discover new tokens by timestamp | "What tokens launched today?" |
 | **Swap Send** | Broadcast signed transactions with MEV protection | "Broadcast my signed swap" |
+
+> ⚠️ **Swap amounts are human-readable** — pass `0.1` for 0.1 USDT, NOT `100000000000000000`. The `toAmount` in responses is also human-readable. This differs from most on-chain APIs.
 | **Swap Quote** | Best-route quote for cross-chain/same-chain swaps | "How much USDC for 1 SOL?" |
 | **Swap Calldata** | Generate unsigned transaction data | Execute trades via wallet signing |
 
