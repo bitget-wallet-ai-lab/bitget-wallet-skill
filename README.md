@@ -15,12 +15,15 @@ An AI Agent skill that wraps the [Bitget Wallet ToB API](https://web3.bitget.com
 | **Rankings** | Top gainers / top losers | Market scanning, alpha discovery |
 | **Liquidity Pools** | LP pool information | Slippage estimation, depth analysis |
 | **Security Audit** | Contract safety checks (honeypot, permissions, blacklist) | Pre-trade risk control |
+| **Batch Tx Info** | Batch transaction statistics for multiple tokens | "Compare volume for SOL and ETH" |
+| **Historical Coins** | Discover new tokens by timestamp | "What tokens launched today?" |
+| **Swap Send** | Broadcast signed transactions with MEV protection | "Broadcast my signed swap" |
 | **Swap Quote** | Best-route quote for cross-chain/same-chain swaps | "How much USDC for 1 SOL?" |
 | **Swap Calldata** | Generate unsigned transaction data | Execute trades via wallet signing |
 
 ### Supported Chains
 
-Ethereum · Solana · BNB Chain · Base · Arbitrum · Tron · TON · Sui · Optimism
+Ethereum · Solana · BNB Chain · Base · Arbitrum · Tron · TON · Sui · Optimism and more.
 
 ---
 
@@ -182,7 +185,7 @@ Any AI agent that can **read files + run Python + access the internet** should w
 ## Related Projects
 
 - [bitget-wallet-mcp](https://github.com/bitget-wallet-ai-lab/bitget-wallet-mcp) — MCP Server for Claude Desktop / Cursor / Windsurf
-- [bitget-wallet-cli](https://github.com/bitget-wallet-ai-lab/bitget-wallet-cli) — CLI tool for developers and traders
+- [bitget-wallet-cli](https://github.com/bitget-wallet-ai-lab/bitget-wallet-cli) — CLI tool for terminal users
 
 ---
 
