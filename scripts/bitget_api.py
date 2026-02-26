@@ -129,6 +129,22 @@ def cmd_tx_info(args):
     print(json.dumps(api_request("/bgw-pro/market/v3/coin/getTxInfo", body), indent=2))
 
 
+def cmd_batch_tx_info(args):
+    """Batch get transaction statistics for multiple tokens."""
+    tokens = []
+    for item in args.tokens.split(","):
+        chain, contract = item.strip().split(":", 1)
+        tokens.append({"chain": chain, "contract": contract})
+    body = {"list": tokens}
+    print(json.dumps(api_request("/bgw-pro/market/v3/coin/batchGetTxInfo", body), indent=2))
+
+
+def cmd_historical_coins(args):
+    """Get token list by timestamp (paginated)."""
+    body = {"createTime": args.create_time, "limit": args.limit}
+    print(json.dumps(api_request("/bgw-pro/market/v3/historical-coins", body), indent=2))
+
+
 def cmd_rankings(args):
     body = {"name": args.name}
     print(json.dumps(api_request("/bgw-pro/market/v3/topRank/detail", body), indent=2))
@@ -185,6 +201,20 @@ def cmd_swap_calldata(args):
     print(json.dumps(api_request("/bgw-pro/swapx/pro/swap", body), indent=2))
 
 
+def cmd_swap_send(args):
+    """Broadcast signed transactions via MEV-protected endpoint."""
+    txs = []
+    for tx_str in args.txs:
+        parts = tx_str.split(":", 3)
+        if len(parts) < 4:
+            print(f"Error: each tx must be id:chain:from:rawTx, got: {tx_str}", file=sys.stderr)
+            sys.exit(1)
+        tx = {"id": parts[0], "chain": parts[1], "from": parts[2], "rawTx": parts[3]}
+        txs.append(tx)
+    body = {"chain": args.chain, "txs": txs}
+    print(json.dumps(api_request("/bgw-pro/swapx/pro/send", body), indent=2))
+
+
 def main():
     parser = argparse.ArgumentParser(description="Bitget Wallet ToB API Client")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -219,6 +249,17 @@ def main():
     p.add_argument("--chain", required=True)
     p.add_argument("--contract", required=True)
     p.set_defaults(func=cmd_tx_info)
+
+    # batch-tx-info
+    p = sub.add_parser("batch-tx-info", help="Batch get token transaction info")
+    p.add_argument("--tokens", required=True, help="Comma-separated chain:contract pairs")
+    p.set_defaults(func=cmd_batch_tx_info)
+
+    # historical-coins
+    p = sub.add_parser("historical-coins", help="Get token list by timestamp")
+    p.add_argument("--create-time", required=True, help="Timestamp (e.g. 2025-06-17 06:55:28)")
+    p.add_argument("--limit", type=int, default=10, help="Number of records (default 10)")
+    p.set_defaults(func=cmd_historical_coins)
 
     # rankings
     p = sub.add_parser("rankings", help="Get token rankings")
@@ -263,6 +304,12 @@ def main():
     p.add_argument("--to-symbol")
     p.add_argument("--slippage", type=float)
     p.set_defaults(func=cmd_swap_calldata)
+
+    # swap-send
+    p = sub.add_parser("swap-send", help="Broadcast signed transactions (MEV-protected)")
+    p.add_argument("--chain", required=True, help="Chain name (e.g. sol, eth, bnb)")
+    p.add_argument("--txs", nargs="+", required=True, help="Transactions as id:chain:from:rawTx")
+    p.set_defaults(func=cmd_swap_send)
 
     args = parser.parse_args()
     args.func(args)
