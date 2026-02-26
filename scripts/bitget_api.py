@@ -284,7 +284,8 @@ def main():
     p.add_argument("--from-contract", required=True)
     p.add_argument("--to-chain")
     p.add_argument("--to-contract", required=True)
-    p.add_argument("--amount", required=True)
+    p.add_argument("--amount", required=True,
+                   help="Human-readable amount (e.g. 0.1 = 0.1 USDT, NOT wei/lamports)")
     p.add_argument("--from-symbol")
     p.add_argument("--to-symbol")
     p.add_argument("--from-address")
@@ -296,7 +297,8 @@ def main():
     p.add_argument("--from-contract", required=True)
     p.add_argument("--to-chain")
     p.add_argument("--to-contract", required=True)
-    p.add_argument("--amount", required=True)
+    p.add_argument("--amount", required=True,
+                   help="Human-readable amount (e.g. 0.1 = 0.1 USDT, NOT wei/lamports)")
     p.add_argument("--from-address", required=True)
     p.add_argument("--to-address", required=True)
     p.add_argument("--market", required=True)

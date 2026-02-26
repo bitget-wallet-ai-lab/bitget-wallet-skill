@@ -13,6 +13,19 @@ description: "Interact with Bitget Wallet ToB API for crypto market data, token 
 - **Credentials**: Built-in public demo credentials (works out of the box). Override with `BGW_API_KEY` / `BGW_API_SECRET` env vars for your own keys.
 - **Partner-Code**: `bgw_swap_public` (for swap endpoints)
 
+## ⚠️ IMPORTANT: Swap Amount Format
+
+**Swap endpoints (`swap-quote`, `swap-calldata`, `swap-send`) use HUMAN-READABLE amounts, NOT raw/smallest-unit values.**
+
+| ✅ Correct | ❌ Wrong |
+|-----------|---------|
+| `--amount 0.1` (0.1 USDT) | `--amount 100000000000000000` (this = 100 quadrillion USDT!) |
+| `--amount 1` (1 SOL) | `--amount 1000000000` (this = 1 billion SOL!) |
+
+The `toAmount` in responses is also human-readable. This differs from most on-chain APIs which use smallest units (wei, lamports, etc.).
+
+**Market/token endpoints** (`token-info`, `kline`, etc.) are not affected — they don't take amount inputs.
+
 ## Scripts
 
 All scripts are in `scripts/` and use Python 3.11+. No external credential setup needed — demo API keys are built in.
