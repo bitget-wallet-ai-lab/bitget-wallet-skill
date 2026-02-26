@@ -196,3 +196,4 @@ Any AI agent that can **read files + run Python + access the internet** should w
 ## License
 
 MIT
+# Branch protection test - safe to delete
