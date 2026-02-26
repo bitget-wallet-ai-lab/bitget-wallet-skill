@@ -20,7 +20,7 @@ An AI Agent skill that wraps the [Bitget Wallet ToB API](https://web3.bitget.com
 
 ### Supported Chains
 
-Ethereum · Solana · BNB Chain · Base · Arbitrum · Tron · TON · Sui · Optimism and more.
+Ethereum · Solana · BNB Chain · Base · Arbitrum · Tron · TON · Sui · Optimism
 
 ---
 
@@ -182,7 +182,7 @@ Any AI agent that can **read files + run Python + access the internet** should w
 ## Related Projects
 
 - [bitget-wallet-mcp](https://github.com/bitget-wallet-ai-lab/bitget-wallet-mcp) — MCP Server for Claude Desktop / Cursor / Windsurf
-- [bitget-wallet-cli](https://github.com/bitget-wallet-ai-lab/bitget-wallet-cli) — CLI tool for terminal users
+- [bitget-wallet-cli](https://github.com/bitget-wallet-ai-lab/bitget-wallet-cli) — CLI tool for developers and traders
 
 ---
 
