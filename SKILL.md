@@ -86,11 +86,91 @@ The `security` command returns raw audit data. Key fields to check:
 
 Use empty string `""` as the contract address for native tokens (ETH, SOL, BNB, etc.). This is a common source of errors — do not pass the wrapped token address (e.g., WETH, WSOL) when querying native token info.
 
+### Using Market Data Effectively
+
+The data commands (`token-info`, `kline`, `tx-info`, `liquidity`) are most useful when **combined**, not in isolation:
+
+- **Quick token assessment**: `token-info` (price + market cap + holders) → `tx-info` (recent activity) → `security` (safety check). This gives a complete picture in 3 calls.
+- **Trend analysis**: Use `kline --period 1h --size 24` for daily trend, `--period 1d --size 30` for monthly. Compare with `tx-info` to see if volume supports the price movement.
+- **Liquidity depth check**: Before a large swap, run `liquidity` to check pool size. If your trade amount is >2% of pool liquidity, expect significant slippage.
+- **New token discovery**: `rankings --name topGainers` finds trending tokens. Always follow up with `security` before acting on any discovery.
+- **Whale activity detection**: `tx-info` shows buyer/seller count and volume. A high volume with very few buyers suggests whale activity — proceed with caution.
+
+### Pre-Trade Checklist
+
+Before executing any swap, gather this information and present it to the user:
+
+```
+1. security     → Is the token safe? (highRisk, honeypot, tax)
+2. token-info   → Current price, market cap, holder count
+3. liquidity    → Pool depth (is there enough liquidity for the trade size?)
+4. swap-quote   → Route, expected output, price impact
+5. (user confirms after reviewing all of the above)
+6. swap-calldata → Generate transaction
+7. (wallet signs)
+8. swap-send    → Broadcast
+```
+
+**Do not jump straight to swap-quote.** Steps 1-3 are risk assessment — skipping them means the user is trading blind.
+
+### Identifying Risky Tokens
+
+Combine multiple signals to assess token risk. No single indicator is definitive:
+
+| Signal | Source | Red Flag |
+|--------|--------|----------|
+| `highRisk = true` | `security` | **Critical — do not trade** |
+| `cannotSellAll = true` | `security` | Honeypot-like behavior |
+| `buyTax` or `sellTax` > 5% | `security` | Hidden cost, likely scam |
+| `isProxy = true` | `security` | Owner can change rules anytime |
+| Holder count < 100 | `token-info` | Extremely early or abandoned |
+| Single holder > 50% supply | `token-info` | Rug pull risk |
+| LP lock = 0% | `liquidity` | Creator can pull all liquidity |
+| Pool liquidity < $10K | `liquidity` | Any trade will cause massive slippage |
+| Very high 5m volume, near-zero 24h volume | `tx-info` | Likely wash trading |
+| Token age < 24h | `token-info` | Unproven, higher risk |
+
+**When multiple red flags appear together, strongly advise the user against trading.**
+
+### Slippage and Price Impact
+
+The swap-quote response includes the expected output amount, but does not explicitly show slippage percentage. To estimate:
+
+1. Get the **market price** from `token-info`
+2. Get the **quote price** from `swap-quote` (= `toAmount / fromAmount`)
+3. **Price impact** ≈ `(market_price - quote_price) / market_price × 100%`
+
+Guidelines:
+- **< 1%**: Normal for liquid pairs (ETH, SOL, major stablecoins)
+- **1-3%**: Acceptable for mid-cap tokens, inform the user
+- **3-10%**: High — warn the user, suggest reducing trade size
+- **> 10%**: Extreme — strongly advise against or suggest splitting into multiple smaller trades
+
+For stablecoin-to-stablecoin swaps (e.g., USDT → USDC), any slippage > 0.5% is abnormal.
+
+### Gas and Fees
+
+Transaction costs vary by chain. Be aware of these when presenting swap quotes:
+
+| Chain | Typical Gas | Notes |
+|-------|------------|-------|
+| Solana | ~$0.001-0.01 | Very cheap, rarely a concern |
+| BNB Chain | ~$0.05-0.30 | Low, but check during congestion |
+| Ethereum | ~$1-50+ | **Highly variable.** Small trades (<$100) may not be worth the gas. |
+| Base / Arbitrum / Optimism | ~$0.01-0.50 | L2s are cheap but not free |
+
+**Important considerations:**
+- Gas is paid in the chain's native token (ETH, SOL, BNB). The user must have enough native token balance for gas — a swap will fail if the wallet has tokens but no gas.
+- `buyTax` and `sellTax` from the security audit are **on top of** gas fees. A 5% sell tax on a $100 trade = $5 gone before gas.
+- For small trades on Ethereum mainnet, total fees (gas + tax + slippage) can exceed the trade value. Flag this to the user.
+
 ### Common Pitfalls
 
 1. **Wrong chain code**: Use `sol` not `solana`, `bnb` not `bsc`. See the Chain Identifiers table below.
 2. **Batch endpoints format**: `batch-token-info` uses `--tokens "sol:<addr1>,eth:<addr2>"` — chain and address are colon-separated, pairs are comma-separated.
 3. **Liquidity pools**: The `liquidity` command returns pool info including LP lock percentage. 100% locked LP is generally a positive signal; 0% means the creator can pull liquidity.
+4. **Stale quotes**: If more than ~30 seconds pass between getting a quote and executing, prices may have moved. Re-quote for time-sensitive trades.
+5. **Insufficient gas**: A swap can fail silently if the wallet lacks native tokens for gas. Check balance before proceeding.
 
 ## Scripts
 
