@@ -132,21 +132,32 @@ Combine multiple signals to assess token risk. No single indicator is definitive
 
 **When multiple red flags appear together, strongly advise the user against trading.**
 
-### Slippage and Price Impact
+### Slippage Control
 
-The swap-quote response includes the expected output amount, but does not explicitly show slippage percentage. To estimate:
+The BGW API has **built-in auto-slippage**. Here's how it works across the swap flow:
 
-1. Get the **market price** from `token-info`
-2. Get the **quote price** from `swap-quote` (= `toAmount / fromAmount`)
+**In `swap-quote` response:**
+- `slippage` field (e.g., `"2"` = 2%) — the system's recommended slippage for this pair. This is auto-calculated based on token volatility and liquidity. **Always show this value to the user.**
+
+**In `swap-calldata` request:**
+- `--slippage <number>` — optional override (1 = 1%). If not set, uses the system default from the quote.
+- `toMinAmount` — alternative to slippage: specify the exact minimum tokens to receive. More precise for advanced users.
+
+**How to use slippage properly:**
+
+1. Get quote → check the `slippage` value in the response
+2. **If slippage ≤ 3%**: Proceed normally, show the value to the user
+3. **If slippage 3-10%**: Warn the user — "Auto-slippage is X%, this means up to X% less than quoted". Suggest reducing trade size or ask if they want to set a custom lower slippage (which may cause the tx to fail if price moves)
+4. **If slippage > 10%**: Strongly warn — this pair has very low liquidity or high volatility. Suggest splitting into smaller trades
+5. For **stablecoin ↔ stablecoin** (USDT → USDC), any slippage > 0.5% is abnormal — flag it
+
+**Estimating price impact** (separate from slippage tolerance):
+
+1. Get **market price** from `token-info`
+2. Get **quote price** from `swap-quote` (= `toAmount / fromAmount`)
 3. **Price impact** ≈ `(market_price - quote_price) / market_price × 100%`
 
-Guidelines:
-- **< 1%**: Normal for liquid pairs (ETH, SOL, major stablecoins)
-- **1-3%**: Acceptable for mid-cap tokens, inform the user
-- **3-10%**: High — warn the user, suggest reducing trade size
-- **> 10%**: Extreme — strongly advise against or suggest splitting into multiple smaller trades
-
-For stablecoin-to-stablecoin swaps (e.g., USDT → USDC), any slippage > 0.5% is abnormal.
+Price impact > 3% means the trade size is too large relative to available liquidity. The `liquidity` command can confirm this — if trade amount > 2% of pool size, expect significant impact.
 
 ### Gas and Fees
 
@@ -212,8 +223,8 @@ python3 scripts/bitget_api.py security --chain sol --contract <address>
 # Swap quote (amount is human-readable)
 python3 scripts/bitget_api.py swap-quote --from-chain sol --from-contract <addr> --to-contract <addr> --amount 1
 
-# Swap calldata (returns tx data for signing)
-python3 scripts/bitget_api.py swap-calldata --from-chain sol --from-contract <addr> --to-contract <addr> --amount 1 --from-address <wallet> --to-address <wallet> --market <market>
+# Swap calldata (returns tx data for signing; --slippage is optional, system auto-calculates if omitted)
+python3 scripts/bitget_api.py swap-calldata --from-chain sol --from-contract <addr> --to-contract <addr> --amount 1 --from-address <wallet> --to-address <wallet> --market <market> --slippage 2
 
 # Swap send (broadcast signed transaction)
 python3 scripts/bitget_api.py swap-send --chain sol --raw-transaction <signed_hex>
