@@ -42,6 +42,7 @@ Swap is a multi-step process. These commands must be called in order:
 - **Do not skip steps.** You cannot call `swap-calldata` without first getting a quote.
 - **Quotes expire.** If too much time passes between quote and calldata, the route may no longer be valid. Re-quote if the user hesitates.
 - **`swap-send` requires a signed raw transaction.** The signing happens outside this skill (wallet app, hardware wallet, or local keyfile).
+- **Transaction deadline**: The calldata response includes a `deadline` field (default: 600 seconds = 10 minutes). After this time, the on-chain transaction will revert even if broadcast. The `--deadline` parameter in `swap-calldata` allows customization (in seconds). For volatile markets, users may want a shorter deadline (e.g., 60-120s) to avoid executing at stale prices.
 
 ### Swap Quote: Reading the Response
 
@@ -96,22 +97,61 @@ The data commands (`token-info`, `kline`, `tx-info`, `liquidity`) are most usefu
 - **New token discovery**: `rankings --name topGainers` finds trending tokens. Always follow up with `security` before acting on any discovery.
 - **Whale activity detection**: `tx-info` shows buyer/seller count and volume. A high volume with very few buyers suggests whale activity — proceed with caution.
 
-### Pre-Trade Checklist
+### Pre-Trade Workflow
 
-Before executing any swap, gather this information and present it to the user:
+Before executing any swap, the agent should silently run risk checks and then present a **single confirmation summary** to the user. Do not prompt the user at every step.
+
+**Behind the scenes (agent runs automatically):**
 
 ```
-1. security     → Is the token safe? (highRisk, honeypot, tax)
-2. token-info   → Current price, market cap, holder count
-3. liquidity    → Pool depth (is there enough liquidity for the trade size?)
-4. swap-quote   → Route, expected output, price impact
-5. (user confirms after reviewing all of the above)
-6. swap-calldata → Generate transaction
-7. (wallet signs)
-8. swap-send    → Broadcast
+1. security     → Check highRisk, honeypot, tax
+2. token-info   → Get current price, market cap, holder count
+3. liquidity    → Check pool depth vs trade size
+4. swap-quote   → Get route, expected output, slippage
 ```
 
-**Do not jump straight to swap-quote.** Steps 1-3 are risk assessment — skipping them means the user is trading blind.
+**If any red flags are found** (highRisk, high tax, low liquidity, extreme slippage), stop and warn the user immediately with specifics.
+
+**If everything looks normal**, present a single confirmation:
+
+```
+Swap Summary:
+• 0.1 USDC → ~0.1000 USDT (BNB Chain)
+• Route: bgwevmaggregator
+• Slippage tolerance: 0.5%
+• Price impact: ~0.07%
+• Estimated gas: ~$0.05
+• Token safety: ✅ No risks found
+• Deadline: 600s (default)
+
+Proceed? [yes/no]
+```
+
+**After user confirms:**
+
+```
+5. swap-calldata → Generate unsigned transaction
+6. (wallet signs the transaction)
+7. swap-send    → Broadcast via MEV-protected endpoint
+```
+
+**For well-known tokens** (ETH, SOL, BNB, USDT, USDC, DAI, WBTC), the risk checks will almost always pass — the single confirmation is sufficient. For unfamiliar or new tokens, be more verbose about the risks.
+
+### EVM Token Approval (Critical)
+
+On EVM chains (Ethereum, BNB Chain, Base, Arbitrum, Optimism), tokens require an **approve** transaction before the router contract can spend them. **Without approval, the swap transaction will fail on-chain and still consume gas fees.**
+
+- Before calling `swap-calldata`, check if the token has sufficient allowance for the BGW router (`0xBc1D9760bd6ca468CA9fB5Ff2CFbEAC35d86c973`).
+- If allowance is 0 or less than the swap amount, an approve transaction must be sent first.
+- USDT on some chains (notably Ethereum mainnet) requires setting allowance to 0 before setting a new value.
+- **Native tokens** (ETH, SOL, BNB) do not need approval — only ERC-20/SPL tokens.
+- Approval is a one-time cost per token per router. Once approved with max amount, subsequent swaps of the same token skip this step.
+- **Solana does not use approvals** — this applies only to EVM chains.
+
+Include the approval status in the confirmation summary when relevant:
+```
+• Token approval: ⚠️ USDC not yet approved for router (one-time gas ~$0.03)
+```
 
 ### Identifying Risky Tokens
 
@@ -134,30 +174,36 @@ Combine multiple signals to assess token risk. No single indicator is definitive
 
 ### Slippage Control
 
-The BGW API has **built-in auto-slippage**. Here's how it works across the swap flow:
+**Important: distinguish between slippage tolerance and actual price impact.** These are different things:
 
-**In `swap-quote` response:**
-- `slippage` field (e.g., `"2"` = 2%) — the system's recommended slippage for this pair. This is auto-calculated based on token volatility and liquidity. **Always show this value to the user.**
+- **Slippage tolerance** = how much worse than the quoted price you're willing to accept (protection against price movement between quote and execution)
+- **Price impact** = how much your trade itself moves the market price (caused by trade size vs pool depth)
 
-**In `swap-calldata` request:**
-- `--slippage <number>` — optional override (1 = 1%). If not set, uses the system default from the quote.
-- `toMinAmount` — alternative to slippage: specify the exact minimum tokens to receive. More precise for advanced users.
+**Slippage tolerance (auto-calculated by BGW):**
 
-**How to use slippage properly:**
+The `swap-quote` response includes a `slippage` field (e.g., `"0.5"` = 0.5%). This is the system's recommended tolerance, auto-calculated based on token volatility and liquidity.
 
-1. Get quote → check the `slippage` value in the response
-2. **If slippage ≤ 3%**: Proceed normally, show the value to the user
-3. **If slippage 3-10%**: Warn the user — "Auto-slippage is X%, this means up to X% less than quoted". Suggest reducing trade size or ask if they want to set a custom lower slippage (which may cause the tx to fail if price moves)
-4. **If slippage > 10%**: Strongly warn — this pair has very low liquidity or high volatility. Suggest splitting into smaller trades
-5. For **stablecoin ↔ stablecoin** (USDT → USDC), any slippage > 0.5% is abnormal — flag it
+In `swap-calldata`, you can override it:
+- `--slippage <number>` — custom tolerance (1 = 1%). If omitted, uses system default.
+- `toMinAmount` — alternative: specify the exact minimum tokens to receive. More precise for advanced users.
 
-**Estimating price impact** (separate from slippage tolerance):
+**Slippage tolerance thresholds:**
+
+| Tolerance | Action |
+|-----------|--------|
+| ≤ 1% | Normal for major pairs. Show in summary. |
+| 1-3% | Acceptable for mid-cap tokens. Include in summary. |
+| 3-10% | **Warn user.** Suggest reducing trade size or setting a custom lower value. |
+| > 10% | **Strongly warn.** Low liquidity or high volatility. Suggest splitting into smaller trades. |
+| > 0.5% for stablecoin pairs | **Abnormal.** Flag to user — stablecoin swaps should have minimal slippage. |
+
+**Price impact (calculated by agent):**
 
 1. Get **market price** from `token-info`
 2. Get **quote price** from `swap-quote` (= `toAmount / fromAmount`)
 3. **Price impact** ≈ `(market_price - quote_price) / market_price × 100%`
 
-Price impact > 3% means the trade size is too large relative to available liquidity. The `liquidity` command can confirm this — if trade amount > 2% of pool size, expect significant impact.
+Price impact > 3% means the trade size is too large relative to available liquidity. The `liquidity` command can confirm — if trade amount > 2% of pool size, expect significant impact.
 
 ### Gas and Fees
 
@@ -181,7 +227,9 @@ Transaction costs vary by chain. Be aware of these when presenting swap quotes:
 2. **Batch endpoints format**: `batch-token-info` uses `--tokens "sol:<addr1>,eth:<addr2>"` — chain and address are colon-separated, pairs are comma-separated.
 3. **Liquidity pools**: The `liquidity` command returns pool info including LP lock percentage. 100% locked LP is generally a positive signal; 0% means the creator can pull liquidity.
 4. **Stale quotes**: If more than ~30 seconds pass between getting a quote and executing, prices may have moved. Re-quote for time-sensitive trades.
-5. **Insufficient gas**: A swap can fail silently if the wallet lacks native tokens for gas. Check balance before proceeding.
+5. **Insufficient gas**: A swap can fail silently if the wallet lacks native tokens for gas. The transaction still consumes gas fees even when it reverts. Check balance before proceeding.
+6. **Missing token approval (EVM)**: On EVM chains, forgetting to approve the token for the router is the #1 cause of failed swaps. The transaction will revert on-chain and waste gas. See "EVM Token Approval" section above.
+7. **Automate the boring parts**: Run security/liquidity/quote checks silently. Only surface results to the user in the final confirmation summary unless something is wrong.
 
 ## Scripts
 
