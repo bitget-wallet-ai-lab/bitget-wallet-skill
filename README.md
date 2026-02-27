@@ -198,6 +198,17 @@ Any AI agent that can **read files + run Python + access the internet** should w
 - Large operations require explicit user confirmation (human-in-the-loop)
 - Always run a security audit (`security` command) before interacting with any token
 
+## Security
+
+- Only communicates with `https://bopenapi.bgwapi.io` — no other external endpoints
+- No `eval()` / `exec()` or dynamic code execution
+- No file system access outside the skill directory
+- Built-in API keys are public demo credentials (safe to commit)
+- No data collection, telemetry, or analytics
+- No access to sensitive files (SSH keys, credentials, wallet files, etc.)
+- Dependencies: `requests` only (stdlib: `hmac`, `hashlib`, `json`, `base64`)
+- We recommend auditing the source yourself before installation
+
 ## License
 
 MIT
