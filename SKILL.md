@@ -87,6 +87,24 @@ The `security` command returns raw audit data. Key fields to check:
 
 Use empty string `""` as the contract address for native tokens (ETH, SOL, BNB, etc.). This is a common source of errors — do not pass the wrapped token address (e.g., WETH, WSOL) when querying native token info.
 
+### Common Stablecoin Addresses
+
+**Always use these verified addresses for USDT/USDC.** Do not guess or generate contract addresses from memory — incorrect addresses will cause API errors (`error_code: 80000`, "get token info failed").
+
+> **USDT vs USDT0:** Tether has begun migrating USDT to USDT0 (omnichain version via LayerZero) on some chains. On Arbitrum, the same contract address now represents USDT0 instead of legacy USDT. The contract addresses remain unchanged and work identically with the BGW API — no special handling is needed. When a user asks to swap "USDT", use the address below regardless of whether the chain has migrated to USDT0.
+
+| Chain (code) | USDT (USDT0) | USDC |
+|-------------|------|------|
+| Ethereum (`eth`) | `0xdAC17F958D2ee523a2206206994597C13D831ec7` | `0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48` |
+| BNB Chain (`bnb`) | `0x55d398326f99059fF775485246999027B3197955` | `0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d` |
+| Base (`base`) | `0xfde4C96c8593536E31F229EA8f37b2ADa2699bb2` | `0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913` |
+| Arbitrum (`arbitrum`) | `0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9` | `0xaf88d065e77c8cC2239327C5EDb3A432268e5831` |
+| Optimism (`optimism`) | `0x94b008aA00579c1307B0EF2c499aD98a8ce58e58` | `0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85` |
+| Polygon (`matic`) | `0xc2132D05D31c914a87C6611C10748AEb04B58e8F` | `0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359` |
+| Solana (`sol`) | `Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB` | `EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v` |
+
+For other tokens, use `token-info` or a block explorer to verify the contract address before calling swap endpoints.
+
 ### Using Market Data Effectively
 
 The data commands (`token-info`, `kline`, `tx-info`, `liquidity`) are most useful when **combined**, not in isolation:
@@ -337,6 +355,7 @@ python3 scripts/bitget_api.py swap-send --chain sol --raw-transaction <signed_he
 | Ton | 100280 | ton |
 | Sui | 100281 | suinet |
 | Optimism | 10 | optimism |
+| Polygon | 137 | matic |
 
 Use empty string `""` for native tokens (ETH, SOL, BNB, etc.).
 
