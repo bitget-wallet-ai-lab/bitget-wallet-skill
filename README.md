@@ -1,4 +1,4 @@
-# Bitget Wallet Trade Skill
+# Bitget Wallet Skill
 
 ## Overview
 
