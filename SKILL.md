@@ -3,7 +3,7 @@ name: bitget-wallet
 description: "Interact with Bitget Wallet API for crypto market data, token info, swap quotes, and security audits. Use when the user asks about token prices, market data, swap/trading quotes, token security checks, K-line charts, or token rankings on supported chains (ETH, SOL, BSC, Base, etc.)."
 ---
 
-# Bitget Wallet Trade Skill
+# Bitget Wallet Skill
 
 ## API Overview
 
