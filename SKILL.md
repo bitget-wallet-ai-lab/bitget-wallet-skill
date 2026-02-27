@@ -79,8 +79,10 @@ The `security` command returns raw audit data. Key fields to check:
 
 ### Historical Coins: Pagination
 
-- Uses `createTime` (string timestamp) and `limit` (number) parameters.
-- Response contains `lastTime` field — pass it as `createTime` in the next request to paginate.
+- `createTime` is a **datetime string** in format `"YYYY-MM-DD HH:MM:SS"` (NOT a Unix timestamp).
+- `limit` is a number (max results per page).
+- Response contains `lastTime` field (also a datetime string) — pass it as `createTime` in the next request to paginate.
+- Example: `--create-time "2026-02-27 00:00:00" --limit 20`
 - Useful for discovering newly launched tokens.
 
 ### Native Tokens
@@ -327,7 +329,7 @@ python3 scripts/bitget_api.py rankings --name topGainers
 python3 scripts/bitget_api.py liquidity --chain sol --contract <address>
 
 # Historical coins (discover new tokens)
-python3 scripts/bitget_api.py history --create-time <timestamp> --limit 20
+python3 scripts/bitget_api.py historical-coins --create-time <datetime> --limit 20
 
 # Security audit
 python3 scripts/bitget_api.py security --chain sol --contract <address>
