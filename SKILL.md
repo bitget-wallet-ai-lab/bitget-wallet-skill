@@ -221,6 +221,52 @@ Transaction costs vary by chain. Be aware of these when presenting swap quotes:
 - `buyTax` and `sellTax` from the security audit are **on top of** gas fees. A 5% sell tax on a $100 trade = $5 gone before gas.
 - For small trades on Ethereum mainnet, total fees (gas + tax + slippage) can exceed the trade value. Flag this to the user.
 
+### Broadcasting with swap-send (Complete CLI Flow)
+
+The `swap-send` command broadcasts a **signed** raw transaction via BGW's MEV-protected endpoint. This is the final step in the swap flow.
+
+**Command format:**
+```bash
+python3 scripts/bitget_api.py swap-send --chain <chain> --txs "<id>:<chain>:<from_address>:<signed_raw_tx>"
+```
+
+**Parameter breakdown:**
+- `--chain`: Chain name (e.g., `bnb`, `eth`, `sol`)
+- `--txs`: One or more transaction strings in format `id:chain:from:rawTx`
+  - `id`: Transaction identifier (use a unique string, e.g., `tx1` or a UUID)
+  - `chain`: Chain name again (must match `--chain`)
+  - `from`: The sender's wallet address
+  - `rawTx`: The **signed** raw transaction hex (with `0x` prefix for EVM)
+
+**Complete swap flow using only CLI commands:**
+```bash
+# Step 1: Get quote
+python3 scripts/bitget_api.py swap-quote \
+  --from-chain bnb --from-contract 0x55d398326f99059fF775485246999027B3197955 \
+  --to-contract 0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d \
+  --amount 0.1
+
+# Step 2: Get calldata (use market value from step 1 response)
+python3 scripts/bitget_api.py swap-calldata \
+  --from-chain bnb --from-contract 0x55d398326f99059fF775485246999027B3197955 \
+  --to-contract 0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d \
+  --amount 0.1 --from-address <wallet> --to-address <wallet> \
+  --market bgwevmaggregator
+
+# Step 3: Sign the calldata externally (wallet app, web3.py, etc.)
+# This produces a signed raw transaction hex
+
+# Step 4: Broadcast
+python3 scripts/bitget_api.py swap-send --chain bnb \
+  --txs "tx1:bnb:<wallet_address>:<signed_raw_tx_hex>"
+```
+
+**Key points:**
+- The colon (`:`) is the delimiter in `--txs`. Since EVM raw transactions don't contain colons, this format is safe.
+- Multiple transactions can be sent at once: `--txs "tx1:..." "tx2:..."`
+- The endpoint is MEV-protected — transactions are sent through a private mempool to avoid front-running.
+- A successful broadcast returns a transaction hash, but **success ≠ confirmed**. The transaction still needs to be mined/confirmed on-chain.
+
 ### Common Pitfalls
 
 1. **Wrong chain code**: Use `sol` not `solana`, `bnb` not `bsc`. See the Chain Identifiers table below.
