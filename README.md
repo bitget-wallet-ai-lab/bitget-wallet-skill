@@ -1,8 +1,8 @@
-# Bitget Wallet ToB API Skill
+# Bitget Wallet Trade Skill
 
 ## Overview
 
-An AI Agent skill that wraps the [Bitget Wallet ToB API](https://web3.bitget.com/en/docs), enabling natural-language-driven on-chain data queries and swap operations.
+An AI Agent skill that wraps the [Bitget Wallet API](https://web3.bitget.com/en/docs), enabling natural-language-driven on-chain data queries and swap operations.
 
 ### Core Capabilities
 
@@ -40,7 +40,7 @@ bitget_api.py (Python 3.11+)
     ↓  ← Built-in demo keys or env var override
 HMAC-SHA256 Signing
     ↓
-Bitget Wallet ToB API (bopenapi.bgwapi.io)
+Bitget Wallet API (bopenapi.bgwapi.io)
     ↓
 Structured JSON → Agent interprets → Natural language response
 ```
