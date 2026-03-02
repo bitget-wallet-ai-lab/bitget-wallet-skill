@@ -34,13 +34,13 @@ On the first use of the week (at most once every 7 days), compare the installed 
 **If a new version is available**, inform the user:
 
 ```
-🔄 Bitget Wallet Skill 有新版本可用
-• 当前: [installed version]
-• 最新: [latest version]
-• 变更: [one-line summary from CHANGELOG]
-• 安全相关: [yes/no — highlight if Security section exists]
+🔄 Bitget Wallet Skill update available
+• Installed: [installed version]
+• Latest: [latest version]
+• Changes: [one-line summary from CHANGELOG]
+• Security-related: [yes/no — highlight if Security section exists]
 
-是否升级？[yes/no]
+Upgrade? [yes/no]
 ```
 
 **If the user confirms upgrade:**
