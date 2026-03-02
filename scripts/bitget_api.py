@@ -198,6 +198,8 @@ def cmd_swap_calldata(args):
         body["toSymbol"] = args.to_symbol
     if args.slippage:
         body["slippage"] = args.slippage
+    if args.deadline:
+        body["deadline"] = args.deadline
     print(json.dumps(api_request("/bgw-pro/swapx/pro/swap", body), indent=2))
 
 
@@ -305,6 +307,7 @@ def main():
     p.add_argument("--from-symbol")
     p.add_argument("--to-symbol")
     p.add_argument("--slippage", type=float)
+    p.add_argument("--deadline", type=int, help="Transaction deadline in seconds (default: API default 600s)")
     p.set_defaults(func=cmd_swap_calldata)
 
     # swap-send
