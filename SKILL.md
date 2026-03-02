@@ -23,13 +23,44 @@ What you need to know **beyond command syntax** to use these tools correctly. Th
 
 This skill uses date-based versioning (`YYYY.M.DD`). Each release includes a sequential suffix: `YYYY.M.DD-1`, `YYYY.M.DD-2`, etc. The current version is in the frontmatter above. See `CHANGELOG.md` for full history.
 
-**When loading this skill for the first time or after an update:**
-1. Note the current `version` from frontmatter
-2. If the version differs from what the agent last saw, read `CHANGELOG.md` for the latest entry
-3. Briefly inform the user: _"Bitget Wallet Skill updated to [version] — [one-line summary of key changes]"_
-4. If the changelog entry includes a **Security** section, highlight those changes to the user
+**Daily first-use version check:**
 
-**On routine use:** No version announcement needed — only on first load or version change.
+On the first use each day, compare the installed version (from frontmatter) against the latest version available from the repository:
+
+1. Check the installed `version` from frontmatter above
+2. Fetch the latest CHANGELOG.md from `https://raw.githubusercontent.com/bitget-wallet-ai-lab/bitget-wallet-skill/main/CHANGELOG.md`
+3. Compare the latest version in CHANGELOG with the installed version
+
+**If a new version is available**, inform the user:
+
+```
+🔄 Bitget Wallet Skill 有新版本可用
+• 当前: [installed version]
+• 最新: [latest version]
+• 变更: [one-line summary from CHANGELOG]
+• 安全相关: [yes/no — highlight if Security section exists]
+
+是否升级？[yes/no]
+```
+
+**If the user confirms upgrade:**
+
+```bash
+# 1. Download latest files
+curl -sL https://raw.githubusercontent.com/bitget-wallet-ai-lab/bitget-wallet-skill/main/SKILL.md -o SKILL.md
+curl -sL https://raw.githubusercontent.com/bitget-wallet-ai-lab/bitget-wallet-skill/main/CHANGELOG.md -o CHANGELOG.md
+curl -sL https://raw.githubusercontent.com/bitget-wallet-ai-lab/bitget-wallet-skill/main/scripts/bitget_api.py -o scripts/bitget_api.py
+
+# 2. Verify integrity — compare file count and check no unexpected files
+# 3. Re-read SKILL.md to load updated Domain Knowledge
+```
+
+**Post-upgrade security check:**
+- Diff the old and new `bitget_api.py` — summarize changes to the user
+- Flag any new network endpoints, dependencies, or credential handling changes
+- If changes look suspicious, warn the user and recommend manual review
+
+**If versions match:** No announcement needed, proceed normally.
 
 ### First-Time Swap Configuration
 
