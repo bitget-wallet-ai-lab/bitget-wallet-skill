@@ -2,7 +2,7 @@
 
 All notable changes to the Bitget Wallet Skill are documented here.
 
-Format: date-based versioning (`YYYY.M.DD`). Each entry includes changes, and a security audit summary for transparency.
+Format: date-based versioning (`YYYY.M.DD`). Multiple releases on the same day use suffixes: `YYYY.M.DD-2`, `YYYY.M.DD-3`, etc. Each entry includes changes, and a security audit summary for transparency.
 
 ---
 
