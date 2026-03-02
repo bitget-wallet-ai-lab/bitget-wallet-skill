@@ -17,6 +17,26 @@ description: "Interact with Bitget Wallet API for crypto market data, token info
 
 What you need to know **beyond command syntax** to use these tools correctly. These are cross-command constraints, common pitfalls, and the relationships between commands that the CLI README alone doesn't cover.
 
+### First-Time Swap Configuration
+
+The first time a user initiates a swap, **before executing**, guide them through these one-time preferences:
+
+1. **Transaction deadline** — how long the on-chain transaction remains valid:
+   - Conservative: `120` seconds (better protection against sandwich attacks in volatile markets)
+   - Standard: `300` seconds (balanced — suitable for most users)
+   - Relaxed: `600` seconds (for slow signing workflows, e.g., hardware wallets or multi-sig)
+   - Explain: _"A shorter deadline protects you from price manipulation, but if signing takes too long (e.g., you're away from your wallet), the transaction will fail on-chain and waste gas."_
+
+2. **Automatic security check** — whether to audit unfamiliar tokens before swaps:
+   - Recommended: Always check (default) — runs `security` automatically before swap
+   - Ask each time: Prompt before each swap involving unfamiliar tokens
+   - Skip: Never check (not recommended — risk of honeypot tokens)
+
+3. **Save preferences** — store in the agent's memory/config for future swaps
+4. **Remind user** they can update anytime (e.g., "update my swap settings" or "change my default deadline")
+
+If the user declines configuration, use sensible defaults: `deadline=300`, `security=always`.
+
 ### Amounts: Everything is Human-Readable
 
 All BGW API inputs and outputs use **human-readable values**, NOT smallest chain units (wei, lamports, satoshi).
@@ -42,7 +62,7 @@ Swap is a multi-step process. These commands must be called in order:
 - **Do not skip steps.** You cannot call `swap-calldata` without first getting a quote.
 - **Quotes expire.** If too much time passes between quote and calldata, the route may no longer be valid. Re-quote if the user hesitates.
 - **`swap-send` requires a signed raw transaction.** The signing happens outside this skill (wallet app, hardware wallet, or local keyfile).
-- **Transaction deadline**: The calldata response includes a `deadline` field (default: 600 seconds = 10 minutes). After this time, the on-chain transaction will revert even if broadcast. The `--deadline` parameter in `swap-calldata` allows customization (in seconds). For volatile markets, users may want a shorter deadline (e.g., 60-120s) to avoid executing at stale prices.
+- **Transaction deadline**: The calldata response includes a `deadline` field (default: 600 seconds = 10 minutes). After this time, the on-chain transaction will revert even if broadcast. The `--deadline` parameter in `swap-calldata` allows customization (in seconds). **Use the user's configured deadline preference** (see "First-Time Swap Configuration"). If not yet configured, default to 300 seconds and inform the user.
 
 ### Swap Quote: Reading the Response
 
@@ -63,7 +83,7 @@ The `security` command returns raw audit data. Key fields to check:
 | `isProxy = true` | Contract is upgradeable | Mention — owner can change contract behavior |
 | `cannotSellAll = true` | Cannot sell 100% of holdings | Major red flag for meme coins |
 
-**Best practice:** Run `security` before any swap involving an unfamiliar token. Present the audit summary to the user before proceeding.
+**Best practice:** Run `security` before any swap involving an unfamiliar token. This should follow the user's configured security preference (see "First-Time Swap Configuration"). If set to "Always check" (default), run automatically and silently — only surface results if risks are found. **Never skip security checks for tokens the user has not traded before, regardless of preference.**
 
 ### K-line: Valid Parameters
 
@@ -142,7 +162,7 @@ Swap Summary:
 • Price impact: ~0.07%
 • Estimated gas: ~$0.05
 • Token safety: ✅ No risks found
-• Deadline: 600s (default)
+• Deadline: [user's configured preference, default 300s]
 
 Proceed? [yes/no]
 ```
