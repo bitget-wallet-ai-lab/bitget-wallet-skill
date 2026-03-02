@@ -25,7 +25,7 @@ This skill uses date-based versioning (`YYYY.M.DD`). Each release includes a seq
 
 **Daily first-use version check:**
 
-On the first use each day, compare the installed version (from frontmatter) against the latest version available from the repository:
+On the first use of the week (at most once every 7 days), compare the installed version (from frontmatter) against the latest version available from the repository:
 
 1. Check the installed `version` from frontmatter above
 2. Fetch the latest CHANGELOG.md from `https://raw.githubusercontent.com/bitget-wallet-ai-lab/bitget-wallet-skill/main/CHANGELOG.md`
@@ -61,6 +61,8 @@ curl -sL https://raw.githubusercontent.com/bitget-wallet-ai-lab/bitget-wallet-sk
 - If changes look suspicious, warn the user and recommend manual review
 
 **If versions match:** No announcement needed, proceed normally.
+
+**Check frequency:** At most once every 7 days. The agent should track the last check date and skip if fewer than 7 days have passed.
 
 ### First-Time Swap Configuration
 
