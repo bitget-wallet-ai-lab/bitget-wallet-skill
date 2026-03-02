@@ -1,6 +1,6 @@
 ---
 name: bitget-wallet
-version: "2026.3.2"
+version: "2026.3.2-1"
 updated: "2026-03-02"
 description: "Interact with Bitget Wallet API for crypto market data, token info, swap quotes, and security audits. Use when the user asks about token prices, market data, swap/trading quotes, token security checks, K-line charts, or token rankings on supported chains (ETH, SOL, BSC, Base, etc.)."
 ---
@@ -21,7 +21,7 @@ What you need to know **beyond command syntax** to use these tools correctly. Th
 
 ### Version Awareness
 
-This skill uses date-based versioning (`YYYY.M.DD`). For multiple releases on the same day, a suffix is appended: `YYYY.M.DD-2`, `YYYY.M.DD-3`, etc. The first release of the day has no suffix. The current version is in the frontmatter above. See `CHANGELOG.md` for full history.
+This skill uses date-based versioning (`YYYY.M.DD`). Each release includes a sequential suffix: `YYYY.M.DD-1`, `YYYY.M.DD-2`, etc. The current version is in the frontmatter above. See `CHANGELOG.md` for full history.
 
 **When loading this skill for the first time or after an update:**
 1. Note the current `version` from frontmatter

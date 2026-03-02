@@ -2,11 +2,11 @@
 
 All notable changes to the Bitget Wallet Skill are documented here.
 
-Format: date-based versioning (`YYYY.M.DD`). Multiple releases on the same day use suffixes: `YYYY.M.DD-2`, `YYYY.M.DD-3`, etc. Each entry includes changes, and a security audit summary for transparency.
+Format: date-based versioning (`YYYY.M.DD`). Each release includes a sequential suffix: `YYYY.M.DD-1`, `YYYY.M.DD-2`, etc. Each entry includes changes, and a security audit summary for transparency.
 
 ---
 
-## [2026.3.2] - 2026-03-02
+## [2026.3.2-1] - 2026-03-02
 
 ### Security
 - Default swap deadline reduced from 600s to 300s (mitigates sandwich attacks)
@@ -26,7 +26,7 @@ Format: date-based versioning (`YYYY.M.DD`). Multiple releases on the same day u
 
 ---
 
-## [2026.2.27] - 2026-02-27
+## [2026.2.27-1] - 2026-02-27
 
 ### Changed
 - Corrected `historical-coins` parameter documentation (`createTime` format)
@@ -38,7 +38,7 @@ Format: date-based versioning (`YYYY.M.DD`). Multiple releases on the same day u
 
 ---
 
-## [2026.2.20] - 2026-02-20
+## [2026.2.20-1] - 2026-02-20
 
 ### Added
 - Initial release
