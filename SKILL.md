@@ -45,14 +45,20 @@ Upgrade? [yes/no]
 
 **If the user confirms upgrade:**
 
-```bash
-# 1. Download latest files
-curl -sL https://raw.githubusercontent.com/bitget-wallet-ai-lab/bitget-wallet-skill/main/SKILL.md -o SKILL.md
-curl -sL https://raw.githubusercontent.com/bitget-wallet-ai-lab/bitget-wallet-skill/main/CHANGELOG.md -o CHANGELOG.md
-curl -sL https://raw.githubusercontent.com/bitget-wallet-ai-lab/bitget-wallet-skill/main/scripts/bitget_api.py -o scripts/bitget_api.py
+Clone or pull the latest `main` branch from the repository, then copy files into the skill directory:
 
-# 2. Verify integrity — compare file count and check no unexpected files
-# 3. Re-read SKILL.md to load updated Domain Knowledge
+```bash
+# Option A: If repo is already cloned locally
+cd <local-repo-path> && git checkout main && git pull origin main
+
+# Option B: Fresh clone to a temp directory
+git clone https://github.com/bitget-wallet-ai-lab/bitget-wallet-skill.git /tmp/bgw-skill-update
+
+# Then copy into the installed skill directory
+cp <repo>/SKILL.md <repo>/CHANGELOG.md <skill-dir>/
+cp <repo>/scripts/* <skill-dir>/scripts/
+
+# Re-read SKILL.md to load updated Domain Knowledge
 ```
 
 **Post-upgrade security check:**
