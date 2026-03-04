@@ -476,6 +476,12 @@ init → processing → success
 
 9. **Cross-chain orders return multiple TXs**: A successful cross-chain `order-status` returns 2 entries in `txs[]` — `stage: "source"` (origin chain) and `stage: "target"` (destination chain). Show both explorer links to the user.
 
+10. **Cross-chain toAddress MUST use target chain's native address format**: When swapping cross-chain, the `toAddress` must be a valid address on the **destination chain**, not the source chain. For example:
+    - EVM → EVM (e.g., Base → Polygon): same EVM address works ✅
+    - EVM → Solana: `toAddress` must be a Solana address (Base58, Ed25519) ❌ EVM address will fail
+    - EVM → Tron: `toAddress` must be a Tron address (T... Base58Check)
+    - **Using the wrong address format will cause funds to be stuck or enter refund flow.** The API may accept the order without error, but the bridge cannot deliver to an invalid target address.
+
 #### Order Mode Error Codes
 
 | Code | Meaning | Action |
