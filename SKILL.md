@@ -603,7 +603,37 @@ The order is a contract — the user sees the actual order details, confirms, TH
 - Cross-chain: expect 30s-5min. Poll at 10s, then every 15s, max 5 minutes.
 - If still `processing` after max wait, show order ID and tell user to check later.
 
-**Gas mode is auto-applied:** If order-quote returns `features: ["no_gas"]`, pass `--feature no_gas` to order-create automatically. The user sees the gasless order as a done deal in the confirmation summary. No extra choice needed.
+**Gas mode strategy: ALWAYS try gasless first.**
+
+```
+1. Always pass --feature no_gas to order-create (regardless of quote features field)
+2. Check response:
+   a. Returns `signatures` array → Gasless ✅ proceed with EIP-712 signing
+   b. Returns `txs` array (normal transactions) → Gasless NOT supported on this chain
+      → Warn user: "⚠️ This chain does not support gasless. Need native token for gas."
+      → Check if wallet has native token balance
+      → If no balance: "❌ Cannot execute: no [MATIC/ETH/...] for gas and gasless unavailable"
+      → If has balance: proceed with normal tx signing, show "Gas mode: Normal"
+```
+
+**Why always try gasless:**
+- The `features` field in `order-quote` is unreliable (often returns `[]` even when gasless works)
+- The `eip7702Bindend` / `eip7702Contract` fields are more reliable but still not definitive
+- The only sure way to know: pass `no_gas` and check if response has `signatures` or `txs`
+- Cost of trying: zero (order-create with no_gas that falls back to txs is not an error)
+
+**Gasless support by chain (as of 2026-03-04):**
+
+| Chain | Gasless (EIP-7702) | eip7702Contract |
+|-------|-------------------|-----------------|
+| Base | ✅ Supported | `0xa845c74344fc9405b1fcf712f04668979573c1bf` |
+| Ethereum | ❓ Untested | — |
+| BNB Chain | ❌ Not yet | None |
+| Polygon | ❌ Not yet | None |
+| Arbitrum | ❓ Untested | — |
+| Solana | N/A | N/A (different chain type) |
+
+**This table may change as BGW deploys 7702 contracts to more chains. Always try gasless first rather than relying on this table.**
 
 **User override:** If the user explicitly says to use their own gas (e.g., "use my gas", "user gas", "不要 gasless", "用自己的 gas"), do NOT pass `--feature no_gas` to order-create. The order will use normal gas mode instead, and gas is paid from the wallet's native token balance. Show "Gas mode: User Gas (native token)" in the confirmation summary.
 
@@ -623,9 +653,14 @@ The order is a contract — the user sees the actual order details, confirms, TH
 
 #### Gas Mode: Default to Gasless
 
-When `order-quote` returns `features: ["no_gas"]`, **default to gasless mode** — automatically pass `--feature no_gas` to `order-create`. Do not ask the user to choose between normal and gasless.
+**Always default to gasless** — pass `--feature no_gas` to `order-create` on every trade. Do not check `features` field first, do not ask the user to choose.
 
-**Rationale:** Gasless mode eliminates the need for users/agents to maintain native token balances on every chain. The gas cost is minimal compared to convenience. Users who specifically want normal gas mode can override.
+**How to detect gasless success vs fallback:**
+- Response has `signatures` array (non-empty) → gasless mode active ✅
+- Response has `txs` array (non-empty) → chain doesn't support gasless, fell back to normal mode
+- If fell back to normal and wallet has no native token → **stop and warn user**
+
+**Rationale:** Gasless mode eliminates the need for users/agents to maintain native token balances on every chain. The gas cost is minimal compared to convenience. Trying gasless has zero cost — if the chain doesn't support it, the API silently falls back to normal txs.
 
 **⚠️ MANDATORY: The agent MUST present the confirmation summary and wait for explicit user approval before signing and submitting. Never skip this step. No exceptions.**
 
