@@ -385,17 +385,48 @@ Same as legacy swap pre-trade workflow, but with order-mode commands:
 8. order-status  → Poll until completion
 ```
 
-**Cross-chain confirmation summary example:**
+#### toAmount: Estimated vs Actual
+
+- `toAmount` in `order-quote` is the **estimated output before gas deduction**. It includes fee deductions (appFee, platformFee) but does **not** account for gas costs.
+- When using `no_gas` mode, gas is deducted from the input amount, so actual output will be slightly less than the quoted `toAmount`.
+- The **actual received amount** is only available after order completion, in the `receiveAmount` field of `order-status`.
+- Always present `toAmount` as an estimate: use "~" prefix (e.g., "~58.43 USDT").
+
+#### Gas Mode: Default to Gasless
+
+When `order-quote` returns `features: ["no_gas"]`, **default to gasless mode** — automatically pass `--feature no_gas` to `order-create`. Do not ask the user to choose between normal and gasless.
+
+**Rationale:** Gasless mode eliminates the need for users/agents to maintain native token balances on every chain. The gas cost is minimal compared to convenience. Users who specifically want normal gas mode can override.
+
+**Confirmation summary with gasless:**
 ```
-Cross-Chain Swap Summary:
+Swap Summary (Order Mode):
+• 0.09 BNB → ~58.43 USDT (BNB Chain)
+• Route: bgwevmaggregator
+• Price impact: 0.003%
+• Fees: $0.175 (app fee)
+• Gas mode: Gasless ✅ (gas deducted from input, actual output may be slightly less)
+• Token safety: ✅ No risks found
+
+Proceed? [yes/no]
+```
+
+**Cross-chain example:**
+```
+Cross-Chain Swap Summary (Order Mode):
 • 2.0 USDC (Base) → ~1.89 USDT (BNB Chain)
 • Route: bkbridgev3.liqbridge
 • Price impact: 0.057%
-• Fees: $0.114 total ($0.10 app + $0.002 platform)
-• Gas mode: Gasless (no_gas) ✅
+• Fees: $0.114 total ($0.10 app + $0.002 platform + $0.01 gas)
+• Gas mode: Normal (gasless not available for this route)
 • Token safety: ✅ Both tokens verified
 
 Proceed? [yes/no]
+```
+
+**When gasless is NOT available** (`features: []`), use normal gas mode and note it:
+```
+• Gas mode: Normal (requires native token for gas)
 ```
 
 ### EVM Token Approval (Critical)
