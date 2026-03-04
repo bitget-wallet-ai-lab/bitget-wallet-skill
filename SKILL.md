@@ -430,14 +430,31 @@ init → processing → success
 
 | Status | Meaning | Action |
 |--------|---------|--------|
-| `init` | Order created, not yet submitted | Submit signed tx |
-| `processing` | Transaction in progress | Poll every 5-10 seconds |
-| `success` | Completed successfully | Show `receiveAmount` to user |
-| `failed` | Transaction failed | Show `message` error to user |
-| `refunding` | Refund in progress | Wait |
+| `init` | Order created, not yet submitted | Use toAmount for confirmation |
+| `processing` | Transaction in progress | Poll, show "等待确认..." |
+| `success` | Completed successfully | Show receiveAmount + txId + explorer link |
+| `failed` | Transaction failed | Show error, suggest retry |
+| `refunding` | Refund in progress | Wait, notify user |
 | `refunded` | Funds returned | Show refund tx details |
 
-**Polling strategy:** Check every 5 seconds for the first minute, then every 15 seconds. Cross-chain orders may take 1-5 minutes.
+**order-status response fields (all statuses):**
+
+| Field | Description | Available |
+|-------|-------------|-----------|
+| `orderId` | Order identifier | Always |
+| `status` | Current status | Always |
+| `fromChain` / `toChain` | Source / destination chain | Always |
+| `fromContract` / `toContract` | Token contracts | Always |
+| `fromAmount` | Input amount | Always |
+| `toAmount` | Estimated output (more accurate than quote) | Always (after create) |
+| `receiveAmount` | **Actual received amount** | Only on `success` |
+| `txs` | Array of `{chain, txId, stage, tokens}` | Only on `success` |
+| `createTime` / `updateTime` | Unix timestamps | Always |
+
+**Polling strategy:**
+- Same-chain: poll at 10s after submit, then every 10s. Max 2 minutes.
+- Cross-chain: poll at 10s, then every 15s. Max 5 minutes.
+- If still `processing` after max wait, give user the order ID to check later.
 
 #### Known Issues & Pitfalls (Order Mode)
 
@@ -508,36 +525,85 @@ init → processing → success
 The order is a contract — the user sees the actual order details, confirms, THEN the agent signs and submits. **The agent MUST NOT sign or submit without explicit user confirmation.**
 
 ```
-1. security      → Check token safety (automatic, silent unless issues found)
-2. order-quote   → Get price, market, check no_gas + eip7702Bindend
-3. order-create  → Create order (auto-apply no_gas if available)
-                    Returns orderId + unsigned tx/signature data
-4. PRESENT       → Show confirmation summary to user (MANDATORY)
-                    Include: order ID, amounts, fees, gas mode, signatures, safety
-                    Include: EIP-712 verification (domain, msgSender, calls)
-                    Include: small amount warning if < $1
-5. WAIT          → User must explicitly say "yes" / "confirm" / "执行"
-                    If user says "no" → abort, do not sign
-6. Sign          → Sign using API-provided hash fields
-7. order-submit  → Submit signed data
-8. order-status  → Poll until completion, show receiveAmount to user
+1. security       → Check token safety (automatic, silent unless issues found)
+2. order-quote    → Get price, market, check no_gas + eip7702Bindend
+3. order-create   → Create order (auto-apply no_gas if available)
+                     Returns orderId + unsigned tx/signature data
+4. order-status   → Get order details (toAmount is more accurate than quote)
+5. PRESENT        → Show confirmation summary to user (MANDATORY)
+                     Use toAmount from order-status, NOT from quote
+                     Include: order ID, amounts, fees, gas mode, signatures, safety
+                     Include: EIP-712 verification (domain, msgSender, calls)
+                     Include: small amount gasless warning if < $1
+6. WAIT           → User must explicitly say "yes" / "confirm" / "执行"
+                     If user says "no" → abort, do not sign
+7. Sign + Submit  → Sign using API-provided hash fields, then order-submit
+8. Notify         → Show "已提交，等待链上确认..."
+9. Poll result    → Wait 10s, then order-status to get final result
+                     If still processing, poll every 10s (max 2min for same-chain, 5min for cross-chain)
+10. COMPLETE      → Show final result: receiveAmount + txId + explorer link
 ```
 
 **Why this order matters:**
 - order-create before present: user sees real order data, not just estimates
+- order-status for toAmount: more accurate than quote (accounts for actual routing)
 - present before sign: user controls their funds, agent doesn't auto-execute
 - **Skipping the confirmation step is a violation of the agent's operating rules**
+
+**Completion message format:**
+```
+✅ Swap Complete
+• Order: f347d76e...
+• 1 USDC → 0.98382 USDT (Base)
+• Gas mode: Gasless
+• Tx: 0x786eff3d...
+• Explorer: https://basescan.org/tx/0x786eff3d...
+```
+
+**If failed:**
+```
+❌ Swap Failed
+• Order: f365ba3d...
+• 0.1 USDC → USDT (Base)
+• Status: failed
+• Possible causes: relayer error, insufficient liquidity, expired
+```
+
+**Block explorer URLs by chain:**
+
+| Chain | Explorer URL |
+|-------|-------------|
+| eth | `https://etherscan.io/tx/{txId}` |
+| bnb | `https://bscscan.com/tx/{txId}` |
+| base | `https://basescan.org/tx/{txId}` |
+| arbitrum | `https://arbiscan.io/tx/{txId}` |
+| matic | `https://polygonscan.com/tx/{txId}` |
+| optimism | `https://optimistic.etherscan.io/tx/{txId}` |
+| sol | `https://solscan.io/tx/{txId}` |
+| trx | `https://tronscan.org/#/transaction/{txId}` |
+
+**Poll timing:**
+- Same-chain: expect 5-15s. Poll at 10s, then every 10s, max 2 minutes.
+- Cross-chain: expect 30s-5min. Poll at 10s, then every 15s, max 5 minutes.
+- If still `processing` after max wait, show order ID and tell user to check later.
 
 **Gas mode is auto-applied:** If order-quote returns `features: ["no_gas"]`, pass `--feature no_gas` to order-create automatically. The user sees the gasless order as a done deal in the confirmation summary. No extra choice needed.
 
 **User override:** If the user explicitly says to use their own gas (e.g., "use my gas", "user gas", "不要 gasless", "用自己的 gas"), do NOT pass `--feature no_gas` to order-create. The order will use normal gas mode instead, and gas is paid from the wallet's native token balance. Show "Gas mode: User Gas (native token)" in the confirmation summary.
 
-#### toAmount: Estimated vs Actual
+#### toAmount: Three Sources of Truth
 
-- `toAmount` in `order-quote` is the **estimated output before gas deduction**. It includes fee deductions (appFee, platformFee) but does **not** account for gas costs.
-- When using `no_gas` mode, gas is deducted from the input amount, so actual output will be slightly less than the quoted `toAmount`.
-- The **actual received amount** is only available after order completion, in the `receiveAmount` field of `order-status`.
-- Always present `toAmount` as an estimate: use "~" prefix (e.g., "~58.43 USDT").
+| Source | Field | When Available | Accuracy |
+|--------|-------|---------------|----------|
+| `order-quote` | `toAmount` | Before create | Rough estimate, pre-gas |
+| `order-status` (init) | `toAmount` | After create, before submit | **Better estimate** — use this for confirmation |
+| `order-status` (success) | `receiveAmount` | After completion | **Actual received amount** |
+
+**Always use `order-status.toAmount` for the confirmation summary**, not the quote's toAmount. The order-status value is calculated after actual routing and is more accurate.
+
+- When using `no_gas` mode, gas is still deducted from the input. Even the order-status `toAmount` may not fully reflect gas deduction.
+- The **actual received amount** is only known after completion via `receiveAmount`.
+- Always present `toAmount` as an estimate: use "~" prefix (e.g., "~1.94 USDT").
 
 #### Gas Mode: Default to Gasless
 
@@ -547,15 +613,15 @@ When `order-quote` returns `features: ["no_gas"]`, **default to gasless mode** �
 
 **⚠️ MANDATORY: The agent MUST present the confirmation summary and wait for explicit user approval before signing and submitting. Never skip this step. No exceptions.**
 
-**Confirmation summary (gasless, after order-create):**
+**Confirmation summary (gasless, same-chain):**
 ```
 Order Created ✅
 • Order: f347d76e4b7e434897c2c699b7a588b9
-• 0.1 USDC → ~0.101 USDT (Base)
-• ⚠️ Gasless: gas 从输入金额扣除，实际到手会低于预估
+• 0.1 USDC → ~0.086 USDT (Base)
+• ⚠️ Gasless: gas 从输入金额扣除，小额交易 gas 占比较高
 • Route: bgwevmaggregator
 • Price impact: 0.009%
-• Fees: $0.0003 (app fee, 不含 gas)
+• Fees: $0.0003 (app fee)
 • Gas mode: Gasless ✅ (EIP-7702 已绑定)
 • Signatures to sign: 1 (EIP-712)
 • Token safety: ✅ Both verified
@@ -568,25 +634,38 @@ EIP-712 Verification:
 Confirm and sign? [yes/no]
 ```
 
-**⚠️ Gasless toAmount accuracy:**
-The `toAmount` shown in the confirmation is from `order-quote` and does NOT include gasless gas deduction. `order-create` does not return a toAmount. The actual received amount (`receiveAmount` in `order-status`) will be lower because gas is deducted from the input token.
-
-For small amounts (< $1), gas can be 10-15% of input. Always include the gasless warning line in the confirmation summary when using gasless mode.
-
-**Cross-chain example (after order-create):**
+**Cross-chain gasless example:**
 ```
 Order Created ✅
-• Order: a1b2c3d4e5f6...
-• 2.0 USDC (Base) → ~1.89 USDT (BNB Chain)
-• Route: bkbridgev3.liqbridge
-• Price impact: 0.057%
-• Fees: $0.114 total
-• Gas mode: Normal (gasless not available for this route)
-• Transactions to sign: 1
-• Token safety: ✅ Both tokens verified
+• Order: 9c3f5bcab4a2449ea5e66a9770ea7169
+• 2 USDC (Base) → ~1.94 USDT (Polygon)
+• ⚠️ Gasless: gas 从输入金额扣除
+• Route: bkbridgev3.liqbridge (cross-chain bridge)
+• Price impact: 0.024%
+• Fees: $0.014 (app $0.006 + platform $0.006 + gas $0.002)
+• Gas mode: Gasless ✅ (EIP-7702 已绑定)
+• Signatures to sign: 1 (EIP-712)
+• Token safety: ✅ Both verified
 
 Confirm and sign? [yes/no]
 ```
+
+**Normal gas example:**
+```
+Order Created ✅
+• Order: a1b2c3d4e5f6...
+• 2.0 USDC (Base) → ~1.95 USDT (BNB Chain)
+• Route: bkbridgev3.liqbridge
+• Price impact: 0.057%
+• Fees: $0.114 total
+• Gas mode: Normal (native token)
+• Transactions to sign: 1
+• Token safety: ✅ Both verified
+
+Confirm and sign? [yes/no]
+```
+
+**⚠️ toAmount in confirmation uses `order-status` (init), not quote.** This is more accurate because it reflects actual routing. However, gasless gas deduction may still reduce the final `receiveAmount` further.
 
 **Confirmation summary MUST include:**
 1. Order ID
