@@ -472,6 +472,10 @@ init → processing → success
 
 7. **No approve needed for gasless**: EIP-7702 gasless mode bundles approve + swap into one atomic operation via the Aggregator contract. No separate approve transaction needed.
 
+8. **Never duplicate order execution**: Signed and submitted orders are **irreversible**. Before creating a new order for the same trade, always check the previous order's status via `order-status`. If a previous script/process might still be running, verify it's truly dead before retrying. Creating and submitting two orders for the same trade will execute both and spend double the funds.
+
+9. **Cross-chain orders return multiple TXs**: A successful cross-chain `order-status` returns 2 entries in `txs[]` — `stage: "source"` (origin chain) and `stage: "target"` (destination chain). Show both explorer links to the user.
+
 #### Order Mode Error Codes
 
 | Code | Meaning | Action |
@@ -550,7 +554,7 @@ The order is a contract — the user sees the actual order details, confirms, TH
 - present before sign: user controls their funds, agent doesn't auto-execute
 - **Skipping the confirmation step is a violation of the agent's operating rules**
 
-**Completion message format:**
+**Completion message (same-chain):**
 ```
 ✅ Swap Complete
 • Order: f347d76e...
@@ -558,6 +562,18 @@ The order is a contract — the user sees the actual order details, confirms, TH
 • Gas mode: Gasless
 • Tx: 0x786eff3d...
 • Explorer: https://basescan.org/tx/0x786eff3d...
+```
+
+**Completion message (cross-chain):**
+```
+✅ Swap Complete
+• Order: 861d8427...
+• 2 USDC (Base) → 1.877485 USDT (Polygon)
+• Gas mode: Gasless
+• Source TX (Base): 0x2954bb0d...
+  https://basescan.org/tx/0x2954bb0d...
+• Target TX (Polygon): 0xd72483c8...
+  https://polygonscan.com/tx/0xd72483c8...
 ```
 
 **If failed:**
