@@ -410,7 +410,15 @@ The Agent never constructs the full EIP-7702 transaction. The backend relayer ha
 **Important notes:**
 - Signature format: 65 bytes (r + s + v), v is 27 or 28 (not y_parity 0/1)
 - Order of signedTxs must match order of signatures/txs in the response
-- For gasless mode, there are typically 2 signatures: EIP-712 (aggregator call) + EIP-7702 auth (delegation)
+
+**EIP-7702 binding state affects signature count:**
+
+| State | `eip7702Bindend` | Signatures | What's signed |
+|-------|-------------------|-----------|---------------|
+| First gasless tx | `false` | 2 | EIP-712 (approve + swap) + EIP-7702 auth (delegation) |
+| Subsequent gasless tx | `true` | 1 | EIP-712 (swap only, approve already done) |
+
+The binding persists on-chain. Once bound, future gasless transactions on the same chain are faster (1 signature, ~5 seconds).
 
 #### Order Status Lifecycle
 
@@ -495,21 +503,30 @@ init → processing → success
 
 #### Pre-Trade Workflow (Order Mode)
 
-**Key principle: order-create before present.** The order is the contract — user sees the actual order details, confirms, then signs. No surprises.
+**Key principle: order-create before present, present before sign.**
+
+The order is a contract — the user sees the actual order details, confirms, THEN the agent signs and submits. **The agent MUST NOT sign or submit without explicit user confirmation.**
 
 ```
-1. security      → Check token safety (automatic)
-2. token-info    → Current price, market cap
-3. order-quote   → Get price, market, check no_gas support
-4. order-create  → Create order (auto-apply no_gas if available)
+1. security      → Check token safety (automatic, silent unless issues found)
+2. order-quote   → Get price, market, check no_gas + eip7702Bindend
+3. order-create  → Create order (auto-apply no_gas if available)
                     Returns orderId + unsigned tx/signature data
-5. Present order summary to user (this is the "contract")
-6. User confirms → Sign transaction/signature
+4. PRESENT       → Show confirmation summary to user (MANDATORY)
+                    Include: order ID, amounts, fees, gas mode, signatures, safety
+                    Include: EIP-712 verification (domain, msgSender, calls)
+                    Include: small amount warning if < $1
+5. WAIT          → User must explicitly say "yes" / "confirm" / "执行"
+                    If user says "no" → abort, do not sign
+6. Sign          → Sign using API-provided hash fields
 7. order-submit  → Submit signed data
-8. order-status  → Poll until completion
+8. order-status  → Poll until completion, show receiveAmount to user
 ```
 
-**Why create before present:** The order-create response contains the actual transaction data (gas, nonce, calldata) — this is the binding contract. By creating first, the user sees exactly what they're signing. The quote is just a preliminary estimate; the order is the commitment.
+**Why this order matters:**
+- order-create before present: user sees real order data, not just estimates
+- present before sign: user controls their funds, agent doesn't auto-execute
+- **Skipping the confirmation step is a violation of the agent's operating rules**
 
 **Gas mode is auto-applied:** If order-quote returns `features: ["no_gas"]`, pass `--feature no_gas` to order-create automatically. The user sees the gasless order as a done deal in the confirmation summary. No extra choice needed.
 
@@ -528,17 +545,25 @@ When `order-quote` returns `features: ["no_gas"]`, **default to gasless mode** �
 
 **Rationale:** Gasless mode eliminates the need for users/agents to maintain native token balances on every chain. The gas cost is minimal compared to convenience. Users who specifically want normal gas mode can override.
 
+**⚠️ MANDATORY: The agent MUST present the confirmation summary and wait for explicit user approval before signing and submitting. Never skip this step. No exceptions.**
+
 **Confirmation summary (gasless, after order-create):**
 ```
 Order Created ✅
-• Order: 3debc283ecad4f8e9c1b76796ca3e763
-• 0.09 BNB → ~58.43 USDT (BNB Chain)
+• Order: f347d76e4b7e434897c2c699b7a588b9
+• 0.1 USDC → ~0.101 USDT (Base)
 • Route: bgwevmaggregator
-• Price impact: 0.003%
-• Fees: $0.175 (app fee)
-• Gas mode: Gasless ✅
-• Transactions to sign: 1 (EIP-712 signature)
-• Token safety: ✅ No risks found
+• Price impact: 0.009%
+• Fees: $0.0003 (app fee)
+• Gas mode: Gasless ✅ (EIP-7702 已绑定)
+• Signatures to sign: 1 (EIP-712)
+• ⚠️ Small amount warning: gasless gas cost may take ~15% of input for amounts < $1
+• Token safety: ✅ Both verified
+
+EIP-712 Verification:
+• domain: BW7702Admin @ 0x8C80e4d1... ✅
+• msgSender: matches our wallet ✅
+• calls: 1 (swap via router 0xBc1D9760...)
 
 Confirm and sign? [yes/no]
 ```
@@ -558,10 +583,32 @@ Order Created ✅
 Confirm and sign? [yes/no]
 ```
 
+**Confirmation summary MUST include:**
+1. Order ID
+2. Input → output with ~ estimate
+3. Route and price impact
+4. Fees breakdown
+5. Gas mode (Gasless/Normal/User Gas)
+6. Number and type of signatures
+7. Small amount warning if applicable
+8. Token safety status
+9. EIP-712 verification (domain, msgSender, calls summary)
+
 **Gas mode display rules:**
-- `features: ["no_gas"]` + user didn't override → show "Gasless ✅"
-- `features: ["no_gas"]` + user said "use my gas" → show "User Gas (native token)"
-- `features: []` → normal mode → show "Normal (requires native token for gas)"
+- Gasless with 7702 bound → "Gasless ✅ (EIP-7702 已绑定)"
+- Gasless first time → "Gasless ✅ (EIP-7702 首次绑定, 2 signatures)"
+- User override → "User Gas (native token)"
+- Not available → "Normal (requires native token for gas)"
+
+**Small amount gasless warning:**
+When input amount < $1 USD, show warning: gasless gas cost is fixed (~$0.01-0.02) regardless of trade size. For small trades this can be 10-15% of the input. For amounts > $10 the gas overhead is < 0.2% and negligible.
+
+| Input Amount | Estimated Gas Overhead |
+|-------------|----------------------|
+| $0.10 | ~15% ⚠️ |
+| $1.00 | ~1.5% |
+| $10.00 | ~0.15% |
+| $100.00 | ~0.015% |
 
 ### Wallet & Signing Domain Knowledge
 
