@@ -203,6 +203,59 @@ def cmd_swap_calldata(args):
     print(json.dumps(api_request("/bgw-pro/swapx/pro/swap", body), indent=2))
 
 
+def cmd_order_quote(args):
+    """Get order-mode swap price (supports cross-chain + no_gas)."""
+    body = {
+        "fromChain": args.from_chain,
+        "fromContract": args.from_contract,
+        "fromAmount": str(args.amount),
+        "toChain": args.to_chain,
+        "toContract": args.to_contract,
+        "fromAddress": args.from_address,
+    }
+    if args.to_address:
+        body["toAddress"] = args.to_address
+    if args.fee_rate:
+        body["feeRate"] = args.fee_rate
+    print(json.dumps(api_request("/bgw-pro/swapx/order/getSwapPrice", body), indent=2))
+
+
+def cmd_order_create(args):
+    """Create order and receive transaction data for signing."""
+    body = {
+        "fromChain": args.from_chain,
+        "fromContract": args.from_contract,
+        "fromAmount": str(args.amount),
+        "toChain": args.to_chain,
+        "toContract": args.to_contract,
+        "fromAddress": args.from_address,
+        "toAddress": args.to_address or args.from_address,
+        "market": args.market,
+    }
+    if args.slippage:
+        body["slippage"] = str(args.slippage)
+    if args.fee_rate:
+        body["feeRate"] = args.fee_rate
+    if args.feature:
+        body["feature"] = args.feature
+    print(json.dumps(api_request("/bgw-pro/swapx/order/makeSwapOrder", body), indent=2))
+
+
+def cmd_order_submit(args):
+    """Submit signed transactions for an order."""
+    body = {
+        "orderId": args.order_id,
+        "signedTxs": args.signed_txs,
+    }
+    print(json.dumps(api_request("/bgw-pro/swapx/order/submitSwapOrder", body), indent=2))
+
+
+def cmd_order_status(args):
+    """Query order status."""
+    body = {"orderId": args.order_id}
+    print(json.dumps(api_request("/bgw-pro/swapx/order/getSwapOrder", body), indent=2))
+
+
 def cmd_swap_send(args):
     """Broadcast signed transactions via MEV-protected endpoint."""
     txs = []
@@ -315,6 +368,44 @@ def main():
     p.add_argument("--chain", required=True, help="Chain name (e.g. sol, eth, bnb)")
     p.add_argument("--txs", nargs="+", required=True, help="Transactions as id:chain:from:rawTx")
     p.set_defaults(func=cmd_swap_send)
+
+    # order-quote (order mode - cross-chain + no_gas support)
+    p = sub.add_parser("order-quote", help="Get order-mode swap price (cross-chain + gasless)")
+    p.add_argument("--from-chain", required=True, help="Source chain (e.g. base, bnb, eth)")
+    p.add_argument("--from-contract", required=True, help="Source token contract (empty for native)")
+    p.add_argument("--to-chain", required=True, help="Destination chain")
+    p.add_argument("--to-contract", required=True, help="Destination token contract (empty for native)")
+    p.add_argument("--amount", required=True, help="Human-readable amount (e.g. 2.0)")
+    p.add_argument("--from-address", required=True, help="Sender wallet address")
+    p.add_argument("--to-address", help="Receiver address (defaults to from-address)")
+    p.add_argument("--fee-rate", help="Partner fee percentage (e.g. 0.05 = 5%%)")
+    p.set_defaults(func=cmd_order_quote)
+
+    # order-create
+    p = sub.add_parser("order-create", help="Create order and get transaction data for signing")
+    p.add_argument("--from-chain", required=True)
+    p.add_argument("--from-contract", required=True)
+    p.add_argument("--to-chain", required=True)
+    p.add_argument("--to-contract", required=True)
+    p.add_argument("--amount", required=True, help="Human-readable amount")
+    p.add_argument("--from-address", required=True)
+    p.add_argument("--to-address", help="Receiver address (defaults to from-address)")
+    p.add_argument("--market", required=True, help="Market from order-quote response")
+    p.add_argument("--slippage", type=float, help="Slippage tolerance (e.g. 3.0 = 3%%)")
+    p.add_argument("--fee-rate", help="Partner fee percentage")
+    p.add_argument("--feature", help="Gas feature: 'no_gas' to pay gas with input token")
+    p.set_defaults(func=cmd_order_create)
+
+    # order-submit
+    p = sub.add_parser("order-submit", help="Submit signed transactions for an order")
+    p.add_argument("--order-id", required=True, help="Order ID from order-create response")
+    p.add_argument("--signed-txs", nargs="+", required=True, help="Signed tx hex strings (0x-prefixed)")
+    p.set_defaults(func=cmd_order_submit)
+
+    # order-status
+    p = sub.add_parser("order-status", help="Query order status")
+    p.add_argument("--order-id", required=True, help="Order ID to query")
+    p.set_defaults(func=cmd_order_status)
 
     args = parser.parse_args()
     args.func(args)

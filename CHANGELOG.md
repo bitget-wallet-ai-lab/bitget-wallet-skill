@@ -6,6 +6,31 @@ Format: date-based versioning (`YYYY.M.DD`). Each release includes a sequential 
 
 ---
 
+## [2026.3.4-1] - 2026-03-04
+
+### Added
+- **Order Mode API**: 4 new commands for the order-based swap model
+  - `order-quote` — get swap price with cross-chain and gasless support
+  - `order-create` — create order, receive unsigned tx/signature data
+  - `order-submit` — submit signed transactions
+  - `order-status` — query order lifecycle status
+- **Cross-chain swaps**: swap tokens between different chains in one order (e.g., USDC on Base → USDT on BNB Chain)
+- **Gasless mode (no_gas)**: pay gas with input token, no native token needed
+- **EIP-7702 support**: EIP-712 typed data signing for gasless execution
+- **Order status tracking**: full lifecycle (init → processing → success/failed/refunding/refunded)
+- **B2B fee splitting**: `feeRate` parameter for partner commission
+- **New chain**: Morph (`morph`) supported in order mode
+- Domain Knowledge: order flow, gasless auto-detection, EIP-7702 signing, polling strategy, error codes
+
+### Audit
+- ✅ `bitget_api.py`: 4 new functions added, no existing logic changed
+- ✅ All new endpoints use same `bopenapi.bgwapi.io` base URL
+- ✅ Same auth mechanism (HMAC-SHA256 + Partner-Code)
+- ✅ No new dependencies
+- ✅ No credential changes
+
+---
+
 ## [2026.3.2-1] - 2026-03-02
 
 ### Security

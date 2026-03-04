@@ -1,7 +1,7 @@
 ---
 name: bitget-wallet
-version: "2026.3.2-1"
-updated: "2026-03-02"
+version: "2026.3.4-1"
+updated: "2026-03-04"
 description: "Interact with Bitget Wallet API for crypto market data, token info, swap quotes, and security audits. Use when the user asks about token prices, market data, swap/trading quotes, token security checks, K-line charts, or token rankings on supported chains (ETH, SOL, BSC, Base, etc.)."
 ---
 
@@ -217,6 +217,187 @@ Proceed? [yes/no]
 
 **For well-known tokens** (ETH, SOL, BNB, USDT, USDC, DAI, WBTC), the risk checks will almost always pass — the single confirmation is sufficient. For unfamiliar or new tokens, be more verbose about the risks.
 
+### Order Mode: Cross-Chain + Gasless Swaps
+
+The Order Mode API (`order-*` commands) is the **recommended** way to execute swaps. It supports everything the legacy `swap-*` flow does, plus:
+
+- **Cross-chain swaps** — swap tokens between different chains in one order (e.g., USDC on Base → USDT on BNB Chain)
+- **Gasless transactions (no_gas)** — pay gas fees using the input token instead of requiring native tokens
+- **Order tracking** — full order lifecycle with status updates, refund handling
+- **EIP-7702 support** — advanced signature mode for gasless execution
+- **B2B fee splitting** — partners can set custom fee rates (`feeRate`)
+
+**When to use Order Mode vs Legacy Swap:**
+
+| Scenario | Use |
+|----------|-----|
+| Cross-chain swap | Order Mode (only option) |
+| No native token for gas | Order Mode with `no_gas` |
+| Same-chain swap | Either (Order Mode recommended) |
+| Need order tracking/refunds | Order Mode |
+
+#### Order Flow: 4-Step Process
+
+```
+1. order-quote   → Get price, recommended market, check no_gas support
+2. order-create  → Create order, receive unsigned tx/signature data
+3. (wallet signs the transaction or EIP-712 typed data)
+4. order-submit  → Submit signed tx, get orderId confirmation
+5. order-status  → Poll until status = success/failed/refunded
+```
+
+#### Order Quote Response
+
+Key fields to check:
+
+| Field | Meaning |
+|-------|---------|
+| `toAmount` | Estimated output (human-readable) |
+| `market` | Required for `order-create` — pass it exactly |
+| `slippage` | Recommended slippage tolerance |
+| `priceImpact` | Price impact percentage |
+| `fee.totalAmountInUsd` | Total fee in USD |
+| `fee.appFee` | Partner's fee portion |
+| `fee.platformFee` | Platform fee portion |
+| `features: ["no_gas"]` | If present, gasless mode is available |
+| `eip7702Bindend` | Whether address has EIP-7702 binding |
+
+#### Gasless Mode (no_gas)
+
+When the user's wallet has insufficient native tokens for gas:
+
+1. Call `order-quote` — check if `features` contains `"no_gas"`
+2. If supported, pass `--feature no_gas` to `order-create`
+3. The system deducts gas cost from the input token amount
+4. **No native token balance needed** — ideal for Agent wallets
+
+**Auto-detection logic:**
+```
+if user has no/insufficient native token for gas:
+    if order-quote returns features: ["no_gas"]:
+        automatically use --feature no_gas
+    else:
+        warn user: "Insufficient gas. This route does not support gasless mode."
+```
+
+#### Order Create Response: Two Modes
+
+The response contains either `txs` (normal transaction) or `signatures` (EIP-7702 gasless):
+
+**Mode 1: Normal Transaction (`txs`)**
+```json
+{
+  "orderId": "...",
+  "txs": [{
+    "kind": "transaction",
+    "chainName": "base",
+    "chainId": "8453",
+    "data": {
+      "to": "0x...",
+      "calldata": "0x...",
+      "gasLimit": "54526",
+      "nonce": 308,
+      "value": "0",
+      "supportEIP1559": true,
+      "maxFeePerGas": "...",
+      "maxPriorityFeePerGas": "..."
+    }
+  }]
+}
+```
+→ Build transaction from `data` fields, sign with wallet, submit raw tx hex.
+
+**Mode 2: EIP-7702 Signature (`signatures`)**
+```json
+{
+  "orderId": "...",
+  "signatures": [{
+    "kind": "signature",
+    "chainName": "bnb",
+    "chainId": "56",
+    "hash": "0x...",
+    "data": {
+      "signType": "eip712",
+      "types": { ... },
+      "domain": { ... },
+      "message": { ... }
+    }
+  }]
+}
+```
+→ Sign the EIP-712 typed data, submit the signature hex.
+
+#### Order Status Lifecycle
+
+```
+init → processing → success
+                  → failed
+                  → refunding → refunded
+```
+
+| Status | Meaning | Action |
+|--------|---------|--------|
+| `init` | Order created, not yet submitted | Submit signed tx |
+| `processing` | Transaction in progress | Poll every 5-10 seconds |
+| `success` | Completed successfully | Show `receiveAmount` to user |
+| `failed` | Transaction failed | Show `message` error to user |
+| `refunding` | Refund in progress | Wait |
+| `refunded` | Funds returned | Show refund tx details |
+
+**Polling strategy:** Check every 5 seconds for the first minute, then every 15 seconds. Cross-chain orders may take 1-5 minutes.
+
+#### Order Mode Error Codes
+
+| Code | Meaning | Action |
+|------|---------|--------|
+| `80001` | Insufficient balance | Check balance, suggest smaller amount |
+| `80002` | Amount too low | Increase amount |
+| `80003` | Amount too high | Decrease amount |
+| `80004` | Order expired | Re-create order |
+| `80005` | Insufficient liquidity | Try different route or smaller amount |
+| `80006` | Invalid request | Check parameters |
+| `80007` | Signature mismatch | Re-sign with correct data |
+
+#### Supported Chains (Order Mode)
+
+| Chain | Code | Same-chain | Cross-chain |
+|-------|------|-----------|-------------|
+| Ethereum | `eth` | ✅ | ✅ |
+| Solana | `sol` | ✅ | ✅ |
+| BNB Chain | `bnb` | ✅ | ✅ |
+| Base | `base` | ✅ | ✅ |
+| Arbitrum | `arbitrum` | ✅ | ✅ |
+| Polygon | `matic` | ✅ | ✅ |
+| Morph | `morph` | ✅ | ✅ |
+
+#### Pre-Trade Workflow (Order Mode)
+
+Same as legacy swap pre-trade workflow, but with order-mode commands:
+
+```
+1. security      → Check token safety (automatic)
+2. token-info    → Current price, market cap
+3. order-quote   → Cross-chain price, fees, no_gas availability
+4. Present confirmation summary to user
+5. order-create  → Get unsigned transaction data
+6. Sign transaction (wallet)
+7. order-submit  → Submit signed transaction
+8. order-status  → Poll until completion
+```
+
+**Cross-chain confirmation summary example:**
+```
+Cross-Chain Swap Summary:
+• 2.0 USDC (Base) → ~1.89 USDT (BNB Chain)
+• Route: bkbridgev3.liqbridge
+• Price impact: 0.057%
+• Fees: $0.114 total ($0.10 app + $0.002 platform)
+• Gas mode: Gasless (no_gas) ✅
+• Token safety: ✅ Both tokens verified
+
+Proceed? [yes/no]
+```
+
 ### EVM Token Approval (Critical)
 
 On EVM chains (Ethereum, BNB Chain, Base, Arbitrum, Optimism), tokens require an **approve** transaction before the router contract can spend them. **Without approval, the swap transaction will fail on-chain and still consume gas fees.**
@@ -402,6 +583,28 @@ python3 scripts/bitget_api.py swap-calldata --from-chain sol --from-contract <ad
 
 # Swap send (broadcast signed transaction)
 python3 scripts/bitget_api.py swap-send --chain sol --raw-transaction <signed_hex>
+
+# --- Order Mode (cross-chain + gasless) ---
+
+# Order quote (supports cross-chain: fromChain != toChain)
+python3 scripts/bitget_api.py order-quote \
+  --from-chain base --from-contract 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913 \
+  --to-chain bnb --to-contract 0x55d398326f99059fF775485246999027B3197955 \
+  --amount 2.0 --from-address <wallet>
+
+# Order create (returns unsigned tx data; use --feature no_gas for gasless)
+python3 scripts/bitget_api.py order-create \
+  --from-chain base --from-contract 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913 \
+  --to-chain bnb --to-contract 0x55d398326f99059fF775485246999027B3197955 \
+  --amount 2.0 --from-address <wallet> --to-address <wallet> \
+  --market bkbridgev3.liqbridge --slippage 3.0 --feature no_gas
+
+# Order submit (submit signed transaction)
+python3 scripts/bitget_api.py order-submit \
+  --order-id <orderId> --signed-txs "0x<signed_hex>"
+
+# Order status (poll order completion)
+python3 scripts/bitget_api.py order-status --order-id <orderId>
 ```
 
 ### Chain Identifiers
