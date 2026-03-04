@@ -542,10 +542,10 @@ The order is a contract — the user sees the actual order details, confirms, TH
 6. WAIT           → User must explicitly say "yes" / "confirm" / "执行"
                      If user says "no" → abort, do not sign
 7. Sign + Submit  → Sign using API-provided hash fields, then order-submit
-8. Notify         → Show "已提交，等待链上确认..."
-9. Poll result    → Wait 10s, then order-status to get final result
-                     If still processing, poll every 10s (max 2min for same-chain, 5min for cross-chain)
-10. COMPLETE      → Show final result: receiveAmount + txId + explorer link
+8. Poll once      → Wait 10s, then order-status once
+                     If success → show receiveAmount + txId + explorer link
+                     If still processing → show order ID + status, tell user to check later
+                     DO NOT loop/block waiting for completion — return control to user immediately
 ```
 
 **Why this order matters:**
@@ -598,10 +598,12 @@ The order is a contract — the user sees the actual order details, confirms, TH
 | sol | `https://solscan.io/tx/{txId}` |
 | trx | `https://tronscan.org/#/transaction/{txId}` |
 
-**Poll timing:**
-- Same-chain: expect 5-15s. Poll at 10s, then every 10s, max 2 minutes.
-- Cross-chain: expect 30s-5min. Poll at 10s, then every 15s, max 5 minutes.
-- If still `processing` after max wait, show order ID and tell user to check later.
+**Poll timing: ONE poll only.**
+- Wait 10 seconds after submit, then call order-status once.
+- If `success` → show completion message (receiveAmount + txId + explorer link).
+- If `processing` or `init` → show "已提交" message with order ID and source TX if available. Do NOT keep polling. Return control to the user.
+- User can ask "check order {orderId}" later to get the final status.
+- **Never block the agent waiting for order completion.** Cross-chain orders can take 5-15 minutes.
 
 **Gas mode strategy: ALWAYS try gasless first.**
 
@@ -632,7 +634,7 @@ The order is a contract — the user sees the actual order details, confirms, TH
 | Polygon | ✅ Supported | Same-chain confirmed; cross-chain requires 7702 binding first |
 | Arbitrum | ✅ Supported | — |
 | Morph | ✅ Supported | — |
-| Solana | N/A | Different chain type, not EVM |
+| Solana | ✅ Supported | Different signing mechanism (non-EVM) |
 
 **⚠️ Cross-chain gasless requires source chain 7702 binding.** If the wallet has never done a gasless transaction on the source chain, the first cross-chain order will fall back to normal txs. Do a same-chain gasless swap first to bind 7702, then cross-chain gasless will work.
 
