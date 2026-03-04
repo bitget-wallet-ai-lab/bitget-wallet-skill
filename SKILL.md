@@ -264,21 +264,29 @@ Key fields to check:
 
 #### Gasless Mode (no_gas)
 
-When the user's wallet has insufficient native tokens for gas:
+Gasless mode uses EIP-7702 delegation — a backend relayer constructs and pays for the transaction on your behalf. The gas cost is deducted from the input token amount.
 
 1. Call `order-quote` — check if `features` contains `"no_gas"`
-2. If supported, pass `--feature no_gas` to `order-create`
-3. The system deducts gas cost from the input token amount
-4. **No native token balance needed** — ideal for Agent wallets
+2. Pass `--feature no_gas` to `order-create`
+3. Response returns `signatures` (not `txs`) — EIP-712 + EIP-7702 auth
+4. Sign using API-provided `hash` fields, submit signatures
+5. Backend relayer constructs full EIP-7702 tx, pays gas, broadcasts
+6. **No native token balance needed** — ideal for Agent wallets
 
 **Auto-detection logic:**
 ```
-if user has no/insufficient native token for gas:
-    if order-quote returns features: ["no_gas"]:
-        automatically use --feature no_gas
-    else:
-        warn user: "Insufficient gas. This route does not support gasless mode."
+Default: always use no_gas when available.
+
+if order-quote returns features: ["no_gas"]:
+    auto-apply --feature no_gas to order-create
+elif user has no native token for gas:
+    warn: "Insufficient gas. This route does not support gasless mode."
+else:
+    proceed without no_gas (normal tx mode)
 ```
+
+**⚠️ Important: `features` in order-quote is not always reliable.**
+In testing, some routes return `features: []` in the quote but still accept `--feature no_gas` in order-create. When the wallet has zero native token balance, always try `no_gas` regardless of the quote's `features` field. If order-create rejects it, fall back to informing the user they need gas.
 
 #### Order Create Response: Two Modes
 
@@ -307,25 +315,52 @@ The response contains either `txs` (normal transaction) or `signatures` (EIP-770
 ```
 → Build transaction from `data` fields, sign with wallet, submit raw tx hex.
 
-**Mode 2: EIP-7702 Signature (`signatures`)**
+**Mode 2: EIP-7702 Signature (`signatures`) — Gasless**
+
+Returned when `--feature no_gas` is used. Contains 2 signatures to sign:
+
 ```json
 {
   "orderId": "...",
-  "signatures": [{
-    "kind": "signature",
-    "chainName": "bnb",
-    "chainId": "56",
-    "hash": "0x...",
-    "data": {
-      "signType": "eip712",
-      "types": { ... },
-      "domain": { ... },
-      "message": { ... }
+  "signatures": [
+    {
+      "kind": "signature",
+      "chainName": "base",
+      "chainId": "8453",
+      "hash": "0x...",          // ← Sign THIS hash directly
+      "data": {
+        "signType": "eip712",   // EIP-712: approve + swap bundled
+        "types": { "Aggregator": [...], "Call": [...] },
+        "domain": { "name": "BW7702Admin", "verifyingContract": "0x8C80e4d1..." },
+        "message": {
+          "calls": [
+            { "target": "0x8335...", "callData": "0x095ea7b3..." },  // approve
+            { "target": "0xBc1D...", "callData": "0xd984396a..." }   // swap
+          ]
+        }
+      }
+    },
+    {
+      "kind": "signature",
+      "chainName": "base",
+      "chainId": "8453",
+      "hash": "0x...",          // ← Sign THIS hash directly
+      "data": {
+        "signType": "eip7702_auth",   // EIP-7702: delegate to smart contract
+        "contract": "0xa845C743...",   // delegation target
+        "nonce": "0"
+      }
     }
-  }]
+  ]
 }
 ```
-→ Sign the EIP-712 typed data, submit the signature hex.
+
+**What each signature does:**
+1. **EIP-712 (Aggregator)** — authorizes the bundled calls (approve + swap) via the BW7702Admin contract
+2. **EIP-7702 auth** — delegates your EOA to the EIP-7702 smart contract, enabling batched execution
+
+→ Sign each item's `hash` field with `unsafe_sign_hash`. Do NOT recompute hashes.
+→ Backend relayer receives signatures, constructs full EIP-7702 type-4 tx, pays gas, broadcasts.
 
 #### Signing Order Responses
 
@@ -396,6 +431,22 @@ init → processing → success
 
 **Polling strategy:** Check every 5 seconds for the first minute, then every 15 seconds. Cross-chain orders may take 1-5 minutes.
 
+#### Known Issues & Pitfalls (Order Mode)
+
+1. **Cross-chain minimum amount**: Cross-chain swaps (e.g., Base USDC → BNB USDT) have a minimum of ~$2. Below that returns `80002 amount too low`.
+
+2. **`features` field unreliable for gasless**: `order-quote` may return `features: []` but `order-create` still accepts `--feature no_gas`. When wallet has zero native token, always try `no_gas` first.
+
+3. **Base same-chain without no_gas**: `order-create` on Base without `--feature no_gas` returns `80000 system error` when the wallet has no ETH. This is because the API can't construct a normal tx for an account with no gas. Solution: use `no_gas`.
+
+4. **EIP-712 hash mismatch**: Do NOT use `encode_typed_data` from eth-account or similar libraries. Their encoding of nested `Call[]` with `bytes callData` differs from the API/contract implementation. Always sign the API-provided `hash` directly.
+
+5. **Signature format**: 65 bytes `r + s + v` where v is 27 or 28 (not y_parity 0/1). This is the standard output of `unsafe_sign_hash`.
+
+6. **Order expiry**: Orders have a deadline (typically 2 minutes from creation). Sign and submit promptly after `order-create`. If expired, create a new order.
+
+7. **No approve needed for gasless**: EIP-7702 gasless mode bundles approve + swap into one atomic operation via the Aggregator contract. No separate approve transaction needed.
+
 #### Order Mode Error Codes
 
 | Code | Meaning | Action |
@@ -407,6 +458,28 @@ init → processing → success
 | `80005` | Insufficient liquidity | Try different route or smaller amount |
 | `80006` | Invalid request | Check parameters |
 | `80007` | Signature mismatch | Re-sign with correct data |
+
+#### Security Considerations (Order Mode)
+
+**Trust model:** We sign hashes provided by the API. Verification layers:
+
+| Layer | Verified | Method |
+|-------|----------|--------|
+| DOMAIN_SEPARATOR | ✅ | Matches on-chain contract `0x8C80e4d1...` |
+| AGGREGATOR_TYPE_HASH | ✅ | Found in contract bytecode |
+| CALL_TYPE_HASH | ✅ | Found in contract bytecode |
+| Message content | ✅ Readable | EIP-712 `message.calls` shows approve/swap targets & calldata |
+| Hash correctness | ⚠️ Trusted | Cannot independently recompute due to encoding differences |
+| Response integrity | ⚠️ TLS only | No server-side signature on response (enhancement pending) |
+
+**Pre-sign verification checklist:**
+1. Read `message.calls` — verify targets are known contracts (router, token)
+2. Verify `message.msgSender` matches your wallet address
+3. Verify `domain.verifyingContract` is the known BW7702Admin contract
+4. Verify `domain.chainId` matches expected chain
+5. After completion, verify on-chain tx matches expected token transfer
+
+**Planned enhancement:** API response signing with server public key for MITM protection.
 
 #### Supported Chains (Order Mode)
 
