@@ -327,6 +327,56 @@ The response contains either `txs` (normal transaction) or `signatures` (EIP-770
 ```
 → Sign the EIP-712 typed data, submit the signature hex.
 
+#### Signing Order Responses
+
+**Critical: Use the API-provided `hash` field to sign. Do NOT recompute EIP-712 hashes yourself.**
+
+The `encode_typed_data` implementations in common libraries (eth-account, ethers.js) may produce different hashes for complex nested structs (`Call[]` with `bytes` callData). The API pre-computes the correct hash and returns it in each signature item's `hash` field.
+
+**Signing logic (for `signatures` mode — gasless/EIP-7702):**
+```python
+from eth_account import Account
+
+acct = Account.from_key(private_key)
+signed_list = []
+for sig_item in order_data["signatures"]:
+    hash_bytes = bytes.fromhex(sig_item["hash"][2:])
+    signed = acct.unsafe_sign_hash(hash_bytes)
+    signed_list.append("0x" + signed.signature.hex())
+# Submit: order-submit --order-id <id> --signed-txs <signed_list>
+```
+
+**Signing logic (for `txs` mode — normal gas):**
+```python
+for tx_item in order_data["txs"]:
+    tx_dict = {
+        "to": tx_item["data"]["to"],
+        "data": tx_item["data"]["calldata"],
+        "gas": int(tx_item["data"]["gasLimit"]),
+        "nonce": int(tx_item["data"]["nonce"]),
+        "chainId": int(tx_item["chainId"]),
+        "gasPrice": int(tx_item["data"]["gasPrice"]),
+        "value": <parse tx_item["data"]["value"]>,
+    }
+    signed_tx = acct.sign_transaction(tx_dict)
+    signed_list.append("0x" + signed_tx.raw_transaction.hex())
+```
+
+**Helper script:** `python3 scripts/order_sign.py --private-key <key>` accepts order-create JSON from stdin and outputs signed hex array.
+
+**Backend flow after submit:**
+```
+Agent signs → submits signatures → Backend relayer receives →
+Constructs full EIP-7702 tx (embeds our signatures) →
+Relayer pays gas → Broadcasts to chain
+```
+The Agent never constructs the full EIP-7702 transaction. The backend relayer handles tx construction, gas payment, and broadcasting. We only provide signatures.
+
+**Important notes:**
+- Signature format: 65 bytes (r + s + v), v is 27 or 28 (not y_parity 0/1)
+- Order of signedTxs must match order of signatures/txs in the response
+- For gasless mode, there are typically 2 signatures: EIP-712 (aggregator call) + EIP-7702 auth (delegation)
+
 #### Order Status Lifecycle
 
 ```
