@@ -390,6 +390,8 @@ init → processing → success
 
 **Gas mode is auto-applied:** If order-quote returns `features: ["no_gas"]`, pass `--feature no_gas` to order-create automatically. The user sees the gasless order as a done deal in the confirmation summary. No extra choice needed.
 
+**User override:** If the user explicitly says to use their own gas (e.g., "use my gas", "user gas", "不要 gasless", "用自己的 gas"), do NOT pass `--feature no_gas` to order-create. The order will use normal gas mode instead, and gas is paid from the wallet's native token balance. Show "Gas mode: User Gas (native token)" in the confirmation summary.
+
 #### toAmount: Estimated vs Actual
 
 - `toAmount` in `order-quote` is the **estimated output before gas deduction**. It includes fee deductions (appFee, platformFee) but does **not** account for gas costs.
@@ -434,7 +436,8 @@ Confirm and sign? [yes/no]
 ```
 
 **Gas mode display rules:**
-- `features: ["no_gas"]` → automatically applied → show "Gasless ✅"
+- `features: ["no_gas"]` + user didn't override → show "Gasless ✅"
+- `features: ["no_gas"]` + user said "use my gas" → show "User Gas (native token)"
 - `features: []` → normal mode → show "Normal (requires native token for gas)"
 
 ### EVM Token Approval (Critical)
