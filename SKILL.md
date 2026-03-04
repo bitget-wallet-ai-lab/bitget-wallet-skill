@@ -372,18 +372,23 @@ init → processing → success
 
 #### Pre-Trade Workflow (Order Mode)
 
-Same as legacy swap pre-trade workflow, but with order-mode commands:
+**Key principle: order-create before present.** The order is the contract — user sees the actual order details, confirms, then signs. No surprises.
 
 ```
 1. security      → Check token safety (automatic)
 2. token-info    → Current price, market cap
-3. order-quote   → Cross-chain price, fees, no_gas availability
-4. Present confirmation summary to user
-5. order-create  → Get unsigned transaction data
-6. Sign transaction (wallet)
-7. order-submit  → Submit signed transaction
+3. order-quote   → Get price, market, check no_gas support
+4. order-create  → Create order (auto-apply no_gas if available)
+                    Returns orderId + unsigned tx/signature data
+5. Present order summary to user (this is the "contract")
+6. User confirms → Sign transaction/signature
+7. order-submit  → Submit signed data
 8. order-status  → Poll until completion
 ```
+
+**Why create before present:** The order-create response contains the actual transaction data (gas, nonce, calldata) — this is the binding contract. By creating first, the user sees exactly what they're signing. The quote is just a preliminary estimate; the order is the commitment.
+
+**Gas mode is auto-applied:** If order-quote returns `features: ["no_gas"]`, pass `--feature no_gas` to order-create automatically. The user sees the gasless order as a done deal in the confirmation summary. No extra choice needed.
 
 #### toAmount: Estimated vs Actual
 
@@ -398,36 +403,39 @@ When `order-quote` returns `features: ["no_gas"]`, **default to gasless mode** �
 
 **Rationale:** Gasless mode eliminates the need for users/agents to maintain native token balances on every chain. The gas cost is minimal compared to convenience. Users who specifically want normal gas mode can override.
 
-**Confirmation summary with gasless:**
+**Confirmation summary (gasless, after order-create):**
 ```
-Swap Summary (Order Mode):
+Order Created ✅
+• Order: 3debc283ecad4f8e9c1b76796ca3e763
 • 0.09 BNB → ~58.43 USDT (BNB Chain)
 • Route: bgwevmaggregator
 • Price impact: 0.003%
 • Fees: $0.175 (app fee)
-• Gas mode: Gasless ✅ (gas deducted from input, actual output may be slightly less)
+• Gas mode: Gasless ✅
+• Transactions to sign: 1 (EIP-712 signature)
 • Token safety: ✅ No risks found
 
-Proceed? [yes/no]
+Confirm and sign? [yes/no]
 ```
 
-**Cross-chain example:**
+**Cross-chain example (after order-create):**
 ```
-Cross-Chain Swap Summary (Order Mode):
+Order Created ✅
+• Order: a1b2c3d4e5f6...
 • 2.0 USDC (Base) → ~1.89 USDT (BNB Chain)
 • Route: bkbridgev3.liqbridge
 • Price impact: 0.057%
-• Fees: $0.114 total ($0.10 app + $0.002 platform + $0.01 gas)
+• Fees: $0.114 total
 • Gas mode: Normal (gasless not available for this route)
+• Transactions to sign: 1
 • Token safety: ✅ Both tokens verified
 
-Proceed? [yes/no]
+Confirm and sign? [yes/no]
 ```
 
-**When gasless is NOT available** (`features: []`), use normal gas mode and note it:
-```
-• Gas mode: Normal (requires native token for gas)
-```
+**Gas mode display rules:**
+- `features: ["no_gas"]` → automatically applied → show "Gasless ✅"
+- `features: []` → normal mode → show "Normal (requires native token for gas)"
 
 ### EVM Token Approval (Critical)
 
