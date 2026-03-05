@@ -18,10 +18,54 @@ An AI Agent skill that wraps the [Bitget Wallet API](https://web3.bitget.com/en/
 | **Batch Tx Info** | Batch transaction statistics for multiple tokens | "Compare volume for SOL and ETH" |
 | **Historical Coins** | Discover new tokens by timestamp | "What tokens launched today?" |
 | **Swap Send** | Broadcast signed transactions with MEV protection | "Broadcast my signed swap" |
-
-> ⚠️ **Swap amounts are human-readable** — pass `0.1` for 0.1 USDT, NOT `100000000000000000`. The `toAmount` in responses is also human-readable. This differs from most on-chain APIs.
 | **Swap Quote** | Best-route quote for cross-chain/same-chain swaps | "How much USDC for 1 SOL?" |
 | **Swap Calldata** | Generate unsigned transaction data | Execute trades via wallet signing |
+| **Order Quote** | Cross-chain + gasless aware price quote | "Quote 10 USDC Base to BNB USDT" |
+| **Order Create** | Create order with unsigned tx/signature data | One-step cross-chain swap |
+| **Order Submit** | Submit signed transactions for an order | Gasless or normal execution |
+| **Order Status** | Track order lifecycle (init→processing→success) | "Check my swap status" |
+
+> ⚠️ **Swap amounts are human-readable** — pass `0.1` for 0.1 USDT, NOT `100000000000000000`. The `toAmount` in responses is also human-readable. This differs from most on-chain APIs.
+
+### ✨ Order Mode — Gasless & Cross-Chain Swaps
+
+Order Mode is the key upgrade in v2026.3.5. It enables two capabilities no other AI agent swap skill offers:
+
+**⛽ Gasless Transactions (EIP-7702)**
+- Swap tokens with **zero native token balance** — no ETH, no BNB, no MATIC needed
+- Gas cost is deducted from the input token automatically
+- Agent only signs; a backend relayer pays gas and broadcasts the transaction
+- Supported on all EVM chains (Ethereum, Base, BNB Chain, Arbitrum, Polygon, Morph)
+
+**🌉 One-Step Cross-Chain Swaps**
+- Swap tokens across different chains in a **single order** — no manual bridging
+- Example: USDC on Base → USDT on BNB Chain, one API call, one signature
+- Combined with gasless: cross-chain swap with zero gas on the source chain
+
+**How it works:**
+```
+1. order-quote   → Get price + check gasless support
+2. order-create  → Create order, receive unsigned data
+3. Sign          → Agent signs with wallet key (EIP-712 for gasless, raw tx for normal)
+4. order-submit  → Submit signed data
+5. order-status  → Track until success
+```
+
+**Example — Gasless cross-chain swap:**
+```bash
+# Quote: Base USDC → BNB USDT
+python3 scripts/bitget_api.py order-quote \
+  --from-chain base --from-contract 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913 \
+  --to-chain bnb --to-contract 0x55d398326f99059fF775485246999027B3197955 \
+  --amount 10 --from-address 0xYourAddress --to-address 0xYourAddress
+
+# Create order with gasless
+python3 scripts/bitget_api.py order-create \
+  --from-chain base --from-contract 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913 \
+  --to-chain bnb --to-contract 0x55d398326f99059fF775485246999027B3197955 \
+  --amount 10 --from-address 0xYourAddress --to-address 0xYourAddress \
+  --market bkbridgev3.liqbridge --slippage 1 --feature no_gas
+```
 
 ### Supported Chains
 
@@ -138,11 +182,25 @@ python3 scripts/bitget_api.py swap-quote \
 
 ---
 
+## Supported Chains (Order Mode)
+
+| Chain | Same-chain | Cross-chain | Gasless |
+|-------|-----------|-------------|---------|
+| Ethereum | ✅ | ✅ | ✅ |
+| BNB Chain | ✅ | ✅ | ✅ |
+| Base | ✅ | ✅ | ✅ |
+| Arbitrum | ✅ | ✅ | ✅ |
+| Polygon | ✅ | ✅ | ✅ |
+| Morph | ✅ | ✅ | ✅ |
+| Solana | ✅ | ⚠️ Pending | ❌ Pending |
+
+> Calldata mode (non-order) supports additional chains: Tron, TON, Sui, Optimism, and more.
+
 ## Future Directions
 
 | Direction | Description |
 |-----------|-------------|
-| **MCP Server Wrapper** | Package as a standard MCP Tool for Claude / Dify / any MCP client |
+| **Solana Gasless** | Pending API support for Solana gasless execution |
 | **On-chain Event Subscription** | WebSocket listeners for large transactions, new pool creation |
 | **Historical Data Cache** | Store K-line + price data in local SQLite to reduce API calls |
 | **Multi-wallet Management** | Support multi-address balance queries and batch quotes |
