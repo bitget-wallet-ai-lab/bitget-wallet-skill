@@ -8,31 +8,32 @@ Format: date-based versioning (`YYYY.M.DD`). Each release includes a sequential 
 
 ## [2026.3.5-1] - 2026-03-05
 
-### Changed
-- Solana gasless marked as not working (order mode submit succeeds but execution always fails)
-- Cross-chain to-sol marked as known bug (API team investigating)
-- toAddress required in order-quote for non-EVM cross-chain targets (was causing 80000)
-
-### Tested
-- EVM→Sol cross-chain: quote/create/sign/submit flow working, gasless pending fix
-- Solana signing: VersionedTransaction partial signing verified correct
-- Calldata mode on Solana: signing correct, needs SOL for gas
-
-## [2026.3.4-1] - 2026-03-04
-
 ### Added
 - **Order Mode API**: 4 new commands for the order-based swap model
   - `order-quote` — get swap price with cross-chain and gasless support
   - `order-create` — create order, receive unsigned tx/signature data
   - `order-submit` — submit signed transactions
   - `order-status` — query order lifecycle status
-- **Cross-chain swaps**: swap tokens between different chains in one order (e.g., USDC on Base → USDT on BNB Chain)
-- **Gasless mode (no_gas)**: pay gas with input token, no native token needed
+- **Cross-chain swaps**: swap tokens between different chains in one order (e.g., USDC on Base → USDT on Polygon)
+- **Gasless mode (no_gas)**: pay gas with input token, no native token needed (EVM only)
 - **EIP-7702 support**: EIP-712 typed data signing for gasless execution
 - **Order status tracking**: full lifecycle (init → processing → success/failed/refunding/refunded)
 - **B2B fee splitting**: `feeRate` parameter for partner commission
 - **New chain**: Morph (`morph`) supported in order mode
 - Domain Knowledge: order flow, gasless auto-detection, EIP-7702 signing, polling strategy, error codes
+- Solana signing support: VersionedTransaction partial signing via solders
+
+### Changed
+- Solana gasless marked as not working (order mode submit succeeds but execution always fails)
+- Cross-chain to-sol marked as known bug (API team investigating)
+- toAddress required in order-quote for non-EVM cross-chain targets (was causing 80000)
+
+### Tested
+- Base same-chain gasless ✅ (USDC → USDT, multiple orders)
+- Base → Polygon cross-chain gasless ✅
+- Base → Solana cross-chain: quote/create/sign/submit flow working, gasless pending API fix
+- Solana same-chain: signing verified correct, gasless execution fails
+- Polygon same-chain gasless ✅; Polygon cross-chain requires 7702 binding first
 
 ### Audit
 - ✅ `bitget_api.py`: 4 new functions added, no existing logic changed
