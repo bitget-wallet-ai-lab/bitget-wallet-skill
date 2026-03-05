@@ -521,7 +521,7 @@ init → processing → success
 | Chain | Code | Same-chain | Cross-chain |
 |-------|------|-----------|-------------|
 | Ethereum | `eth` | ✅ | ✅ |
-| Solana | `sol` | ✅ | ✅ |
+| Solana | `sol` | ✅ | ❌ (to-sol bug) |
 | BNB Chain | `bnb` | ✅ | ✅ |
 | Base | `base` | ✅ | ✅ |
 | Arbitrum | `arbitrum` | ✅ | ✅ |
@@ -640,7 +640,7 @@ The order is a contract — the user sees the actual order details, confirms, TH
 | Polygon | ✅ Supported | Same-chain confirmed; cross-chain requires 7702 binding first |
 | Arbitrum | ✅ Supported | — |
 | Morph | ✅ Supported | — |
-| Solana | ✅ Supported | Different signing mechanism (non-EVM) |
+| Solana | ❌ Not working | Order mode gasless submit succeeds but execution always fails; pending API team fix |
 
 **⚠️ Cross-chain gasless requires source chain 7702 binding.** If the wallet has never done a gasless transaction on the source chain, the first cross-chain order will fall back to normal txs. Do a same-chain gasless swap first to bind 7702, then cross-chain gasless will work.
 
