@@ -6,6 +6,18 @@ Format: date-based versioning (`YYYY.M.DD`). Each release includes a sequential 
 
 ---
 
+## [2026.3.5-1] - 2026-03-05
+
+### Changed
+- Solana gasless marked as not working (order mode submit succeeds but execution always fails)
+- Cross-chain to-sol marked as known bug (API team investigating)
+- toAddress required in order-quote for non-EVM cross-chain targets (was causing 80000)
+
+### Tested
+- EVM→Sol cross-chain: quote/create/sign/submit flow working, gasless pending fix
+- Solana signing: VersionedTransaction partial signing verified correct
+- Calldata mode on Solana: signing correct, needs SOL for gas
+
 ## [2026.3.4-1] - 2026-03-04
 
 ### Added
