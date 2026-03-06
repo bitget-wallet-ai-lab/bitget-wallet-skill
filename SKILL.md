@@ -205,7 +205,7 @@ Before executing any swap, the agent should silently run risk checks and then pr
 ```
 Swap Summary:
 • 0.1 USDC → ~0.1000 USDT (BNB Chain)
-• Route: bgwevmaggregator
+• Market: bgwevmaggregator
 • Slippage tolerance: 0.5%
 • Price impact: ~0.07%
 • Estimated gas: ~$0.05
@@ -529,7 +529,7 @@ init → processing → success
 | Chain | Code | Same-chain | Cross-chain |
 |-------|------|-----------|-------------|
 | Ethereum | `eth` | ✅ | ✅ |
-| Solana | `sol` | ✅ | ✅ (from-sol; to-sol ❌) |
+| Solana | `sol` | ✅ | ✅ (EVM→Sol ✅; Sol→EVM requires SOL for gas) |
 | BNB Chain | `bnb` | ✅ | ✅ |
 | Base | `base` | ✅ | ✅ |
 | Arbitrum | `arbitrum` | ✅ | ✅ |
@@ -660,7 +660,7 @@ The order is a contract — the user sees the actual order details, confirms, TH
 | Polygon | ✅ Supported | Same-chain confirmed; cross-chain requires 7702 binding first |
 | Arbitrum | ✅ Supported | — |
 | Morph | ✅ Supported | — |
-| Solana | ❌ Not supported | Solana uses different gas model, `no_gas` not available (quote returns `features: []`) |
+| Solana | ❌ Not supported | Solana as source chain: `no_gas` not available (quote returns `features: []`). EVM→Sol cross-chain works with gasless on the EVM source chain. |
 
 **⚠️ Cross-chain gasless requires source chain 7702 binding.** If the wallet has never done a gasless transaction on the source chain, the first cross-chain order will fall back to normal txs. Do a same-chain gasless swap first to bind 7702, then cross-chain gasless will work.
 
@@ -701,7 +701,7 @@ Order Created ✅
 • Order: f347d76e4b7e434897c2c699b7a588b9
 • 0.1 USDC → ~0.086 USDT (Base)
 • ⚠️ Gasless: gas 从输入金额扣除，小额交易 gas 占比较高
-• Route: bgwevmaggregator
+• Market: bgwevmaggregator
 • Price impact: 0.009%
 • Fees: $0.0003 (app fee)
 • Gas mode: Gasless ✅ (EIP-7702 已绑定)
@@ -722,7 +722,7 @@ Order Created ✅
 • Order: 9c3f5bcab4a2449ea5e66a9770ea7169
 • 2 USDC (Base) → ~1.94 USDT (Polygon)
 • ⚠️ Gasless: gas 从输入金额扣除
-• Route: bkbridgev3.liqbridge (cross-chain bridge)
+• Market: bkbridgev3.liqbridge (cross-chain bridge)
 • Price impact: 0.024%
 • Fees: $0.014 (app $0.006 + platform $0.006 + gas $0.002)
 • Gas mode: Gasless ✅ (EIP-7702 已绑定)
@@ -737,7 +737,7 @@ Confirm and sign? [yes/no]
 Order Created ✅
 • Order: a1b2c3d4e5f6...
 • 2.0 USDC (Base) → ~1.95 USDT (BNB Chain)
-• Route: bkbridgev3.liqbridge
+• Market: bkbridgev3.liqbridge
 • Price impact: 0.057%
 • Fees: $0.114 total
 • Gas mode: Normal (native token)
