@@ -1,6 +1,6 @@
 # Wallet & Signing Domain Knowledge
 
-### Key Hierarchy (BIP-39 / BIP-44)
+## Key Hierarchy (BIP-39 / BIP-44)
 
 ```
 Mnemonic (12/24 words)
@@ -19,7 +19,7 @@ Mnemonic (12/24 words)
 - **Solana uses a different key.** Ed25519 (not secp256k1). Different address, different signing algorithm.
 - **Private key ≠ mnemonic.** A private key is one specific key derived from the mnemonic. Losing the mnemonic means losing access to all derived keys.
 
-### Key Management for Agents
+## Key Management for Agents
 
 **Principle: minimal privilege, no persistence.**
 
@@ -48,7 +48,7 @@ key = subprocess.run(
 del key  # explicit cleanup
 ```
 
-### Signature Types (EVM)
+## Signature Types (EVM)
 
 | Type | Use Case | How to Sign |
 |------|----------|-------------|
@@ -68,7 +68,7 @@ del key  # explicit cleanup
 - For API-provided hashes, **always use `unsafe_sign_hash`** — the hash is already the final digest
 - Using `sign_message` on a pre-computed hash produces a wrong signature
 
-### Multi-Chain Signing
+## Multi-Chain Signing
 
 | Chain Family | Curve | Signing Library | Address Format |
 |-------------|-------|----------------|----------------|
@@ -78,7 +78,7 @@ del key  # explicit cleanup
 
 **EVM all-chain:** Sign once, broadcast to any EVM chain. The chainId in the tx prevents replay across chains.
 
-### Transaction Anatomy (EVM)
+## Transaction Anatomy (EVM)
 
 ```
 Type 0 (Legacy):     {nonce, gasPrice, gasLimit, to, value, data}

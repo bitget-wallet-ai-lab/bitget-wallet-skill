@@ -2,7 +2,7 @@
 
 Trading supports two modes: **Order Mode** (default, recommended) and **Calldata Mode** (legacy). Order Mode supports gasless transactions and cross-chain swaps. Calldata Mode is for direct on-chain transaction construction. **Always use Order Mode unless the user explicitly requests calldata mode.**
 
-### Pre-Trade Workflow
+## Pre-Trade Workflow
 
 Before executing any swap, the agent should silently run risk checks and then present a **single confirmation summary** to the user. Do not prompt the user at every step.
 
@@ -42,7 +42,7 @@ Proceed? [yes/no]
 
 **For well-known tokens** (ETH, SOL, BNB, USDT, USDC, DAI, WBTC), the risk checks will almost always pass — the single confirmation is sufficient. For unfamiliar or new tokens, be more verbose about the risks.
 
-### Order Mode: Cross-Chain + Gasless Swaps (Default)
+## Order Mode: Cross-Chain + Gasless Swaps (Default)
 
 The Order Mode API (`order-*` commands) is the **recommended** way to execute swaps. It supports everything the legacy `swap-*` flow does, plus:
 
@@ -61,7 +61,7 @@ The Order Mode API (`order-*` commands) is the **recommended** way to execute sw
 | Same-chain swap | Either (Order Mode recommended) |
 | Need order tracking/refunds | Order Mode |
 
-#### Order Flow: 4-Step Process
+### Order Flow: 4-Step Process
 
 ```
 1. order-quote   → Get price, recommended market, check no_gas support
@@ -71,7 +71,7 @@ The Order Mode API (`order-*` commands) is the **recommended** way to execute sw
 5. order-status  → Poll until status = success/failed/refunded
 ```
 
-#### Order Quote Response
+### Order Quote Response
 
 Key fields to check:
 
@@ -87,7 +87,7 @@ Key fields to check:
 | `features: ["no_gas"]` | If present, gasless mode is available |
 | `eip7702Bindend` | Whether address has EIP-7702 binding |
 
-#### Gasless Mode (no_gas)
+### Gasless Mode (no_gas)
 
 Gasless mode uses EIP-7702 delegation — a backend relayer constructs and pays for the transaction on your behalf. The gas cost is deducted from the input token amount.
 
@@ -113,7 +113,7 @@ else:
 **⚠️ Important: `features` in order-quote is not always reliable.**
 In testing, some routes return `features: []` in the quote but still accept `--feature no_gas` in order-create. When the wallet has zero native token balance, always try `no_gas` regardless of the quote's `features` field. If order-create rejects it, fall back to informing the user they need gas.
 
-#### Order Create Response: Two Modes
+### Order Create Response: Two Modes
 
 The response contains either `txs` (normal transaction) or `signatures` (EIP-7702 gasless):
 
@@ -187,7 +187,7 @@ Returned when `--feature no_gas` is used. Contains 2 signatures to sign:
 → Sign each item's `hash` field with `unsafe_sign_hash`. Do NOT recompute hashes.
 → Backend relayer receives signatures, constructs full EIP-7702 type-4 tx, pays gas, broadcasts.
 
-#### Signing Order Responses
+### Signing Order Responses
 
 **Critical: Use the API-provided `hash` field to sign. Do NOT recompute EIP-712 hashes yourself.**
 
@@ -245,7 +245,7 @@ The Agent never constructs the full EIP-7702 transaction. The backend relayer ha
 
 The binding persists on-chain. Once bound, future gasless transactions on the same chain are faster (1 signature, ~5 seconds).
 
-#### Order Status Lifecycle
+### Order Status Lifecycle
 
 ```
 init → processing → success
@@ -281,7 +281,7 @@ init → processing → success
 - Cross-chain: poll at 10s, then every 15s. Max 5 minutes.
 - If still `processing` after max wait, give user the order ID to check later.
 
-#### Known Issues & Pitfalls (Order Mode)
+### Known Issues & Pitfalls (Order Mode)
 
 1. **Cross-chain minimum amount**: Varies by chain. EVM chains: ~$1-5. Solana: $10 minimum (liqBridge only, no CCTP). Morph: $5 minimum. Below minimum returns `80002 amount too low`.
 
@@ -307,7 +307,7 @@ init → processing → success
     - EVM → Tron: `toAddress` must be a Tron address (T... Base58Check)
     - **Missing or wrong toAddress causes 80000 at quote stage for non-EVM targets, or stuck funds at execution.**
 
-#### Order Mode Error Codes
+### Order Mode Error Codes
 
 | Code | Meaning | Action |
 |------|---------|--------|
@@ -319,7 +319,7 @@ init → processing → success
 | `80006` | Invalid request | Check parameters |
 | `80007` | Signature mismatch | Re-sign with correct data |
 
-#### Security Considerations (Order Mode)
+### Security Considerations (Order Mode)
 
 **Trust model:** We sign hashes provided by the API. Verification layers:
 
@@ -341,7 +341,7 @@ init → processing → success
 
 **Planned enhancement:** API response signing with server public key for MITM protection.
 
-#### Supported Chains (Order Mode)
+### Supported Chains (Order Mode)
 
 | Chain | Code | Same-chain | Cross-chain |
 |-------|------|-----------|-------------|
@@ -353,7 +353,7 @@ init → processing → success
 | Polygon | `matic` | ✅ | ✅ |
 | Morph | `morph` | ✅ | ✅ |
 
-#### Cross-Chain Limits (Order Mode)
+### Cross-Chain Limits (Order Mode)
 
 | From Chain | liqBridge | CCTP |
 |-----------|----------|------|
@@ -365,7 +365,7 @@ init → processing → success
 | Polygon | $1 – $50,000 | $0.1 – $500,000 |
 | Morph | $5 – $50,000 | — |
 
-#### Pre-Trade Workflow (Order Mode)
+### Pre-Trade Workflow (Order Mode)
 
 **Key principle: order-create before present, present before sign.**
 
@@ -485,7 +485,7 @@ The order is a contract — the user sees the actual order details, confirms, TH
 
 **User override:** If the user explicitly says to use their own gas (e.g., "use my gas", "user gas", "不要 gasless", "用自己的 gas"), do NOT pass `--feature no_gas` to order-create. The order will use normal gas mode instead, and gas is paid from the wallet's native token balance. Show "Gas mode: User Gas (native token)" in the confirmation summary.
 
-#### toAmount: Three Sources of Truth
+### toAmount: Three Sources of Truth
 
 | Source | Field | When Available | Accuracy |
 |--------|-------|---------------|----------|
@@ -499,7 +499,7 @@ The order is a contract — the user sees the actual order details, confirms, TH
 - The **actual received amount** is only known after completion via `receiveAmount`.
 - Always present `toAmount` as an estimate: use "~" prefix (e.g., "~1.94 USDT").
 
-#### Gas Mode: Default to Gasless
+### Gas Mode: Default to Gasless
 
 **Always default to gasless** — pass `--feature no_gas` to `order-create` on every trade. Do not check `features` field first, do not ask the user to choose.
 
@@ -594,7 +594,7 @@ When input amount < $1 USD, show warning: gasless gas cost is fixed (~$0.01-0.02
 | $100.00 | ~0.015% |
 
 
-### Calldata Mode (Legacy Swap Flow)
+## Calldata Mode (Legacy Swap Flow)
 
 Calldata mode is a multi-step process. These commands must be called in order:
 
@@ -610,13 +610,13 @@ Calldata mode is a multi-step process. These commands must be called in order:
 - **`swap-send` requires a signed raw transaction.** The signing happens outside this skill (wallet app, hardware wallet, or local keyfile).
 - **Transaction deadline**: The calldata response includes a `deadline` field (default: 600 seconds = 10 minutes). After this time, the on-chain transaction will revert even if broadcast. The `--deadline` parameter in `swap-calldata` allows customization (in seconds). **Use the user's configured deadline preference** (see "First-Time Swap Configuration"). If not yet configured, default to 300 seconds and inform the user.
 
-### Swap Quote: Reading the Response
+## Swap Quote: Reading the Response
 
 - `estimateRevert=true` means the API **estimates** the transaction may fail on-chain, but it is not guaranteed to fail. For valid amounts, successful on-chain execution has been observed even with `estimateRevert=true`. Still, inform the user of the risk.
 - `toAmount` is human-readable. "0.1005" means 0.1005 tokens, not a raw integer.
 - `market` field from the quote response is required as input for `swap-calldata`.
 
-### EVM Token Approval (Critical)
+## EVM Token Approval (Critical)
 
 On EVM chains (Ethereum, BNB Chain, Base, Arbitrum, Optimism), tokens require an **approve** transaction before the router contract can spend them. **Without approval, the swap transaction will fail on-chain and still consume gas fees.**
 
@@ -632,7 +632,7 @@ Include the approval status in the confirmation summary when relevant:
 • Token approval: ⚠️ USDC not yet approved for router (one-time gas ~$0.03)
 ```
 
-### Slippage Control
+## Slippage Control
 
 **Important: distinguish between slippage tolerance and actual price impact.** These are different things:
 
@@ -665,7 +665,7 @@ In `swap-calldata`, you can override it:
 
 Price impact > 3% means the trade size is too large relative to available liquidity. The `liquidity` command can confirm — if trade amount > 2% of pool size, expect significant impact.
 
-### Gas and Fees
+## Gas and Fees
 
 Transaction costs vary by chain. Be aware of these when presenting swap quotes:
 
@@ -681,7 +681,7 @@ Transaction costs vary by chain. Be aware of these when presenting swap quotes:
 - `buyTax` and `sellTax` from the security audit are **on top of** gas fees. A 5% sell tax on a $100 trade = $5 gone before gas.
 - For small trades on Ethereum mainnet, total fees (gas + tax + slippage) can exceed the trade value. Flag this to the user.
 
-### Broadcasting with swap-send (Calldata Mode)
+## Broadcasting with swap-send (Calldata Mode)
 
 The `swap-send` command broadcasts a **signed** raw transaction via BGW's MEV-protected endpoint. This is the final step in the swap flow.
 

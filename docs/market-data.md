@@ -1,6 +1,6 @@
 # Market Data Domain Knowledge
 
-### Security Audit: Interpret Before Presenting
+## Security Audit: Interpret Before Presenting
 
 The `security` command returns raw audit data. Key fields to check:
 
@@ -15,19 +15,19 @@ The `security` command returns raw audit data. Key fields to check:
 
 **Best practice:** Run `security` before any swap involving an unfamiliar token. This should follow the user's configured security preference (see "First-Time Swap Configuration"). If set to "Always check" (default), run automatically and silently — only surface results if risks are found. **Never skip security checks for tokens the user has not traded before, regardless of preference.**
 
-### K-line: Valid Parameters
+## K-line: Valid Parameters
 
 - **Periods**: `1s`, `1m`, `5m`, `15m`, `30m`, `1h`, `4h`, `1d`, `1w`
 - **Max entries**: 1440 per request
 - Other period values will return an error or empty data.
 
-### Transaction Info: Valid Intervals
+## Transaction Info: Valid Intervals
 
 - **Intervals**: `5m`, `1h`, `4h`, `24h` only
 - These return buy/sell volume, buyer/seller count for the given time window.
 - Other interval values are not supported.
 
-### Historical Coins: Pagination
+## Historical Coins: Pagination
 
 - `createTime` is a **datetime string** in format `"YYYY-MM-DD HH:MM:SS"` (NOT a Unix timestamp).
 - `limit` is a number (max results per page).
@@ -35,7 +35,7 @@ The `security` command returns raw audit data. Key fields to check:
 - Example: `--create-time "2026-02-27 00:00:00" --limit 20`
 - Useful for discovering newly launched tokens.
 
-### Using Market Data Effectively
+## Using Market Data Effectively
 
 The data commands (`token-info`, `kline`, `tx-info`, `liquidity`) are most useful when **combined**, not in isolation:
 
@@ -46,7 +46,7 @@ The data commands (`token-info`, `kline`, `tx-info`, `liquidity`) are most usefu
 - **Whale activity detection**: `tx-info` shows buyer/seller count and volume. A high volume with very few buyers suggests whale activity — proceed with caution.
 
 
-### Identifying Risky Tokens
+## Identifying Risky Tokens
 
 Combine multiple signals to assess token risk. No single indicator is definitive:
 
