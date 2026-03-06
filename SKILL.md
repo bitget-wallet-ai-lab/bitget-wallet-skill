@@ -164,7 +164,7 @@ Use empty string `""` as the contract address for native tokens (ETH, SOL, BNB, 
 | Optimism (`optimism`) | `0x94b008aA00579c1307B0EF2c499aD98a8ce58e58` | `0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85` |
 | Polygon (`matic`) | `0xc2132D05D31c914a87C6611C10748AEb04B58e8F` | `0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359` |
 | Solana (`sol`) | `Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB` | `EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v` |
-| Morph (`morph`) | `0xe7cd86e13AC4309349F30B3435a9d337750fC82D` (USDT0) | — (not yet available) |
+| Morph (`morph`) | `0xe7cd86e13AC4309349F30B3435a9d337750fC82D` | — (not yet available) |
 
 ### BGB (Bitget Token) Addresses
 
