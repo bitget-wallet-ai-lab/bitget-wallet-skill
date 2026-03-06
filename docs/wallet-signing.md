@@ -21,31 +21,62 @@ Mnemonic (12/24 words)
 
 ## Key Management for Agents
 
-**Principle: minimal privilege, no persistence.**
+**Principle: mnemonic is the only persistent secret. Private keys are ephemeral.**
 
 ```
-Storage:     1Password only (never local files, env vars, or code)
-Injection:   Fetch → use → destroy in same script execution
-Scope:       Single private key, not full mnemonic
-Derivation:  Done once during setup, only the derived key is stored
+Storage:     Mnemonic in 1Password only (never local files, env vars, or code)
+Derivation:  On-the-fly via wallet_setup.py derive-key, per signing operation
+Lifecycle:   Derive → sign → discard. Keys never persist beyond a single operation.
 ```
 
-**Why agents hold a private key, not a mnemonic:**
-- Mnemonic = master access to all chains and accounts
-- Private key = access to one account on EVM chains (or one Solana account)
-- If compromised, blast radius is limited to one key's assets
-- Agent only needs to sign transactions, not derive new accounts
+**Why agents store a mnemonic, not individual keys:**
+- One mnemonic → all chains (EVM, Solana, future chains)
+- No key inventory to manage — derive what you need, when you need it
+- If a key is compromised in transit, the blast radius is one operation
+- Adding new chains requires zero 1Password changes
 
-**Key retrieval pattern (Python):**
+**Signing pipeline:**
+```
+1Password → mnemonic → wallet_setup.py derive-key → private key (in memory) → order_sign.py → signed tx → key discarded
+```
+
+**Key derivation pattern (shell):**
+```bash
+# Fetch mnemonic, derive key, sign, cleanup — keys never touch disk
+MNEMONIC=$(python3 scripts/op_sdk.py get "Agent Wallet" --field mnemonic --reveal)
+EVM_KEY=$(python3 scripts/wallet_setup.py derive-key --mnemonic "$MNEMONIC" --chain evm)
+python3 scripts/order_sign.py --order-json "$ORDER_JSON" --private-key "$EVM_KEY"
+unset MNEMONIC EVM_KEY
+```
+
+**Key derivation pattern (Python):**
 ```python
-# Fetch from 1Password, use, discard
-import subprocess
-key = subprocess.run(
-    ["python3.13", "scripts/op_sdk.py", "get", "Agent Wallet", "--field", "evm_key", "--reveal"],
-    capture_output=True, text=True
-).stdout.strip()
-# ... use key for signing ...
-del key  # explicit cleanup
+import subprocess, os
+
+def derive_and_sign(order_json: str, chain: str = "evm"):
+    # 1. Fetch mnemonic
+    mnemonic = subprocess.run(
+        ["python3.13", "scripts/op_sdk.py", "get", "Agent Wallet", "--field", "mnemonic", "--reveal"],
+        capture_output=True, text=True,
+        env={**os.environ, "OP_SERVICE_ACCOUNT_TOKEN": ...}
+    ).stdout.strip()
+
+    # 2. Derive key
+    key = subprocess.run(
+        ["python3.13", "scripts/wallet_setup.py", "derive-key", "--mnemonic", mnemonic, "--chain", chain],
+        capture_output=True, text=True
+    ).stdout.strip()
+    del mnemonic  # discard mnemonic immediately
+
+    # 3. Sign
+    flag = "--private-key" if chain == "evm" else "--private-key-sol"
+    result = subprocess.run(
+        ["python3.13", "scripts/order_sign.py", "--order-json", order_json, flag, key],
+        capture_output=True, text=True
+    ).stdout.strip()
+    del key  # discard key immediately
+
+    return result
 ```
 
 ## Signature Types (EVM)
@@ -156,20 +187,26 @@ Solana private keys can be in multiple formats:
 
 The `_load_sol_keypair()` function in `order_sign.py` handles all three formats automatically.
 
-### Key Retrieval (Solana)
+### Key Retrieval
 
-```python
-# Fetch Solana key from 1Password
-sol_key = subprocess.run(
-    ["python3.13", "scripts/op_sdk.py", "get", "Agent Wallet", "--field", "sol_key", "--reveal"],
-    capture_output=True, text=True
-).stdout.strip()
+All keys are derived on-the-fly from the mnemonic stored in 1Password:
+
+```bash
+# Derive EVM key
+MNEMONIC=$(python3 scripts/op_sdk.py get "Agent Wallet" --field mnemonic --reveal)
+EVM_KEY=$(python3 scripts/wallet_setup.py derive-key --mnemonic "$MNEMONIC" --chain evm)
+
+# Derive Solana key
+SOL_KEY=$(python3 scripts/wallet_setup.py derive-key --mnemonic "$MNEMONIC" --chain sol)
+
+# Get addresses (no keys exposed)
+python3 scripts/wallet_setup.py derive --mnemonic "$MNEMONIC"
+
+unset MNEMONIC EVM_KEY SOL_KEY
 ```
 
-**1Password field mapping:**
-- EVM key: `Agent Wallet` → `evm_key`
-- Solana key: `Agent Wallet` → `sol_key`
-- Solana address: `Agent Wallet` → `sol_address`
+**1Password stores only:**
+- `Agent Wallet` → `mnemonic` (concealed field, the only persistent secret)
 
 ## Order Mode Signing (order_sign.py)
 

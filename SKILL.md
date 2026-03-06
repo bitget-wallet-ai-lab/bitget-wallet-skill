@@ -65,6 +65,52 @@ Re-install the skill from the `main` branch of the repository at `https://github
 
 ### Wallet Domain Knowledge
 
+#### First-Time Wallet Setup
+
+When a user first requests a swap or any signing operation, check if a wallet is already configured (mnemonic stored in 1Password). If not, guide them through setup:
+
+**Path 1: Create a new wallet**
+
+1. Generate a 24-word BIP-39 mnemonic:
+   ```bash
+   python3 scripts/wallet_setup.py generate
+   ```
+2. **Display the mnemonic to the user** and ask them to back it up securely (write it down, store in their own password manager, etc.)
+3. Derive addresses for verification:
+   ```bash
+   python3 scripts/wallet_setup.py derive --mnemonic "<words>"
+   ```
+   Show the user their EVM and Solana addresses.
+4. Store the mnemonic in 1Password:
+   ```bash
+   python3 scripts/op_sdk.py create "Agent Wallet" SecureNote ~mnemonic="<words>"
+   ```
+5. **Done.** The agent now has a wallet. Private keys are derived on-the-fly for each signing operation.
+
+**Path 2: Query only (no wallet)**
+
+If the user only wants price queries, token info, and security checks — no wallet setup needed. Skip this flow entirely. Signing operations will be unavailable.
+
+**Security model:**
+- **1Password stores the mnemonic only** — never individual private keys
+- **Private keys are derived on-the-fly** each time signing is needed, then discarded after use
+- **Mnemonic is never printed to chat** after initial setup — only retrieved programmatically for derivation
+- **derive-key outputs to stdout** for piping — never logged or stored
+
+**Signing pipeline (how keys flow):**
+```
+1Password (mnemonic) → wallet_setup.py derive-key → stdout → order_sign.py --private-key → signed tx → key discarded
+```
+
+Example — full signing flow with ephemeral key:
+```bash
+# Derive key, pipe to signer, key never touches disk
+MNEMONIC=$(python3 scripts/op_sdk.py get "Agent Wallet" --field mnemonic --reveal)
+EVM_KEY=$(python3 scripts/wallet_setup.py derive-key --mnemonic "$MNEMONIC" --chain evm)
+python3 scripts/order_sign.py --order-json '<json>' --private-key "$EVM_KEY"
+unset MNEMONIC EVM_KEY  # explicit cleanup
+```
+
 #### First-Time Swap Configuration
 
 The first time a user initiates a swap, **before executing**, guide them through these one-time preferences:
