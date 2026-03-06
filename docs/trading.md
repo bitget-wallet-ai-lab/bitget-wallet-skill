@@ -57,6 +57,7 @@ On EVM chains (Ethereum, BNB Chain, Base, Arbitrum, Optimism), tokens require an
 - USDT on some chains (notably Ethereum mainnet) requires setting allowance to 0 before setting a new value.
 - **Native tokens** (ETH, SOL, BNB) do not need approval — only ERC-20/SPL tokens.
 - Approval is a one-time cost per token per router. Once approved with max amount, subsequent swaps of the same token skip this step.
+- **Order Mode gasless**: When using Order Mode with `no_gas`, approval is **automatically bundled** into the gasless transaction — the agent does NOT need to handle approval separately. The backend includes the approve call in the EIP-7702 delegated execution.
 - **Solana does not use approvals** — this applies only to EVM chains.
 
 Include the approval status in the confirmation summary when relevant:
