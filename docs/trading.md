@@ -332,7 +332,7 @@ init → processing → success
 | `success` | Completed successfully | Show receiveAmount + txId + explorer link |
 | `failed` | Transaction failed | Show error, suggest retry |
 | `refunding` | Refund in progress | Wait, notify user |
-| `refunded` | Funds returned | Show refund tx details |
+| `refunded` | Funds returned | Show refund details (see below) |
 
 **order-status response fields (all statuses):**
 
@@ -345,8 +345,30 @@ init → processing → success
 | `fromAmount` | Input amount | Always |
 | `toAmount` | Estimated output (more accurate than quote) | Always (after create) |
 | `receiveAmount` | **Actual received amount** | Only on `success` |
-| `txs` | Array of `{chain, txId, stage, tokens}` | Only on `success` |
+| `txs` | Array of `{chain, txId, stage, tokens}` | On `success`, `refunding`, `refunded` |
 | `createTime` / `updateTime` | Unix timestamps | Always |
+
+**Refund behavior (cross-chain):**
+
+When a cross-chain order fails after the source transaction is already on-chain, the system initiates a refund. Important details:
+
+- **Refund chain may differ from source chain.** If funds already bridged partially, refund happens on the target chain (not the source). Example: Base USDC → Polygon USDT failed → refund as Polygon USDC.
+- **Refund token may differ from both fromToken and toToken.** The bridge may convert to a different stablecoin for the refund.
+- **Refund amount is less than fromAmount.** Already-incurred fees (gas, bridge fees) are deducted. Expect ~1-2% loss.
+- **`txs[]` contains multiple entries with `stage` field:**
+  - `source` — the original transaction on the source chain
+  - `target` — the delivery transaction on the target chain (on success)
+  - `refund` — the refund transaction (on refunding/refunded)
+- **`tokens[]` in refund tx** has `type: "receive"` with actual refund amount, symbol, and address.
+
+**Refund notification template:**
+```
+⚠️ Cross-chain swap refunded
+• Original: 2 USDC (Base) → ~1.93 USDT (Polygon)
+• Refund: 1.977 USDC received on Polygon
+• Refund TX: https://polygonscan.com/tx/0x...
+• Fee lost: ~$0.023
+```
 
 **Polling strategy:**
 - Same-chain: poll at 10s after submit, then every 10s. Max 2 minutes.
