@@ -39,6 +39,51 @@ import sys
 import time
 
 
+def _keccak256(data: bytes) -> bytes:
+    """Compute keccak256 hash."""
+    from eth_utils import keccak
+    return keccak(data)
+
+
+def _eip712_hash(token_name, token_version, chain_id, token_address,
+                 from_addr, to_addr, value, valid_after, valid_before,
+                 nonce_bytes):
+    """Compute EIP-712 hash for TransferWithAuthorization (EIP-3009).
+
+    Manual implementation matching the x402 facilitator's verification.
+    eth_account.encode_typed_data encodes bytes32 differently and produces
+    a hash that facilitators reject.
+    """
+    from eth_abi import encode
+
+    # EIP712Domain type hash
+    domain_type_hash = _keccak256(
+        b"EIP712Domain(string name,string version,"
+        b"uint256 chainId,address verifyingContract)")
+    domain_separator = _keccak256(
+        domain_type_hash
+        + _keccak256(token_name.encode())
+        + _keccak256(token_version.encode())
+        + encode(["uint256"], [chain_id])
+        + encode(["address"], [token_address]))
+
+    # TransferWithAuthorization type hash
+    auth_type_hash = _keccak256(
+        b"TransferWithAuthorization(address from,address to,"
+        b"uint256 value,uint256 validAfter,uint256 validBefore,"
+        b"bytes32 nonce)")
+    struct_hash = _keccak256(
+        auth_type_hash
+        + encode(["address"], [from_addr])
+        + encode(["address"], [to_addr])
+        + encode(["uint256"], [value])
+        + encode(["uint256"], [valid_after])
+        + encode(["uint256"], [valid_before])
+        + nonce_bytes)  # raw 32 bytes, NOT abi-encoded
+
+    return _keccak256(b"\x19\x01" + domain_separator + struct_hash)
+
+
 def sign_eip3009(private_key, token_address, chain_id, to, amount,
                  token_name="USD Coin", token_version="2", max_timeout=60):
     """Sign a transferWithAuthorization for x402 EIP-3009 payment.
@@ -46,55 +91,30 @@ def sign_eip3009(private_key, token_address, chain_id, to, amount,
     Returns dict with 'signature' and 'authorization' fields.
     """
     from eth_account import Account
-    from eth_account.messages import encode_typed_data
 
     now = int(time.time())
-    nonce = "0x" + os.urandom(32).hex()
+    nonce_bytes = os.urandom(32)
+    nonce_hex = "0x" + nonce_bytes.hex()
     acct = Account.from_key(private_key)
 
-    domain = {
-        "name": token_name,
-        "version": token_version,
-        "chainId": chain_id,
-        "verifyingContract": token_address,
-    }
+    valid_after = now - 600  # 10min clock skew tolerance (matches official SDK)
+    valid_before = now + max_timeout
 
-    types = {
-        "TransferWithAuthorization": [
-            {"name": "from", "type": "address"},
-            {"name": "to", "type": "address"},
-            {"name": "value", "type": "uint256"},
-            {"name": "validAfter", "type": "uint256"},
-            {"name": "validBefore", "type": "uint256"},
-            {"name": "nonce", "type": "bytes32"},
-        ]
-    }
+    msg_hash = _eip712_hash(
+        token_name, token_version, chain_id, token_address,
+        acct.address, to, int(amount), valid_after, valid_before, nonce_bytes)
 
-    message = {
-        "from": acct.address,
-        "to": to,
-        "value": int(amount),
-        "validAfter": now,
-        "validBefore": now + max_timeout,
-        "nonce": nonce,
-    }
-
-    signable = encode_typed_data(
-        domain_data=domain,
-        message_types={"TransferWithAuthorization": types["TransferWithAuthorization"]},
-        message_data=message,
-    )
-    signed = acct.sign_message(signable)
+    signed = acct.unsafe_sign_hash(msg_hash)
 
     return {
         "signature": "0x" + signed.signature.hex(),
         "authorization": {
             "from": acct.address,
             "to": to,
-            "value": str(amount),
-            "validAfter": str(now),
-            "validBefore": str(now + max_timeout),
-            "nonce": nonce,
+            "value": str(int(amount)),
+            "validAfter": str(valid_after),
+            "validBefore": str(valid_before),
+            "nonce": nonce_hex,
         }
     }
 
@@ -154,16 +174,21 @@ def sign_solana_partial(private_key_hex, serialized_tx_b64):
 def build_payment_payload(payment_required, private_key, chain_id=None):
     """Build a PaymentPayload from a 402 PaymentRequired response.
 
-    Automatically selects EIP-3009 or Solana based on network.
-    Returns base64-encoded PaymentPayload for PAYMENT-SIGNATURE header.
+    Accepts both full PaymentRequired (with accepts[]) and a single
+    PaymentRequirements object. Automatically selects EIP-3009 or
+    Solana based on network.
+    Returns dict PaymentPayload ready for PAYMENT-SIGNATURE header.
     """
-    req = payment_required
+    # Handle both full PaymentRequired and single requirements
+    if "accepts" in payment_required:
+        req = payment_required["accepts"][0]
+    else:
+        req = payment_required
     scheme = req.get("scheme", "exact")
     network = req.get("network", "")
 
     payload = {
         "x402Version": 2,
-        "resource": req.get("resource", {}),
         "accepted": req,
     }
 
@@ -225,13 +250,16 @@ def cmd_pay(args):
     import requests as req_lib
 
     # Step 1: Initial request
-    headers = {}
+    headers = {"Content-Type": "application/json"} if args.data else {}
     if args.header:
         for h in args.header:
             k, v = h.split(":", 1)
             headers[k.strip()] = v.strip()
 
-    resp = req_lib.get(args.url, headers=headers)
+    method = args.method.upper()
+    body = args.data.encode() if args.data else None
+
+    resp = req_lib.request(method, args.url, headers=headers, data=body)
 
     if resp.status_code != 402:
         print(f"Status {resp.status_code} (not 402). Response:")
@@ -239,14 +267,21 @@ def cmd_pay(args):
         return
 
     # Step 2: Parse payment requirements
-    pr_header = resp.headers.get("PAYMENT-REQUIRED", "")
+    pr_header = (resp.headers.get("payment-required")
+                 or resp.headers.get("PAYMENT-REQUIRED", ""))
     if not pr_header:
-        print("Error: 402 response missing PAYMENT-REQUIRED header")
+        print("Error: 402 response missing payment-required header")
         print("Headers:", dict(resp.headers))
         return
 
     payment_required = json.loads(base64.b64decode(pr_header))
-    print("Payment Required:")
+    accepts = payment_required.get("accepts", [{}])
+    req_info = accepts[0] if accepts else {}
+    amount = int(req_info.get("amount", 0))
+    decimals = 6  # USDC default
+    usd = amount / (10 ** decimals)
+    print(f"Payment Required: ${usd:.6f} USDC on {req_info.get('network', '?')}")
+    print(f"  payTo: {req_info.get('payTo', '?')}")
     print(json.dumps(payment_required, indent=2))
 
     if not args.auto:
@@ -261,12 +296,14 @@ def cmd_pay(args):
 
     # Step 4: Retry with payment
     headers["PAYMENT-SIGNATURE"] = payment_sig
-    resp2 = req_lib.get(args.url, headers=headers)
+    resp2 = req_lib.request(method, args.url, headers=headers, data=body)
 
     print(f"\nResponse: {resp2.status_code}")
-    if "PAYMENT-RESPONSE" in resp2.headers:
-        pr = json.loads(base64.b64decode(resp2.headers["PAYMENT-RESPONSE"]))
-        print("Settlement:", json.dumps(pr, indent=2))
+    for hdr in ["payment-response", "PAYMENT-RESPONSE"]:
+        if hdr in resp2.headers:
+            pr = json.loads(base64.b64decode(resp2.headers[hdr]))
+            print("Settlement:", json.dumps(pr, indent=2))
+            break
     print(resp2.text[:5000])
 
 
@@ -297,6 +334,8 @@ def main():
     p.add_argument("--url", required=True, help="URL to access")
     p.add_argument("--private-key", required=True, help="Hex private key")
     p.add_argument("--chain-id", type=int, help="Preferred chain ID")
+    p.add_argument("--method", default="GET", help="HTTP method (default: GET)")
+    p.add_argument("--data", help="Request body (JSON string)")
     p.add_argument("--header", nargs="*", help="Extra headers (key: value)")
     p.add_argument("--auto", action="store_true", help="Auto-pay without confirmation")
     p.set_defaults(func=cmd_pay)

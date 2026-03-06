@@ -9,110 +9,151 @@ x402 is an open standard for internet-native payments, built on HTTP 402 ("Payme
 ## Protocol Flow
 
 ```
-1. Agent → GET /premium-data → Resource Server
-2. Resource Server → 402 Payment Required + PaymentRequirements (in headers)
-3. Agent reads requirements (amount, token, network, payTo, scheme)
-4. Agent signs payment authorization (EIP-3009 or Permit2 or Solana partial-sign)
-5. Agent → GET /premium-data + PAYMENT-SIGNATURE header → Resource Server
-6. Resource Server → Facilitator /verify → Facilitator /settle → blockchain
-7. Resource Server → 200 OK + data + PAYMENT-RESPONSE header → Agent
+1. Agent → POST /resource → Resource Server
+2. Resource Server → 402 Payment Required
+   Headers: payment-required: base64(PaymentRequired JSON)
+3. Agent decodes PaymentRequired, reads accepts[0] (amount, token, network, payTo, scheme)
+4. Agent signs EIP-3009 TransferWithAuthorization (EIP-712 typed data)
+5. Agent → POST /resource + PAYMENT-SIGNATURE: base64(PaymentPayload JSON)
+6. Resource Server → CDP Facilitator /verify → /settle → on-chain USDC transfer
+7. Resource Server → 200 OK + data + payment-response header (settlement receipt)
 ```
 
 **Key insight:** The agent signs but never broadcasts. The Facilitator pays gas and submits on-chain. Agent is truly gasless.
 
 ## Payment Schemes
 
-### `exact` on EVM
+### `exact` on EVM (EIP-3009)
 
-Two methods, prioritized in order:
+The primary and preferred method for USDC payments.
 
-| Method | Token Support | Prerequisite | Gasless? |
-|--------|--------------|-------------|----------|
-| **EIP-3009** | USDC (native `transferWithAuthorization`) | None | ✅ Truly gasless |
-| **Permit2** | Any ERC-20 | One-time `approve(Permit2)` | ✅ After approval |
-
-#### EIP-3009 (Preferred for USDC)
-
-Agent signs a `transferWithAuthorization` message (EIP-712 typed data):
+Agent signs a `TransferWithAuthorization` message (EIP-712 typed data):
 
 ```
-Domain: token contract (e.g., USDC on Base)
+Domain: { name: "USD Coin", version: "2", chainId, verifyingContract: USDC }
 Types: { TransferWithAuthorization(from, to, value, validAfter, validBefore, nonce) }
 ```
 
 **Signing payload fields:**
 - `from`: Agent wallet address
 - `to`: Resource server's `payTo` address
-- `value`: Payment amount (in token smallest unit, e.g., 10000 = $0.01 USDC)
-- `validAfter`: Current timestamp
-- `validBefore`: Current timestamp + `maxTimeoutSeconds`
-- `nonce`: Random 32-byte hex (unique per authorization)
+- `value`: Payment amount in smallest unit (e.g., 1000 = $0.001 USDC, 6 decimals)
+- `validAfter`: `now - 600` (10-minute clock skew tolerance)
+- `validBefore`: `now + maxTimeoutSeconds`
+- `nonce`: Random 32 bytes (unique per authorization)
 
 **Security properties:**
 - Facilitator CANNOT modify amount or destination — signature binds both
 - Signature is single-use (nonce prevents replay)
 - Time-bounded (validBefore prevents stale authorization)
+- Signing does NOT lock funds — just an authorization
 
-#### Permit2 (Universal Fallback)
+### PaymentPayload Structure
 
-For tokens without EIP-3009. Uses Uniswap's canonical Permit2 contract + x402ExactPermit2Proxy.
+The `PAYMENT-SIGNATURE` header is base64-encoded JSON:
 
-**One-time setup:** Agent must `approve(Permit2_contract, max_uint256)` — costs gas once.
+```json
+{
+  "x402Version": 2,
+  "accepted": {
+    "scheme": "exact",
+    "network": "eip155:8453",
+    "amount": "1000",
+    "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+    "payTo": "0x...",
+    "maxTimeoutSeconds": 300,
+    "extra": {"name": "USD Coin", "version": "2"}
+  },
+  "payload": {
+    "signature": "0x...",
+    "authorization": {
+      "from": "0x...",
+      "to": "0x...",
+      "value": "1000",
+      "validAfter": "1772785096",
+      "validBefore": "1772785696",
+      "nonce": "0x..."
+    }
+  }
+}
+```
 
-**Signing payload fields:**
-- `permitted.token`: Token address
-- `permitted.amount`: Payment amount
-- `spender`: x402ExactPermit2Proxy address (NOT the facilitator)
-- `nonce`: Random 32-byte hex
-- `deadline`: Expiry timestamp
-- `witness.to`: payTo address (enforced on-chain by proxy)
+**Important:** Do NOT include `resource` field in the payload (match official SDK behavior, `exclude_none`).
+
+### Permit2 (Universal Fallback)
+
+For tokens without EIP-3009. Uses Uniswap's Permit2 contract.
+One-time setup: `approve(Permit2, max_uint256)` — costs gas once.
+Not commonly needed since x402 is USDC-first.
 
 ### `exact` on Solana
 
-Solana uses a different model — partially-signed transactions:
+Solana uses partially-signed transactions:
+1. Agent builds a `VersionedTransaction` with SPL `TransferChecked`
+2. `feePayer` = Facilitator's pubkey (from `extra.feePayer`)
+3. Agent signs as token authority, feePayer slot left empty
+4. Facilitator validates, co-signs, broadcasts
 
-1. Agent builds a `VersionedTransaction` containing SPL `TransferChecked` instruction
-2. `feePayer` = Facilitator's pubkey (from PaymentRequirements.extra.feePayer)
-3. Agent signs as the token authority (partial sign — feePayer slot left empty)
-4. Serialize → base64 → send in PAYMENT-SIGNATURE header
-5. Facilitator validates, adds feePayer signature, submits to Solana
+## EIP-712 Signing — Critical Implementation Detail
 
-**Transaction structure (3-5 instructions):**
+**⚠️ DO NOT use `eth_account.encode_typed_data` for x402 EIP-3009.**
+
+`encode_typed_data` encodes `bytes32` fields differently from the x402 facilitator's
+verification. This produces a valid-looking signature that facilitators reject as
+`invalid_payload`.
+
+**Correct approach:** Manually compute the EIP-712 hash:
+
+```python
+from eth_abi import encode
+from eth_utils import keccak
+
+# Domain separator
+domain_type_hash = keccak(b"EIP712Domain(string name,string version,"
+                          b"uint256 chainId,address verifyingContract)")
+domain_separator = keccak(
+    domain_type_hash
+    + keccak(token_name.encode())
+    + keccak(token_version.encode())
+    + encode(["uint256"], [chain_id])
+    + encode(["address"], [token_address]))
+
+# Struct hash
+auth_type_hash = keccak(b"TransferWithAuthorization(address from,address to,"
+                        b"uint256 value,uint256 validAfter,uint256 validBefore,"
+                        b"bytes32 nonce)")
+struct_hash = keccak(
+    auth_type_hash
+    + encode(["address"], [from_addr])
+    + encode(["address"], [to_addr])
+    + encode(["uint256"], [value])
+    + encode(["uint256"], [valid_after])
+    + encode(["uint256"], [valid_before])
+    + nonce_bytes)  # raw 32 bytes, NOT abi-encoded
+
+# Final hash
+msg_hash = keccak(b"\x19\x01" + domain_separator + struct_hash)
+
+# Sign
+signed = Account.unsafe_sign_hash(msg_hash)
 ```
-1. ComputeBudget: SetComputeUnitLimit
-2. ComputeBudget: SetComputeUnitPrice
-3. SPL Token: TransferChecked (amount, from ATA, to ATA, mint)
-4. (Optional) Lighthouse instruction (Phantom wallet protection)
-5. (Optional) Lighthouse instruction (Solflare wallet protection)
-```
 
-## Integration for BGW Agents
+**Key:** `nonce_bytes` must be raw 32 bytes directly concatenated, not ABI-encoded.
 
-### As a Client (Paying for Services)
+## Facilitator Ecosystem
 
-When the agent encounters a 402 response:
+| Facilitator | URL | Networks | Auth | Cost |
+|------------|-----|----------|------|------|
+| **CDP (Coinbase)** | `https://api.cdp.coinbase.com/platform/v2/x402` | Base, Base Sepolia, Solana, Solana Devnet | CDP API keys | Free 1000/mo, then $0.001/tx |
+| x402.org | `https://x402.org/facilitator` | Base Sepolia, Solana Devnet only | None | Free (testnet only) |
 
-1. **Parse** `PAYMENT-REQUIRED` header (base64-decoded JSON)
-2. **Check** if we support the `scheme` + `network` combination
-3. **Check** wallet balance covers the `amount`
-4. **Sign** the payment authorization using the appropriate method
-5. **Retry** the request with `PAYMENT-SIGNATURE` header
+**Notes:**
+- CDP facilitator sponsors gas — agent pays zero ETH/SOL, only USDC
+- Production services (Pinata, DiamondClaws, etc.) use CDP or their own facilitator
+- Agent does NOT interact with facilitator directly — the resource server handles verify/settle
+- x402.org is testnet-only, useful for signature validation during development
 
-**Supported networks:**
-- `eip155:8453` (Base) — primary, USDC via EIP-3009
-- `eip155:1` (Ethereum) — USDC via EIP-3009
-- `eip155:137` (Polygon) — USDC via EIP-3009
-- `solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp` (Solana mainnet)
-
-### As a Server (Charging for Services)
-
-BGW skill endpoints could be wrapped with x402 middleware to charge for:
-- Swap execution
-- Market data queries
-- Security audits
-- Cross-chain routing
-
-### Budget & Safety
+## Budget & Safety
 
 **Agent spending controls:**
 - Per-request maximum (e.g., $0.10 per API call)
@@ -120,133 +161,97 @@ BGW skill endpoints could be wrapped with x402 middleware to charge for:
 - Per-day budget (e.g., $50.00 daily cap)
 - Require user confirmation above threshold
 
-**Risk model (from conversation analysis):**
+**Risk model:**
 - EIP-3009 signing does NOT lock funds — signature is just an authorization
 - Multiple signatures can be outstanding simultaneously
 - If wallet balance drops before settlement, later settlements fail (revert)
 - This is credit risk, not theft risk — facilitator bears the loss, not the agent
 
-## Key Contracts & Addresses
+## Key Contracts
 
 ### USDC (EIP-3009 compatible)
-| Chain | USDC Address | EIP-3009 Support |
-|-------|-------------|-----------------|
-| Base | `0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913` | ✅ |
-| Ethereum | `0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48` | ✅ |
-| Polygon | `0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359` | ✅ |
-| Arbitrum | `0xaf88d065e77c8cC2239327C5EDb3A432268e5831` | ✅ |
+| Chain | USDC Address | Network ID |
+|-------|-------------|-----------|
+| Base | `0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913` | `eip155:8453` |
+| Ethereum | `0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48` | `eip155:1` |
+| Polygon | `0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359` | `eip155:137` |
+| Arbitrum | `0xaf88d065e77c8cC2239327C5EDb3A432268e5831` | `eip155:42161` |
+| Base Sepolia | `0x036CbD53842c5426634e7929541eC2318f3dCF7e` | `eip155:84532` |
 
-### Permit2 (Canonical)
-- Address: See [Uniswap Permit2 deployments](https://docs.uniswap.org/contracts/v4/deployments)
-- Same address across all supported EVM chains (CREATE2)
-
-### Facilitator
-- Coinbase public facilitator: `https://x402.org/facilitator`
-
-## EIP-3009 Signing Reference
-
-```python
-from eth_account import Account
-from eth_account.messages import encode_typed_data
-import os, time
-
-def sign_x402_eip3009(private_key, token_address, chain_id, to, value, max_timeout=60):
-    """Sign a transferWithAuthorization for x402 payment."""
-    now = int(time.time())
-    nonce = "0x" + os.urandom(32).hex()
-
-    domain = {
-        "name": "USD Coin",        # Check token contract for actual name
-        "version": "2",             # Check token contract for actual version
-        "chainId": chain_id,
-        "verifyingContract": token_address,
-    }
-
-    types = {
-        "TransferWithAuthorization": [
-            {"name": "from", "type": "address"},
-            {"name": "to", "type": "address"},
-            {"name": "value", "type": "uint256"},
-            {"name": "validAfter", "type": "uint256"},
-            {"name": "validBefore", "type": "uint256"},
-            {"name": "nonce", "type": "bytes32"},
-        ]
-    }
-
-    message = {
-        "from": Account.from_key(private_key).address,
-        "to": to,
-        "value": value,
-        "validAfter": now,
-        "validBefore": now + max_timeout,
-        "nonce": nonce,
-    }
-
-    signable = encode_typed_data(domain, types, message)
-    signed = Account.sign_message(signable, private_key)
-    return {
-        "signature": signed.signature.hex(),
-        "authorization": {
-            "from": message["from"],
-            "to": to,
-            "value": str(value),
-            "validAfter": str(now),
-            "validBefore": str(now + max_timeout),
-            "nonce": nonce,
-        }
-    }
-```
-
-## Solana Partial-Sign Reference
-
-```python
-import base58, base64
-from solders.keypair import Keypair
-from solders.transaction import VersionedTransaction
-from solders.system_program import transfer, TransferParams
-from solders.message import MessageV0
-from spl.token.instructions import transfer_checked, TransferCheckedParams
-
-def sign_x402_solana(private_key_hex, serialized_tx_b64):
-    """Partially sign a Solana x402 payment transaction."""
-    kp = Keypair.from_seed(bytes.fromhex(private_key_hex))
-    tx_bytes = base64.b64decode(serialized_tx_b64)
-    vtx = VersionedTransaction.from_bytes(tx_bytes)
-
-    # Find our signer index
-    our_index = -1
-    for i, key in enumerate(vtx.message.account_keys):
-        if key == kp.pubkey():
-            our_index = i
-            break
-
-    if our_index == -1:
-        raise ValueError(f"Wallet {kp.pubkey()} not found in transaction signers")
-
-    # Extract message bytes and sign
-    original_bytes = bytes(vtx)
-    sig_count = len(vtx.signatures)
-    sig_array_start = 1  # shortvec for count=2 is 1 byte
-    if sig_count >= 128:
-        sig_array_start = 2
-    msg_bytes = original_bytes[sig_array_start + sig_count * 64:]
-    sig = kp.sign_message(msg_bytes)
-
-    # Splice signature into correct slot
-    new_tx = bytearray(original_bytes)
-    offset = sig_array_start + our_index * 64
-    new_tx[offset:offset + 64] = bytes(sig)
-
-    return base64.b64encode(bytes(new_tx)).decode()
-```
+All USDC contracts use EIP-712 domain: `name="USD Coin", version="2"`.
 
 ## Common Pitfalls
 
-1. **Amount units vary by token.** USDC has 6 decimals: `10000` = $0.01, `1000000` = $1.00. Always check `decimals`.
-2. **EIP-3009 domain name/version must match token contract.** USDC uses `name="USD Coin", version="2"`. Wrong values = invalid signature.
-3. **Nonce must be unique per authorization.** Use `os.urandom(32)` — collision = rejected payment.
-4. **validBefore must not exceed maxTimeoutSeconds.** Facilitator rejects expired authorizations.
-5. **Solana feePayer is NOT the agent.** The facilitator pays gas. Agent only signs as token authority.
-6. **Multiple outstanding signatures = credit risk.** Signing doesn't lock funds. If balance drops below cumulative signed amount, later settlements revert.
-7. **Permit2 requires one-time approval.** First payment on a new token costs gas for the approve tx.
-8. **x402 is USDC-first.** EIP-3009 is the preferred path. USDT does NOT support EIP-3009 on most chains.
+1. **DO NOT use `encode_typed_data` for x402.** It encodes `bytes32` incorrectly. Use manual EIP-712 hash (see above).
+2. **`authorization` must match signed message exactly.** If you sign `validAfter=X` but return `validAfter=Y`, the facilitator rejects it.
+3. **`validAfter = now - 600`** (not `now`). 10-minute clock skew tolerance, matching the official SDK.
+4. **Amount units are 6 decimals for USDC.** `1000` = $0.001, `1000000` = $1.00.
+5. **Nonce must be unique per authorization.** Use `os.urandom(32)`.
+6. **Do NOT include `resource` in PaymentPayload.** Official SDK excludes it.
+7. **Multiple outstanding signatures = credit risk.** Signing doesn't lock funds.
+8. **x402 is USDC-first.** USDT does NOT support EIP-3009 on most chains.
+
+## Testing Guide
+
+### Quick Test with Pinata (Base Mainnet, $0.001)
+
+Pinata offers x402-paid IPFS uploads. No registration needed.
+
+**Endpoint:** `POST https://402.pinata.cloud/v1/pin/private?fileSize=100`
+**Cost:** $0.001 USDC on Base
+**What you get:** A temporary upload URL for private IPFS storage
+
+```bash
+# Full end-to-end test using x402_pay.py
+python3 scripts/x402_pay.py pay \
+  --url "https://402.pinata.cloud/v1/pin/private?fileSize=100" \
+  --private-key <EVM_PRIVATE_KEY> \
+  --method POST \
+  --data '{"fileSize": 100}' \
+  --auto
+```
+
+**Expected output:**
+```
+Payment Required: $0.001000 USDC on eip155:8453
+  payTo: 0xc900f41481B4F7C612AF9Ce3B1d16A7A1B6bd96E
+...
+Response: 200
+Settlement: {
+  "network": "eip155:8453",
+  "payer": "0x...",
+  "success": true,
+  "transaction": "0x..."
+}
+{"url":"https://uploads.pinata.cloud/v3/files/..."}
+```
+
+**Prerequisites:**
+- Base mainnet USDC balance > $0.001
+- No ETH needed (facilitator sponsors gas)
+
+**What happens:**
+1. Script sends POST → gets 402 with `payment-required` header
+2. Parses requirements: $0.001 USDC to Pinata on Base
+3. Signs EIP-3009 TransferWithAuthorization
+4. Retries with `PAYMENT-SIGNATURE` header
+5. Pinata's facilitator verifies signature, settles on-chain
+6. Returns 200 + upload URL + settlement TX hash
+
+### Testnet Validation (Free, No Real USDC)
+
+To validate signing without spending money:
+
+1. Get testnet USDC from [Circle Faucet](https://faucet.circle.com) (Base Sepolia, 20 USDC)
+2. Build a payload with `network: eip155:84532`
+3. POST to `https://x402.org/facilitator/verify` with `{paymentPayload, paymentRequirements}`
+4. Check `isValid: true` — confirms your signing is correct
+
+### Other x402 Services
+
+Browse available services at [x402.org/ecosystem](https://www.x402.org/ecosystem). Examples:
+- **Pinata** — IPFS uploads ($0.001/pin)
+- **DiamondClaws** — DeFi yield data ($0.03/query)
+- **Ordiscan** — Bitcoin Ordinals API
+- **Firecrawl** — Web scraping (listed but x402 not yet live)
+- **BlockRun.AI** — LLM gateway
