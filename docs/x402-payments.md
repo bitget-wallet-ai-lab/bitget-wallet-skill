@@ -238,20 +238,4 @@ Settlement: {
 5. Pinata's facilitator verifies signature, settles on-chain
 6. Returns 200 + upload URL + settlement TX hash
 
-### Testnet Validation (Free, No Real USDC)
 
-To validate signing without spending money:
-
-1. Get testnet USDC from [Circle Faucet](https://faucet.circle.com) (Base Sepolia, 20 USDC)
-2. Build a payload with `network: eip155:84532`
-3. POST to `https://x402.org/facilitator/verify` with `{paymentPayload, paymentRequirements}`
-4. Check `isValid: true` — confirms your signing is correct
-
-### Other x402 Services
-
-Browse available services at [x402.org/ecosystem](https://www.x402.org/ecosystem). Examples:
-- **Pinata** — IPFS uploads ($0.001/pin)
-- **DiamondClaws** — DeFi yield data ($0.03/query)
-- **Ordiscan** — Bitcoin Ordinals API
-- **Firecrawl** — Web scraping (listed but x402 not yet live)
-- **BlockRun.AI** — LLM gateway

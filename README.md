@@ -4,6 +4,15 @@
 
 An AI Agent skill that wraps the [Bitget Wallet API](https://web3.bitget.com/en/docs), enabling natural-language-driven on-chain data queries and swap operations.
 
+### Design Principles
+
+| Principle | Description |
+|-----------|-------------|
+| **Domain Knowledge + Tools** | Not just API wrappers — includes trading workflows, signing guides, security models, and known pitfalls so agents make informed decisions |
+| **Zero External Dependencies** | All code is self-contained. No third-party packages beyond Python stdlib + `requests` + `eth_account`/`eth_abi` (for signing). Eliminates supply-chain injection risk |
+| **API Infrastructure, Not Reimplementation** | Capabilities come from Bitget Wallet's production API. The skill provides the knowledge and tooling layer, not a parallel implementation |
+| **Human-in-the-Loop by Default** | Swap operations generate transaction data but never sign autonomously. User confirmation required for all fund-moving actions |
+
 ### Core Capabilities
 
 | Capability | Description | Example |
@@ -24,6 +33,7 @@ An AI Agent skill that wraps the [Bitget Wallet API](https://web3.bitget.com/en/
 | **Order Create** | Create order with unsigned tx/signature data | One-step cross-chain swap |
 | **Order Submit** | Submit signed transactions for an order | Gasless or normal execution |
 | **Order Status** | Track order lifecycle (init→processing→success) | "Check my swap status" |
+| **x402 Payment** | Pay for x402-enabled APIs with USDC on Base | "Access this paid API endpoint" |
 
 > ⚠️ **Swap amounts are human-readable** — pass `0.1` for 0.1 USDT, NOT `100000000000000000`. The `toAmount` in responses is also human-readable. This differs from most on-chain APIs.
 
@@ -66,6 +76,32 @@ python3 scripts/bitget_api.py order-create \
   --amount 10 --from-address 0xYourAddress --to-address 0xYourAddress \
   --market bkbridgev3.liqbridge --slippage 1 --feature no_gas
 ```
+
+### 💳 x402 Payments — Pay-Per-Request API Access
+
+x402 is an open standard for HTTP-native payments. When an agent encounters a paid API (HTTP 402), it signs a USDC authorization and retries — no accounts, no API keys needed.
+
+**How it works:**
+```
+1. Agent requests a resource → gets HTTP 402 + payment requirements
+2. Agent signs EIP-3009 TransferWithAuthorization (gasless, off-chain)
+3. Agent retries with PAYMENT-SIGNATURE header
+4. Service's facilitator settles on-chain → agent gets the resource
+```
+
+**Key features:**
+- **Truly gasless** — agent pays only USDC, facilitator sponsors gas
+- **No accounts needed** — wallet address is your identity
+- **Works with any x402 service** — Pinata IPFS, DiamondClaws DeFi data, and [100+ more](https://www.x402.org/ecosystem)
+
+```bash
+# Example: pay $0.001 for Pinata IPFS upload
+python3 scripts/x402_pay.py pay \
+  --url "https://402.pinata.cloud/v1/pin/private?fileSize=100" \
+  --private-key <key> --method POST --data '{"fileSize": 100}' --auto
+```
+
+See [`docs/x402-payments.md`](docs/x402-payments.md) for domain knowledge, signing details, and testing guide.
 
 ### Supported Chains
 
@@ -258,13 +294,13 @@ Any AI agent that can **read files + run Python + access the internet** should w
 
 ## Security
 
-- Only communicates with `https://bopenapi.bgwapi.io` — no other external endpoints
+- **Zero external code** — all scripts are self-contained, no third-party packages beyond `requests` + `eth_account`/`eth_abi`. No supply-chain attack surface.
+- Only communicates with `https://bopenapi.bgwapi.io` (BGW API) and x402 resource servers — no other external endpoints
 - No `eval()` / `exec()` or dynamic code execution
 - No file system access outside the skill directory
 - Built-in API keys are public demo credentials (safe to commit)
 - No data collection, telemetry, or analytics
 - No access to sensitive files (SSH keys, credentials, wallet files, etc.)
-- Dependencies: `requests` only (stdlib: `hmac`, `hashlib`, `json`, `base64`)
 - We recommend auditing the source yourself before installation
 
 ## License
