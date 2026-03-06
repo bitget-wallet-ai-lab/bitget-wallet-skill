@@ -6,6 +6,21 @@ Format: date-based versioning (`YYYY.M.DD`). Each release includes a sequential 
 
 ---
 
+## [2026.3.5-2] - 2026-03-05
+
+### Added
+- Morph USDT0 contract address: `0xe7cd86e13AC4309349F30B3435a9d337750fC82D`
+- BGB (Bitget Token) addresses: Ethereum `0x54D2252757e1672EEaD234D27B1270728fF90581`, Morph `0x389C08Bc23A7317000a1FD76c7c5B0cb0b4640b5`
+- Cross-chain limits reference table (liqBridge + CCTP per chain)
+- Market field in order confirmation summary (e.g., `bgwAggregator`, `bkbridgev3.liqbridge`)
+
+### Fixed
+- Solana gasless status: changed from "❌ Not working (bug)" to "❌ Not supported" — `no_gas` is not available on Solana (quote returns `features: []`)
+- Gasless rule: only use `no_gas` when quote returns it in `features` array (API accepts flag without validation but execution fails)
+- Cross-chain minimum amounts: Solana $10, Morph $5 (previously documented as ~$2 for all)
+
+---
+
 ## [2026.3.5-1] - 2026-03-05
 
 ### Added
