@@ -1,7 +1,7 @@
 ---
 name: bitget-wallet
-version: "2026.3.5-1"
-updated: "2026-03-04"
+version: "2026.3.5-2"
+updated: "2026-03-05"
 description: "Interact with Bitget Wallet API for crypto market data, token info, swap quotes, and security audits. Use when the user asks about token prices, market data, swap/trading quotes, token security checks, K-line charts, or token rankings on supported chains (ETH, SOL, BSC, Base, etc.)."
 ---
 
@@ -164,6 +164,14 @@ Use empty string `""` as the contract address for native tokens (ETH, SOL, BNB, 
 | Optimism (`optimism`) | `0x94b008aA00579c1307B0EF2c499aD98a8ce58e58` | `0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85` |
 | Polygon (`matic`) | `0xc2132D05D31c914a87C6611C10748AEb04B58e8F` | `0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359` |
 | Solana (`sol`) | `Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB` | `EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v` |
+| Morph (`morph`) | `0xe7cd86e13AC4309349F30B3435a9d337750fC82D` (USDT0) | — (not yet available) |
+
+### BGB (Bitget Token) Addresses
+
+| Chain | Contract |
+|-------|----------|
+| Ethereum (`eth`) | `0x54D2252757e1672EEaD234D27B1270728fF90581` |
+| Morph (`morph`) | `0x389C08Bc23A7317000a1FD76c7c5B0cb0b4640b5` |
 
 For other tokens, use `token-info` or a block explorer to verify the contract address before calling swap endpoints.
 
@@ -197,7 +205,7 @@ Before executing any swap, the agent should silently run risk checks and then pr
 ```
 Swap Summary:
 • 0.1 USDC → ~0.1000 USDT (BNB Chain)
-• Route: bgwevmaggregator
+• Market: bgwevmaggregator
 • Slippage tolerance: 0.5%
 • Price impact: ~0.07%
 • Estimated gas: ~$0.05
@@ -458,9 +466,9 @@ init → processing → success
 
 #### Known Issues & Pitfalls (Order Mode)
 
-1. **Cross-chain minimum amount**: Cross-chain swaps (e.g., Base USDC → BNB USDT) have a minimum of ~$2. Below that returns `80002 amount too low`.
+1. **Cross-chain minimum amount**: Varies by chain. EVM chains: ~$1-5. Solana: $10 minimum (liqBridge only, no CCTP). Morph: $5 minimum. Below minimum returns `80002 amount too low`.
 
-2. **`features` field unreliable for gasless**: `order-quote` may return `features: []` but `order-create` still accepts `--feature no_gas`. When wallet has zero native token, always try `no_gas` first.
+2. **`no_gas` requires quote support**: Only use `--feature no_gas` when `order-quote` returns `"no_gas"` in the `features` array. The API may accept the flag at create time without validation, but the backend will fail to execute. Solana currently does NOT support `no_gas` (features always `[]`).
 
 3. **Base same-chain without no_gas**: `order-create` on Base without `--feature no_gas` returns `80000 system error` when the wallet has no ETH. This is because the API can't construct a normal tx for an account with no gas. Solution: use `no_gas`.
 
@@ -521,12 +529,24 @@ init → processing → success
 | Chain | Code | Same-chain | Cross-chain |
 |-------|------|-----------|-------------|
 | Ethereum | `eth` | ✅ | ✅ |
-| Solana | `sol` | ✅ | ❌ (to-sol bug) |
+| Solana | `sol` | ✅ | ✅ (EVM→Sol ✅; Sol→EVM requires SOL for gas) |
 | BNB Chain | `bnb` | ✅ | ✅ |
 | Base | `base` | ✅ | ✅ |
 | Arbitrum | `arbitrum` | ✅ | ✅ |
 | Polygon | `matic` | ✅ | ✅ |
 | Morph | `morph` | ✅ | ✅ |
+
+#### Cross-Chain Limits (Order Mode)
+
+| From Chain | liqBridge | CCTP |
+|-----------|----------|------|
+| Ethereum | $1 – $200,000 | $0.1 – $500,000 |
+| Solana | $10 – $200,000 | ❌ |
+| BNB Chain | $1 – $200,000 | ❌ |
+| Base | $1 – $200,000 | $0.1 – $500,000 |
+| Arbitrum | $1 – $200,000 | $0.1 – $500,000 |
+| Polygon | $1 – $50,000 | $0.1 – $500,000 |
+| Morph | $5 – $50,000 | — |
 
 #### Pre-Trade Workflow (Order Mode)
 
@@ -640,11 +660,11 @@ The order is a contract — the user sees the actual order details, confirms, TH
 | Polygon | ✅ Supported | Same-chain confirmed; cross-chain requires 7702 binding first |
 | Arbitrum | ✅ Supported | — |
 | Morph | ✅ Supported | — |
-| Solana | ❌ Not working | Order mode gasless submit succeeds but execution always fails; pending API team fix |
+| Solana | ❌ Not supported | Solana as source chain: `no_gas` not available (quote returns `features: []`). EVM→Sol cross-chain works with gasless on the EVM source chain. |
 
 **⚠️ Cross-chain gasless requires source chain 7702 binding.** If the wallet has never done a gasless transaction on the source chain, the first cross-chain order will fall back to normal txs. Do a same-chain gasless swap first to bind 7702, then cross-chain gasless will work.
 
-**Always try gasless first rather than relying on this table.**
+**Only use gasless when `order-quote` returns `"no_gas"` in `features`.** Do not blindly try — the API accepts the flag but backend execution will fail if unsupported.
 
 **User override:** If the user explicitly says to use their own gas (e.g., "use my gas", "user gas", "不要 gasless", "用自己的 gas"), do NOT pass `--feature no_gas` to order-create. The order will use normal gas mode instead, and gas is paid from the wallet's native token balance. Show "Gas mode: User Gas (native token)" in the confirmation summary.
 
@@ -681,7 +701,7 @@ Order Created ✅
 • Order: f347d76e4b7e434897c2c699b7a588b9
 • 0.1 USDC → ~0.086 USDT (Base)
 • ⚠️ Gasless: gas 从输入金额扣除，小额交易 gas 占比较高
-• Route: bgwevmaggregator
+• Market: bgwevmaggregator
 • Price impact: 0.009%
 • Fees: $0.0003 (app fee)
 • Gas mode: Gasless ✅ (EIP-7702 已绑定)
@@ -702,7 +722,7 @@ Order Created ✅
 • Order: 9c3f5bcab4a2449ea5e66a9770ea7169
 • 2 USDC (Base) → ~1.94 USDT (Polygon)
 • ⚠️ Gasless: gas 从输入金额扣除
-• Route: bkbridgev3.liqbridge (cross-chain bridge)
+• Market: bkbridgev3.liqbridge (cross-chain bridge)
 • Price impact: 0.024%
 • Fees: $0.014 (app $0.006 + platform $0.006 + gas $0.002)
 • Gas mode: Gasless ✅ (EIP-7702 已绑定)
@@ -717,7 +737,7 @@ Confirm and sign? [yes/no]
 Order Created ✅
 • Order: a1b2c3d4e5f6...
 • 2.0 USDC (Base) → ~1.95 USDT (BNB Chain)
-• Route: bkbridgev3.liqbridge
+• Market: bkbridgev3.liqbridge
 • Price impact: 0.057%
 • Fees: $0.114 total
 • Gas mode: Normal (native token)
@@ -732,7 +752,7 @@ Confirm and sign? [yes/no]
 **Confirmation summary MUST include:**
 1. Order ID
 2. Input → output with ~ estimate
-3. Route and price impact
+3. Market (aggregator/bridge used, e.g., `bgwAggregator`, `bkbridgev3.liqbridge`)
 4. Fees breakdown
 5. Gas mode (Gasless/Normal/User Gas)
 6. Number and type of signatures
