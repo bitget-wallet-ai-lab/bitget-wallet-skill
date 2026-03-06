@@ -9,7 +9,7 @@ An AI Agent skill that wraps the [Bitget Wallet API](https://web3.bitget.com/en/
 | Principle | Description |
 |-----------|-------------|
 | **Domain Knowledge + Tools** | Not just API wrappers — includes trading workflows, signing guides, security models, and known pitfalls so agents make informed decisions |
-| **Minimal Dependencies** | All code is self-contained. Only well-known crypto libraries: `requests`, `eth_account`/`eth_abi` (EVM signing), `solders`/`base58` (Solana signing). No obscure or unaudited packages |
+| **Zero External Dependencies** | All code is self-contained. Solana signing is pure Python (Ed25519 + base58 built-in). EVM signing uses `eth_account` (standard). Only `requests` for API calls. No pip install needed for Solana |
 | **API Infrastructure, Not Reimplementation** | Capabilities come from Bitget Wallet's production API. The skill provides the knowledge and tooling layer, not a parallel implementation |
 | **Human-in-the-Loop by Default** | Swap operations generate transaction data but never sign autonomously. User confirmation required for all fund-moving actions |
 
@@ -198,10 +198,9 @@ Structured JSON → Agent interprets → Natural language response
 1. Python 3.11+
 2. `requests` library (`pip install requests`)
 3. For EVM signing: `eth-account` (`pip install eth-account`)
-4. For Solana signing: `solders`, `base58` (`pip install solders base58`)
-5. Public demo API credentials are built in. To use your own keys, set `BGW_API_KEY` and `BGW_API_SECRET` env vars.
+4. Public demo API credentials are built in. To use your own keys, set `BGW_API_KEY` and `BGW_API_SECRET` env vars.
 
-> Signing dependencies (3-4) are only needed if the agent performs transaction signing. Query-only usage requires only `requests`.
+> Solana signing requires **no additional packages** — pure Python Ed25519 and base58 are built into `order_sign.py`.
 
 > **Note:** The built-in demo keys are for testing purposes and may change over time. If they stop working, please update the skill (`git pull`) to get the latest keys.
 
@@ -300,7 +299,7 @@ Any AI agent that can **read files + run Python + access the internet** should w
 
 ## Security
 
-- **Minimal dependencies** — only well-known crypto libraries (`requests`, `eth_account`, `solders`, `base58`). No obscure packages, no supply-chain risk.
+- **Zero external dependencies for Solana** — pure Python Ed25519 (RFC 8032) and base58 built into `order_sign.py`. EVM uses `eth_account`. No obscure packages, no supply-chain risk.
 - Only communicates with `https://bopenapi.bgwapi.io` (BGW API) and x402 resource servers — no other external endpoints
 - No `eval()` / `exec()` or dynamic code execution
 - No file system access outside the skill directory
