@@ -72,9 +72,9 @@ When a user first requests a swap or any signing operation, check if a wallet is
 **Path 1: Create a new wallet**
 
 1. **Generate a BIP-39 mnemonic** (24 words / 256 bits recommended). Use any available BIP-39 library in the agent's runtime (e.g., `mnemonic`, `bip_utils`, or equivalent).
-2. **Display the mnemonic to the user** and ask them to back it up securely (write it down, store in their own password manager, etc.)
-3. **Derive and show addresses** for EVM and Solana so the user can verify and fund the wallet.
-4. **Securely store the mnemonic** using whatever secure storage is available to the agent (password manager, encrypted vault, OS keychain, etc.) The mnemonic is the only secret that needs to be persisted.
+2. **Store the mnemonic in secure storage** immediately after generation. The agent must never output the mnemonic to chat, logs, or any messaging channel.
+3. **Inform the user** that the wallet has been created and where the mnemonic is stored. The user should retrieve and back up the mnemonic through secure means (e.g., directly accessing the password manager or vault) — not through the agent conversation.
+4. **Derive and show addresses** for EVM and Solana so the user can verify and fund the wallet.
 5. **Done.** The agent now has a wallet.
 
 **Path 2: Query only (no wallet)**
@@ -84,7 +84,7 @@ If the user only wants price queries, token info, and security checks — no wal
 **Key management rules:**
 - **Only the mnemonic is persisted.** Never store derived private keys — they are ephemeral.
 - **Private keys are derived on-the-fly** each time signing is needed, used, then immediately discarded (variable cleanup, scope exit, etc.)
-- **Mnemonic is never sent to chat channels** after initial setup — only retrieved programmatically for derivation.
+- **Mnemonic is never sent to chat channels** — not during setup, not after. The agent retrieves it programmatically for derivation only.
 - **The agent must use secure storage** appropriate to its environment. The storage mechanism must: (1) encrypt at rest, (2) require authentication to read, (3) not expose secrets in logs, shell history, or environment dumps.
 
 **Signing pipeline (how keys flow):**
