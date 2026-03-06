@@ -1,6 +1,6 @@
 ---
 name: bitget-wallet
-version: "2026.3.6-1"
+version: "2026.3.6-2"
 updated: "2026-03-06"
 description: "Interact with Bitget Wallet API for crypto market data, token info, swap quotes, and security audits. Use when the user asks about token prices, market data, swap/trading quotes, token security checks, K-line charts, or token rankings on supported chains (ETH, SOL, BSC, Base, etc.)."
 ---
@@ -140,6 +140,7 @@ The following domain knowledge modules are loaded on-demand. Read the relevant f
 | Wallet & Signing | [`docs/wallet-signing.md`](docs/wallet-signing.md) | Key management, BIP-39/44, signing transactions, multi-chain signing |
 | Market Data | [`docs/market-data.md`](docs/market-data.md) | Security audits, K-line, tx info, token discovery, risky token identification |
 | Trading | [`docs/trading.md`](docs/trading.md) | Swap execution (Order Mode default, Calldata Mode legacy), gasless, cross-chain, slippage, gas, approvals |
+| x402 Payments | [`docs/x402-payments.md`](docs/x402-payments.md) | HTTP 402 payment protocol, paying for APIs with USDC, EIP-3009, Permit2, Solana partial-sign |
 
 ---
 
@@ -220,6 +221,22 @@ python3 scripts/bitget_api.py order-submit \
 
 # Order status (poll order completion)
 python3 scripts/bitget_api.py order-status --order-id <orderId>
+```
+
+### `scripts/x402_pay.py` — x402 Payment Client
+
+```bash
+# Sign EIP-3009 payment (USDC on Base)
+python3 scripts/x402_pay.py sign-eip3009 \
+  --private-key <hex> --token 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913 \
+  --chain-id 8453 --to <payTo_address> --amount 10000
+
+# Partially sign Solana x402 transaction
+python3 scripts/x402_pay.py sign-solana \
+  --private-key <hex> --transaction <base64_tx>
+
+# Full HTTP 402 flow (auto-detect, sign, pay)
+python3 scripts/x402_pay.py pay --url https://api.example.com/data --private-key <hex>
 ```
 
 ### Chain Identifiers

@@ -105,3 +105,13 @@ Format: date-based versioning (`YYYY.M.DD`). Each release includes a sequential 
 - ✅ Demo API keys are public (non-sensitive)
 - ✅ No local file system writes
 - ✅ No network calls except to `bopenapi.bgwapi.io`
+
+## 2026.3.6-2
+
+### Added
+- x402 payment protocol support: domain knowledge (`docs/x402-payments.md`) + payment client (`scripts/x402_pay.py`)
+- EIP-3009 (transferWithAuthorization) signing for USDC gasless payments
+- Solana partial-sign for x402 payment transactions
+- Full HTTP 402 flow: fetch → parse requirements → sign → retry
+- Budget & safety controls documentation for agent spending
+- Reference table in SKILL.md updated with x402 Payments module
