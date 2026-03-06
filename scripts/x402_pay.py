@@ -313,7 +313,8 @@ def main():
 
     # sign-eip3009
     p = sub.add_parser("sign-eip3009", help="Sign EIP-3009 transferWithAuthorization")
-    p.add_argument("--private-key", required=True, help="Hex private key")
+    p.add_argument("--private-key", default=os.environ.get("X402_PRIVATE_KEY"),
+                   help="Hex private key (or set X402_PRIVATE_KEY env var)")
     p.add_argument("--token", required=True, help="Token contract address")
     p.add_argument("--chain-id", type=int, required=True, help="EVM chain ID")
     p.add_argument("--to", required=True, help="Payment recipient (payTo)")
@@ -325,24 +326,30 @@ def main():
 
     # sign-solana
     p = sub.add_parser("sign-solana", help="Partially sign Solana x402 transaction")
-    p.add_argument("--private-key", required=True, help="Hex private key (32-byte seed)")
+    p.add_argument("--private-key", default=os.environ.get("X402_PRIVATE_KEY"),
+                   help="Hex private key, 32-byte seed (or set X402_PRIVATE_KEY env var)")
     p.add_argument("--transaction", required=True, help="Base64-encoded serialized transaction")
     p.set_defaults(func=cmd_sign_solana)
 
     # pay
     p = sub.add_parser("pay", help="Full HTTP 402 payment flow")
     p.add_argument("--url", required=True, help="URL to access")
-    p.add_argument("--private-key", required=True, help="Hex private key")
+    p.add_argument("--private-key", default=os.environ.get("X402_PRIVATE_KEY"),
+                   help="Hex private key (or set X402_PRIVATE_KEY env var)")
     p.add_argument("--chain-id", type=int, help="Preferred chain ID")
     p.add_argument("--method", default="GET", help="HTTP method (default: GET)")
     p.add_argument("--data", help="Request body (JSON string)")
     p.add_argument("--header", nargs="*", help="Extra headers (key: value)")
-    p.add_argument("--auto", action="store_true", help="Auto-pay without confirmation")
+    p.add_argument("--auto", action="store_true",
+                   help="Auto-pay without confirmation (testing only, do not use in production agents)")
     p.set_defaults(func=cmd_pay)
 
     args = parser.parse_args()
     if not args.command:
         parser.print_help()
+        sys.exit(1)
+    if hasattr(args, "private_key") and not args.private_key:
+        print("Error: --private-key required (or set X402_PRIVATE_KEY env var)")
         sys.exit(1)
     args.func(args)
 
