@@ -180,10 +180,24 @@ def build_payment_payload(payment_required, private_key, chain_id=None):
     Returns dict PaymentPayload ready for PAYMENT-SIGNATURE header.
     """
     # Handle both full PaymentRequired and single requirements
+    # Hard cap: reject payments above $1 USDC (1_000_000 units, 6 decimals)
+    # Prevents malicious servers from draining wallet via inflated 402 responses.
+    # Override with max_amount parameter if higher payments are intentional.
+    MAX_AMOUNT = 1_000_000  # $1.00 USDC
+
     if "accepts" in payment_required:
         req = payment_required["accepts"][0]
     else:
         req = payment_required
+
+    amount = int(req.get("amount", 0))
+    if amount > MAX_AMOUNT:
+        raise ValueError(
+            f"Payment amount {amount} exceeds hard cap {MAX_AMOUNT} "
+            f"(${amount / 1_000_000:.2f} > ${MAX_AMOUNT / 1_000_000:.2f} USDC). "
+            f"Refusing to sign — possible malicious server."
+        )
+
     scheme = req.get("scheme", "exact")
     network = req.get("network", "")
 
