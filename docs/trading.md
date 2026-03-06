@@ -1,46 +1,117 @@
 # Trading Domain Knowledge
 
-Trading supports two modes: **Order Mode** (default, recommended) and **Calldata Mode** (legacy). Order Mode supports gasless transactions and cross-chain swaps. Calldata Mode is for direct on-chain transaction construction. **Always use Order Mode unless the user explicitly requests calldata mode.**
+Trading supports two modes: **Order Mode** (default) and **Calldata Mode** (legacy).
+
+| Mode | Use When | Key Features |
+|------|----------|-------------|
+| **Order Mode** (default) | All swaps, especially cross-chain and gasless | Gasless (EIP-7702), cross-chain, order tracking |
+| **Calldata Mode** (legacy) | Direct on-chain tx construction, advanced users | Manual signing, MEV-protected broadcast |
 
 ## Pre-Trade Workflow
 
-Before executing any swap, the agent should silently run risk checks and then present a **single confirmation summary** to the user. Do not prompt the user at every step.
+Before executing any swap, the agent should silently run risk checks and present a **single confirmation summary**.
 
-**Behind the scenes (agent runs automatically):**
+**Automatic risk checks (both modes):**
 
 ```
 1. security     → Check highRisk, honeypot, tax
 2. token-info   → Get current price, market cap, holder count
 3. liquidity    → Check pool depth vs trade size
-4. swap-quote   → Get route, expected output, slippage
 ```
 
-**If any red flags are found** (highRisk, high tax, low liquidity, extreme slippage), stop and warn the user immediately with specifics.
+**If any red flags are found** (highRisk, high tax, low liquidity), stop and warn the user immediately.
 
-**If everything looks normal**, present a single confirmation:
-
-```
-Swap Summary:
-• 0.1 USDC → ~0.1000 USDT (BNB Chain)
-• Market: bgwevmaggregator
-• Slippage tolerance: 0.5%
-• Price impact: ~0.07%
-• Estimated gas: ~$0.05
-• Token safety: ✅ No risks found
-• Deadline: [user's configured preference, default 300s]
-
-Proceed? [yes/no]
-```
-
-**After user confirms:**
+**Order Mode flow (default):**
 
 ```
-5. swap-calldata → Generate unsigned transaction
-6. (wallet signs the transaction)
-7. swap-send    → Broadcast via MEV-protected endpoint
+4. order-quote  → Get price, market, check no_gas support
+5. order-create → Create order (returns unsigned data)
+6. order-status → Get accurate toAmount
+7. PRESENT      → Show confirmation (MANDATORY, wait for user)
+8. Sign + Submit → After user confirms
+9. Poll once    → Wait 10s, check status
 ```
 
-**For well-known tokens** (ETH, SOL, BNB, USDT, USDC, DAI, WBTC), the risk checks will almost always pass — the single confirmation is sufficient. For unfamiliar or new tokens, be more verbose about the risks.
+**Calldata Mode flow (legacy):**
+
+```
+4. swap-quote    → Get route and estimated output
+5. PRESENT       → Show confirmation (MANDATORY, wait for user)
+6. swap-calldata → Generate unsigned transaction data
+7. (wallet signs externally)
+8. swap-send     → Broadcast signed transaction
+```
+
+**For well-known tokens** (ETH, SOL, BNB, USDT, USDC, DAI, WBTC), risk checks will almost always pass — the single confirmation is sufficient. For unfamiliar tokens, be more verbose about risks.
+
+## Common Trading Knowledge
+
+The following applies to both Order Mode and Calldata Mode.
+
+### EVM Token Approval (Critical)
+
+On EVM chains (Ethereum, BNB Chain, Base, Arbitrum, Optimism), tokens require an **approve** transaction before the router contract can spend them. **Without approval, the swap transaction will fail on-chain and still consume gas fees.**
+
+- Before calling `swap-calldata`, check if the token has sufficient allowance for the BGW router (`0xBc1D9760bd6ca468CA9fB5Ff2CFbEAC35d86c973`).
+- If allowance is 0 or less than the swap amount, an approve transaction must be sent first.
+- USDT on some chains (notably Ethereum mainnet) requires setting allowance to 0 before setting a new value.
+- **Native tokens** (ETH, SOL, BNB) do not need approval — only ERC-20/SPL tokens.
+- Approval is a one-time cost per token per router. Once approved with max amount, subsequent swaps of the same token skip this step.
+- **Solana does not use approvals** — this applies only to EVM chains.
+
+Include the approval status in the confirmation summary when relevant:
+```
+• Token approval: ⚠️ USDC not yet approved for router (one-time gas ~$0.03)
+```
+
+### Slippage Control
+
+**Important: distinguish between slippage tolerance and actual price impact.** These are different things:
+
+- **Slippage tolerance** = how much worse than the quoted price you're willing to accept (protection against price movement between quote and execution)
+- **Price impact** = how much your trade itself moves the market price (caused by trade size vs pool depth)
+
+**Slippage tolerance (auto-calculated by BGW):**
+
+The `swap-quote` response includes a `slippage` field (e.g., `"0.5"` = 0.5%). This is the system's recommended tolerance, auto-calculated based on token volatility and liquidity.
+
+In `swap-calldata`, you can override it:
+- `--slippage <number>` — custom tolerance (1 = 1%). If omitted, uses system default.
+- `toMinAmount` — alternative: specify the exact minimum tokens to receive. More precise for advanced users.
+
+**Slippage tolerance thresholds:**
+
+| Tolerance | Action |
+|-----------|--------|
+| ≤ 1% | Normal for major pairs. Show in summary. |
+| 1-3% | Acceptable for mid-cap tokens. Include in summary. |
+| 3-10% | **Warn user.** Suggest reducing trade size or setting a custom lower value. |
+| > 10% | **Strongly warn.** Low liquidity or high volatility. Suggest splitting into smaller trades. |
+| > 0.5% for stablecoin pairs | **Abnormal.** Flag to user — stablecoin swaps should have minimal slippage. |
+
+**Price impact (calculated by agent):**
+
+1. Get **market price** from `token-info`
+2. Get **quote price** from `swap-quote` (= `toAmount / fromAmount`)
+3. **Price impact** ≈ `(market_price - quote_price) / market_price × 100%`
+
+Price impact > 3% means the trade size is too large relative to available liquidity. The `liquidity` command can confirm — if trade amount > 2% of pool size, expect significant impact.
+
+### Gas and Fees
+
+Transaction costs vary by chain. Be aware of these when presenting swap quotes:
+
+| Chain | Typical Gas | Notes |
+|-------|------------|-------|
+| Solana | ~$0.001-0.01 | Very cheap, rarely a concern |
+| BNB Chain | ~$0.05-0.30 | Low, but check during congestion |
+| Ethereum | ~$1-50+ | **Highly variable.** Small trades (<$100) may not be worth the gas. |
+| Base / Arbitrum / Optimism | ~$0.01-0.50 | L2s are cheap but not free |
+
+**Important considerations:**
+- Gas is paid in the chain's native token (ETH, SOL, BNB). The user must have enough native token balance for gas — a swap will fail if the wallet has tokens but no gas.
+- `buyTax` and `sellTax` from the security audit are **on top of** gas fees. A 5% sell tax on a $100 trade = $5 gone before gas.
+- For small trades on Ethereum mainnet, total fees (gas + tax + slippage) can exceed the trade value. Flag this to the user.
 
 ## Order Mode: Cross-Chain + Gasless Swaps (Default)
 
@@ -594,6 +665,7 @@ When input amount < $1 USD, show warning: gasless gas cost is fixed (~$0.01-0.02
 | $100.00 | ~0.015% |
 
 
+
 ## Calldata Mode (Legacy Swap Flow)
 
 Calldata mode is a multi-step process. These commands must be called in order:
@@ -610,78 +682,13 @@ Calldata mode is a multi-step process. These commands must be called in order:
 - **`swap-send` requires a signed raw transaction.** The signing happens outside this skill (wallet app, hardware wallet, or local keyfile).
 - **Transaction deadline**: The calldata response includes a `deadline` field (default: 600 seconds = 10 minutes). After this time, the on-chain transaction will revert even if broadcast. The `--deadline` parameter in `swap-calldata` allows customization (in seconds). **Use the user's configured deadline preference** (see "First-Time Swap Configuration"). If not yet configured, default to 300 seconds and inform the user.
 
-## Swap Quote: Reading the Response
+### Swap Quote: Reading the Response
 
 - `estimateRevert=true` means the API **estimates** the transaction may fail on-chain, but it is not guaranteed to fail. For valid amounts, successful on-chain execution has been observed even with `estimateRevert=true`. Still, inform the user of the risk.
 - `toAmount` is human-readable. "0.1005" means 0.1005 tokens, not a raw integer.
 - `market` field from the quote response is required as input for `swap-calldata`.
 
-## EVM Token Approval (Critical)
-
-On EVM chains (Ethereum, BNB Chain, Base, Arbitrum, Optimism), tokens require an **approve** transaction before the router contract can spend them. **Without approval, the swap transaction will fail on-chain and still consume gas fees.**
-
-- Before calling `swap-calldata`, check if the token has sufficient allowance for the BGW router (`0xBc1D9760bd6ca468CA9fB5Ff2CFbEAC35d86c973`).
-- If allowance is 0 or less than the swap amount, an approve transaction must be sent first.
-- USDT on some chains (notably Ethereum mainnet) requires setting allowance to 0 before setting a new value.
-- **Native tokens** (ETH, SOL, BNB) do not need approval — only ERC-20/SPL tokens.
-- Approval is a one-time cost per token per router. Once approved with max amount, subsequent swaps of the same token skip this step.
-- **Solana does not use approvals** — this applies only to EVM chains.
-
-Include the approval status in the confirmation summary when relevant:
-```
-• Token approval: ⚠️ USDC not yet approved for router (one-time gas ~$0.03)
-```
-
-## Slippage Control
-
-**Important: distinguish between slippage tolerance and actual price impact.** These are different things:
-
-- **Slippage tolerance** = how much worse than the quoted price you're willing to accept (protection against price movement between quote and execution)
-- **Price impact** = how much your trade itself moves the market price (caused by trade size vs pool depth)
-
-**Slippage tolerance (auto-calculated by BGW):**
-
-The `swap-quote` response includes a `slippage` field (e.g., `"0.5"` = 0.5%). This is the system's recommended tolerance, auto-calculated based on token volatility and liquidity.
-
-In `swap-calldata`, you can override it:
-- `--slippage <number>` — custom tolerance (1 = 1%). If omitted, uses system default.
-- `toMinAmount` — alternative: specify the exact minimum tokens to receive. More precise for advanced users.
-
-**Slippage tolerance thresholds:**
-
-| Tolerance | Action |
-|-----------|--------|
-| ≤ 1% | Normal for major pairs. Show in summary. |
-| 1-3% | Acceptable for mid-cap tokens. Include in summary. |
-| 3-10% | **Warn user.** Suggest reducing trade size or setting a custom lower value. |
-| > 10% | **Strongly warn.** Low liquidity or high volatility. Suggest splitting into smaller trades. |
-| > 0.5% for stablecoin pairs | **Abnormal.** Flag to user — stablecoin swaps should have minimal slippage. |
-
-**Price impact (calculated by agent):**
-
-1. Get **market price** from `token-info`
-2. Get **quote price** from `swap-quote` (= `toAmount / fromAmount`)
-3. **Price impact** ≈ `(market_price - quote_price) / market_price × 100%`
-
-Price impact > 3% means the trade size is too large relative to available liquidity. The `liquidity` command can confirm — if trade amount > 2% of pool size, expect significant impact.
-
-## Gas and Fees
-
-Transaction costs vary by chain. Be aware of these when presenting swap quotes:
-
-| Chain | Typical Gas | Notes |
-|-------|------------|-------|
-| Solana | ~$0.001-0.01 | Very cheap, rarely a concern |
-| BNB Chain | ~$0.05-0.30 | Low, but check during congestion |
-| Ethereum | ~$1-50+ | **Highly variable.** Small trades (<$100) may not be worth the gas. |
-| Base / Arbitrum / Optimism | ~$0.01-0.50 | L2s are cheap but not free |
-
-**Important considerations:**
-- Gas is paid in the chain's native token (ETH, SOL, BNB). The user must have enough native token balance for gas — a swap will fail if the wallet has tokens but no gas.
-- `buyTax` and `sellTax` from the security audit are **on top of** gas fees. A 5% sell tax on a $100 trade = $5 gone before gas.
-- For small trades on Ethereum mainnet, total fees (gas + tax + slippage) can exceed the trade value. Flag this to the user.
-
-## Broadcasting with swap-send (Calldata Mode)
+### Broadcasting with swap-send (Calldata Mode)
 
 The `swap-send` command broadcasts a **signed** raw transaction via BGW's MEV-protected endpoint. This is the final step in the swap flow.
 
