@@ -67,49 +67,36 @@ Re-install the skill from the `main` branch of the repository at `https://github
 
 #### First-Time Wallet Setup
 
-When a user first requests a swap or any signing operation, check if a wallet is already configured (mnemonic stored in 1Password). If not, guide them through setup:
+When a user first requests a swap or any signing operation, check if a wallet is already configured. If not, guide them through setup:
 
 **Path 1: Create a new wallet**
 
-1. Generate a 24-word BIP-39 mnemonic:
-   ```bash
-   python3 scripts/wallet_setup.py generate
-   ```
+1. **Generate a BIP-39 mnemonic** (24 words / 256 bits recommended). Use any available BIP-39 library in the agent's runtime (e.g., `mnemonic`, `bip_utils`, or equivalent).
 2. **Display the mnemonic to the user** and ask them to back it up securely (write it down, store in their own password manager, etc.)
-3. Derive addresses for verification:
-   ```bash
-   python3 scripts/wallet_setup.py derive --mnemonic "<words>"
-   ```
-   Show the user their EVM and Solana addresses.
-4. Store the mnemonic in 1Password:
-   ```bash
-   python3 scripts/op_sdk.py create "Agent Wallet" SecureNote ~mnemonic="<words>"
-   ```
-5. **Done.** The agent now has a wallet. Private keys are derived on-the-fly for each signing operation.
+3. **Derive and show addresses** for EVM and Solana so the user can verify and fund the wallet.
+4. **Securely store the mnemonic** using whatever secure storage is available to the agent (password manager, encrypted vault, OS keychain, etc.) The mnemonic is the only secret that needs to be persisted.
+5. **Done.** The agent now has a wallet.
 
 **Path 2: Query only (no wallet)**
 
 If the user only wants price queries, token info, and security checks — no wallet setup needed. Skip this flow entirely. Signing operations will be unavailable.
 
-**Security model:**
-- **1Password stores the mnemonic only** — never individual private keys
-- **Private keys are derived on-the-fly** each time signing is needed, then discarded after use
-- **Mnemonic is never printed to chat** after initial setup — only retrieved programmatically for derivation
-- **derive-key outputs to stdout** for piping — never logged or stored
+**Key management rules:**
+- **Only the mnemonic is persisted.** Never store derived private keys — they are ephemeral.
+- **Private keys are derived on-the-fly** each time signing is needed, used, then immediately discarded (variable cleanup, scope exit, etc.)
+- **Mnemonic is never sent to chat channels** after initial setup — only retrieved programmatically for derivation.
+- **The agent must use secure storage** appropriate to its environment. The storage mechanism must: (1) encrypt at rest, (2) require authentication to read, (3) not expose secrets in logs, shell history, or environment dumps.
 
 **Signing pipeline (how keys flow):**
 ```
-1Password (mnemonic) → wallet_setup.py derive-key → stdout → order_sign.py --private-key → signed tx → key discarded
+Secure storage (mnemonic) → derive private key (in memory) → sign transaction → discard key
 ```
 
-Example — full signing flow with ephemeral key:
-```bash
-# Derive key, pipe to signer, key never touches disk
-MNEMONIC=$(python3 scripts/op_sdk.py get "Agent Wallet" --field mnemonic --reveal)
-EVM_KEY=$(python3 scripts/wallet_setup.py derive-key --mnemonic "$MNEMONIC" --chain evm)
-python3 scripts/order_sign.py --order-json '<json>' --private-key "$EVM_KEY"
-unset MNEMONIC EVM_KEY  # explicit cleanup
-```
+**Derivation paths:**
+| Chain | Path | Curve | Notes |
+|-------|------|-------|-------|
+| EVM (ETH/BNB/Base/...) | `m/44'/60'/0'/0/0` | secp256k1 | All EVM chains share one key |
+| Solana | `m/44'/501'/0'/0'` | Ed25519 (SLIP-0010) | Different key from EVM |
 
 #### First-Time Swap Configuration
 
