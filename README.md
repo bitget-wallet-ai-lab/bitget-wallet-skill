@@ -9,7 +9,7 @@ An AI Agent skill that wraps the [Bitget Wallet API](https://web3.bitget.com/en/
 | Principle | Description |
 |-----------|-------------|
 | **Domain Knowledge + Tools** | Not just API wrappers — includes trading workflows, signing guides, security models, and known pitfalls so agents make informed decisions |
-| **Zero External Dependencies** | All code is self-contained. No third-party packages beyond Python stdlib + `requests` + `eth_account`/`eth_abi` (for signing). Eliminates supply-chain injection risk |
+| **Zero External Dependencies** | All code is self-contained. Solana signing is pure Python (Ed25519 + base58 built-in). EVM signing uses `eth_account` (standard). Only `requests` for API calls. No pip install needed for Solana |
 | **API Infrastructure, Not Reimplementation** | Capabilities come from Bitget Wallet's production API. The skill provides the knowledge and tooling layer, not a parallel implementation |
 | **Human-in-the-Loop by Default** | Swap operations generate transaction data but never sign autonomously. User confirmation required for all fund-moving actions |
 
@@ -128,7 +128,8 @@ Structured JSON → Agent interprets → Natural language response
 **Security by Design:**
 - Built-in demo credentials are public read-only API keys (safe to share)
 - For production use, override with your own keys via `BGW_API_KEY` / `BGW_API_SECRET` env vars
-- Swap calldata only generates transaction data; **actual signing requires wallet confirmation** (prevents unauthorized transactions)
+- Swap calldata generates transaction data; signing requires explicit wallet key access
+- **Wallet key management:** mnemonic stored in secure storage, private keys derived on-the-fly and discarded after each signing operation (never persisted)
 
 ---
 
@@ -196,7 +197,10 @@ Structured JSON → Agent interprets → Natural language response
 
 1. Python 3.11+
 2. `requests` library (`pip install requests`)
-3. That's it — public demo API credentials are built in. To use your own keys, set `BGW_API_KEY` and `BGW_API_SECRET` env vars.
+3. For EVM signing: `eth-account` (`pip install eth-account`)
+4. Public demo API credentials are built in. To use your own keys, set `BGW_API_KEY` and `BGW_API_SECRET` env vars.
+
+> Solana signing requires **no additional packages** — pure Python Ed25519 and base58 are built into `order_sign.py`.
 
 > **Note:** The built-in demo keys are for testing purposes and may change over time. If they stop working, please update the skill (`git pull`) to get the latest keys.
 
@@ -228,7 +232,7 @@ python3 scripts/bitget_api.py swap-quote \
 | Arbitrum | ✅ | ✅ | ✅ |
 | Polygon | ✅ | ✅ | ✅ |
 | Morph | ✅ | ✅ | ✅ |
-| Solana | ✅ | ⚠️ Pending | ❌ Pending |
+| Solana | ✅ | ⚠️ Pending | ❌ Not supported |
 
 > Calldata mode (non-order) supports additional chains: Tron, TON, Sui, Optimism, and more.
 
@@ -236,7 +240,7 @@ python3 scripts/bitget_api.py swap-quote \
 
 | Direction | Description |
 |-----------|-------------|
-| **Solana Gasless** | Pending API support for Solana gasless execution |
+| **Solana Gasless** | Pending backend support — client signing is ready, awaiting relayer implementation |
 | **On-chain Event Subscription** | WebSocket listeners for large transactions, new pool creation |
 | **Historical Data Cache** | Store K-line + price data in local SQLite to reduce API calls |
 | **Multi-wallet Management** | Support multi-address balance queries and batch quotes |
@@ -288,13 +292,14 @@ Any AI agent that can **read files + run Python + access the internet** should w
 ## Security Notes
 
 - Built-in demo API keys are public and read-only; for production, use env vars (`BGW_API_KEY` / `BGW_API_SECRET`)
-- Swap functions only generate quotes and transaction data — **no autonomous signing capability**
+- Swap functions generate quotes and transaction data — signing requires explicit wallet access
+- Wallet mnemonic is the only persistent secret; private keys are derived per-operation and discarded
 - Large operations require explicit user confirmation (human-in-the-loop)
 - Always run a security audit (`security` command) before interacting with any token
 
 ## Security
 
-- **Zero external code** — all scripts are self-contained, no third-party packages beyond `requests` + `eth_account`/`eth_abi`. No supply-chain attack surface.
+- **Zero external dependencies for Solana** — pure Python Ed25519 (RFC 8032) and base58 built into `order_sign.py`. EVM uses `eth_account`. No obscure packages, no supply-chain risk.
 - Only communicates with `https://bopenapi.bgwapi.io` (BGW API) and x402 resource servers — no other external endpoints
 - No `eval()` / `exec()` or dynamic code execution
 - No file system access outside the skill directory
