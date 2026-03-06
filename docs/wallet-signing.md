@@ -93,4 +93,129 @@ Type 4 (EIP-7702):   {... + authorizationList: [{chainId, address, nonce, y_pari
 - `nonce`: Must match account's current nonce (API provides this)
 - `gasLimit` / `gasPrice`: API provides estimates
 
+## Solana Transaction Signing
+
+### Transaction Format
+
+Solana transactions are serialized in a binary format, transmitted as **base58** strings:
+
+```
+[shortvec: sig_count][sig_0: 64B][sig_1: 64B]...[message_bytes]
+```
+
+- **shortvec**: Variable-length encoding of the signature count
+- **sig_N**: 64-byte Ed25519 signature slots (filled with zeros when unsigned)
+- **message_bytes**: The transaction message to sign
+  - For **V0 transactions**: starts with `0x80` version prefix
+  - For **Legacy transactions**: no version prefix
+
+### Signer Slots
+
+The first N account keys in the message correspond to required signers (N = `header.num_required_signatures`):
+
+| Mode | sig[0] | sig[1] | Description |
+|------|--------|--------|-------------|
+| **Gasless (no_gas)** | Relayer (fee payer) | User wallet | Backend fills sig[0] after submission |
+| **User gas** | User wallet | — | User is the sole signer and fee payer |
+
+**⚠️ Solana gasless status (2026-03-06):** Backend does NOT currently support Solana gasless. `features: []` returned for all Solana quotes. Forcing `no_gas` creates the order but relayer never signs `sig[0]` → order fails immediately. Use `user_gas` mode only.
+
+### Partial Signing Pattern
+
+For gasless (2-signer) transactions, the user performs a **partial sign**:
+
+1. **Base58 decode** the `serializedTx` from API response
+2. **Parse** signature count via shortvec decoding
+3. **Extract message bytes** (everything after the signature slots)
+4. **Find user's signer index** in `account_keys[:num_required_signatures]`
+5. **Ed25519 sign** the message bytes with user's private key
+6. **Write** the 64-byte signature into the correct slot
+7. **Base58 encode** and return the partially-signed transaction
+
+```python
+# Conceptual flow (actual implementation in order_sign.py)
+tx_bytes = base58.b58decode(serialized_tx)
+sig_count, header_len = decode_shortvec(tx_bytes, 0)
+message_bytes = tx_bytes[header_len + (sig_count * 64):]
+
+signature = keypair.sign_message(message_bytes)  # Ed25519
+tx_bytes[header_len + (signer_index * 64) : +64] = bytes(signature)
+
+return base58.b58encode(tx_bytes)
+```
+
+### Key Format (Solana)
+
+Solana private keys can be in multiple formats:
+
+| Format | Length | Example |
+|--------|--------|---------|
+| **Base58** (keypair) | ~88 chars | Standard Phantom/CLI export |
+| **Hex (64 bytes)** | 128 chars | Full keypair (privkey + pubkey) |
+| **Hex (32 bytes)** | 64 chars | Seed only (pubkey derived) |
+
+The `_load_sol_keypair()` function in `order_sign.py` handles all three formats automatically.
+
+### Key Retrieval (Solana)
+
+```python
+# Fetch Solana key from 1Password
+sol_key = subprocess.run(
+    ["python3.13", "scripts/op_sdk.py", "get", "Agent Wallet", "--field", "sol_key", "--reveal"],
+    capture_output=True, text=True
+).stdout.strip()
+```
+
+**1Password field mapping:**
+- EVM key: `Agent Wallet` → `evm_key`
+- Solana key: `Agent Wallet` → `sol_key`
+- Solana address: `Agent Wallet` → `sol_address`
+
+## Order Mode Signing (order_sign.py)
+
+`scripts/order_sign.py` handles signing for the order-create → order-submit flow.
+
+### Usage
+
+```bash
+# EVM: pipe or pass JSON
+python3 scripts/bitget_api.py order-create ... | python3 scripts/order_sign.py --private-key <hex>
+python3 scripts/order_sign.py --order-json '<json>' --private-key <hex>
+
+# Solana: use --private-key-sol
+python3 scripts/order_sign.py --order-json '<json>' --private-key-sol <base58|hex>
+```
+
+### Auto-Detection
+
+The script auto-detects the chain and signing mode:
+
+| Input | Detection | Handler |
+|-------|-----------|---------|
+| `data.signatures` present | EVM gasless (EIP-712) | `sign_order_signatures()` |
+| `data.txs` + chainId=501 or chainName=sol | Solana | `sign_order_txs_solana()` |
+| `data.txs` + other chain | EVM transaction | `sign_order_txs_evm()` |
+
+### Data Shape Flexibility
+
+The Solana signer handles multiple API response shapes:
+
+```json
+// Shape 1: kind/data wrapper
+{"txs": [{"kind": "transaction", "data": {"serializedTx": "..."}}]}
+
+// Shape 2: nested data
+{"txs": [{"chainId": "501", "data": {"serializedTx": "..."}}]}
+
+// Shape 3: flat
+{"txs": [{"chainId": "501", "serializedTx": "..."}]}
+```
+
+### Dependencies
+
+| Chain | Required Libraries |
+|-------|-------------------|
+| EVM | `eth-account` (pre-installed) |
+| Solana | `solders`, `base58` (pip install) |
+
 
