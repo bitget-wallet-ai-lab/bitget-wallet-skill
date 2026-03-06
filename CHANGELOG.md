@@ -6,6 +6,38 @@ Format: date-based versioning (`YYYY.M.DD`). Each release includes a sequential 
 
 ---
 
+## [2026.3.6-4] - 2026-03-06
+
+### Added
+- **Solana Order Mode signing**: pure-Python Ed25519 (RFC 8032) + base58, zero external dependencies
+  - `sign_solana_tx()` — VersionedTransaction (V0) partial sign with Legacy fallback
+  - `_load_sol_keypair()` — supports base58, hex-64B, hex-32B seed formats
+  - `sign_order_txs_solana()` — order-create response pipeline with flexible data unwrapping
+  - `_is_solana_order()` — auto-detect by chainId/chainName/serializedTx
+  - CLI `--private-key-sol` argument, auto EVM vs Solana routing
+- **First-Time Wallet Setup** guide in SKILL.md — BIP-39 mnemonic generation, secure storage principles, derivation paths
+- **Ephemeral key model** — mnemonic is only persistent secret, private keys derived per-operation and discarded
+- Wallet signing domain knowledge: Solana tx format, signer slots, partial sign pattern, key retrieval
+
+### Changed
+- Renamed `sign_order_txs()` → `sign_order_txs_evm()` for clarity
+- Updated README: zero external deps for Solana, prerequisites, security model
+- Wallet setup as domain knowledge (principles + rules), not implementation code
+- Mnemonic never displayed in agent chat — user retrieves via secure storage directly
+
+### Tested
+- Ed25519 pubkey matches RFC 8032 test vector ✅
+- Ed25519 signatures match `solders` library byte-for-byte ✅
+- Real Solana order signed + submitted (USDC → USDT, order `a1a4bb8f`) ✅
+- Partial sign gasless (2-signer: sig[0]=empty, sig[1]=signed) ✅
+- Partial sign user_gas (1-signer: sig[0]=signed) ✅
+- Three data shape variants tested ✅
+- Solana gasless confirmed not supported by backend (relayer does not sign sig[0])
+
+### Audit
+- ✅ Zero new external dependencies — Solana signing is pure Python (stdlib only: hashlib, hmac)
+- ✅ No import of `solders` or `base58` packages in any code path
+
 ## [2026.3.6-3] - 2026-03-06
 
 ### Added
