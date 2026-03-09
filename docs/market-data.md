@@ -43,6 +43,7 @@ The data commands (`token-info`, `kline`, `tx-info`, `liquidity`) are most usefu
 - **Trend analysis**: Use `kline --period 1h --size 24` for daily trend, `--period 1d --size 30` for monthly. Compare with `tx-info` to see if volume supports the price movement.
 - **Liquidity depth check**: Before a large swap, run `liquidity` to check pool size. If your trade amount is >2% of pool liquidity, expect significant slippage.
 - **New token discovery**: `rankings --name topGainers` finds trending tokens. Always follow up with `security` before acting on any discovery.
+- **Hot picks**: `rankings --name Hotpicks` returns curated trending tokens across chains — useful for spotting market momentum beyond simple gainers/losers.
 - **Whale activity detection**: `tx-info` shows buyer/seller count and volume. A high volume with very few buyers suggests whale activity — proceed with caution.
 
 

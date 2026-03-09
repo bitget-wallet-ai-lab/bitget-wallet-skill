@@ -1,7 +1,7 @@
 ---
 name: bitget-wallet
-version: "2026.3.9-1"
-updated: "2026-03-06"
+version: "2026.3.9-2"
+updated: "2026-03-09"
 description: "Interact with Bitget Wallet API for crypto market data, token info, swap quotes, and security audits. Use when the user asks about token prices, market data, swap/trading quotes, token security checks, K-line charts, or token rankings on supported chains (ETH, SOL, BSC, Base, etc.)."
 ---
 
@@ -212,11 +212,10 @@ python3 scripts/bitget_api.py tx-info --chain sol --contract <address>
 # Batch transaction info
 python3 scripts/bitget_api.py batch-tx-info --tokens "sol:<addr1>,eth:<addr2>"
 
-# Token rankings (topGainers / topLosers / Hotpicks)
-python3 scripts/bitget_api.py rankings --name topGainers
-
-# Hot picks (trending tokens)
-python3 scripts/bitget_api.py rankings --name Hotpicks
+# Token rankings
+python3 scripts/bitget_api.py rankings --name topGainers   # Top gainers
+python3 scripts/bitget_api.py rankings --name topLosers    # Top losers
+python3 scripts/bitget_api.py rankings --name Hotpicks     # Hot picks (curated trending tokens)
 
 # Token liquidity pools
 python3 scripts/bitget_api.py liquidity --chain sol --contract <address>

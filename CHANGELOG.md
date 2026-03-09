@@ -6,6 +6,15 @@ Format: date-based versioning (`YYYY.M.DD`). Each release includes a sequential 
 
 ---
 
+## [2026.3.9-2] - 2026-03-09
+
+### Added
+- **Hotpicks ranking support** — `rankings --name Hotpicks` returns curated trending tokens across chains
+  - Complements existing `topGainers` / `topLosers` rankings
+  - Updated SKILL.md command examples, market-data.md domain knowledge, and README.md
+
+---
+
 ## [2026.3.9-1] - 2026-03-09
 
 ### Fixed
