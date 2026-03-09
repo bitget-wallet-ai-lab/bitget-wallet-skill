@@ -318,7 +318,7 @@ def main():
 
     # rankings
     p = sub.add_parser("rankings", help="Get token rankings")
-    p.add_argument("--name", required=True, help="topGainers or topLosers")
+    p.add_argument("--name", required=True, help="topGainers, topLosers, or Hotpicks")
     p.set_defaults(func=cmd_rankings)
 
     # liquidity
