@@ -1,6 +1,6 @@
 ---
 name: bitget-wallet
-version: "2026.3.6-3"
+version: "2026.3.9-1"
 updated: "2026-03-06"
 description: "Interact with Bitget Wallet API for crypto market data, token info, swap quotes, and security audits. Use when the user asks about token prices, market data, swap/trading quotes, token security checks, K-line charts, or token rankings on supported chains (ETH, SOL, BSC, Base, etc.)."
 ---

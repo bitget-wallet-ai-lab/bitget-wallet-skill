@@ -232,7 +232,7 @@ python3 scripts/bitget_api.py swap-quote \
 | Arbitrum | ✅ | ✅ | ✅ |
 | Polygon | ✅ | ✅ | ✅ |
 | Morph | ✅ | ✅ | ✅ |
-| Solana | ✅ | ⚠️ Pending | ❌ Not supported |
+| Solana | ✅ | ✅ | ✅ (min ~$5-6 USD) |
 
 > Calldata mode (non-order) supports additional chains: Tron, TON, Sui, Optimism, and more.
 

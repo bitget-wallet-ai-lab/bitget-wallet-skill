@@ -6,6 +6,20 @@ Format: date-based versioning (`YYYY.M.DD`). Each release includes a sequential 
 
 ---
 
+## [2026.3.9-1] - 2026-03-09
+
+### Fixed
+- **Solana gasless IS supported** — corrected previous conclusion that Solana didn't support gasless
+  - Gasless has a **minimum amount threshold (~$5-6 USD)** — below threshold, `features: []`; above, `features: ["no_gas"]`
+  - Same-chain gasless verified: 6 USDC → 5.76 USDT ✅
+  - Cross-chain gasless verified: 20 USDC (Sol) → 19.87 USDC (Base) ✅
+  - Updated all docs: trading.md, wallet-signing.md, README.md
+
+### Tested
+- Solana same-chain gasless (order `6e31ea59`) — pure Python Ed25519 signing ✅
+- Sol→Base cross-chain gasless (order `d106d921`) — 20 USDC, ~20s completion ✅
+- Pure Python signing (zero external deps) works flawlessly for gasless 2-signer transactions
+
 ## [2026.3.6-3] - 2026-03-06
 
 ### Added

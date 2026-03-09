@@ -183,7 +183,7 @@ else:
 ```
 
 **⚠️ Important: `features` in order-quote is not always reliable.**
-In testing, some routes return `features: []` in the quote but still accept `--feature no_gas` in order-create. When the wallet has zero native token balance, always try `no_gas` regardless of the quote's `features` field. If order-create rejects it, fall back to informing the user they need gas.
+Some routes have a minimum amount threshold for gasless support. For example, Solana gasless requires ~$5-6 USD minimum — below this, `features: []` is returned. Always check the `features` field from `order-quote` before using `--feature no_gas`. If `features` is empty and the wallet has zero native token balance, inform the user they need to either increase the amount or acquire native tokens for gas.
 
 ### Order Create Response: Two Modes
 
@@ -379,7 +379,7 @@ When a cross-chain order fails after the source transaction is already on-chain,
 
 1. **Cross-chain minimum amount**: Varies by chain. EVM chains: ~$1-5. Solana: $10 minimum (liqBridge only, no CCTP). Morph: $5 minimum. Below minimum returns `80002 amount too low`.
 
-2. **`no_gas` requires quote support**: Only use `--feature no_gas` when `order-quote` returns `"no_gas"` in the `features` array. The API may accept the flag at create time without validation, but the backend will fail to execute. Solana currently does NOT support `no_gas` (features always `[]`).
+2. **`no_gas` requires quote support**: Only use `--feature no_gas` when `order-quote` returns `"no_gas"` in the `features` array. The API may accept the flag at create time without validation, but the backend will fail to execute. Solana supports `no_gas` above a minimum amount threshold (~$5-6 USD); below that, `features` returns `[]`.
 
 3. **Base same-chain without no_gas**: `order-create` on Base without `--feature no_gas` returns `80000 system error` when the wallet has no ETH. This is because the API can't construct a normal tx for an account with no gas. Solution: use `no_gas`.
 
@@ -440,7 +440,7 @@ When a cross-chain order fails after the source transaction is already on-chain,
 | Chain | Code | Same-chain | Cross-chain |
 |-------|------|-----------|-------------|
 | Ethereum | `eth` | ✅ | ✅ |
-| Solana | `sol` | ✅ | ✅ (EVM→Sol ✅; Sol→EVM requires SOL for gas) |
+| Solana | `sol` | ✅ | ✅ (Gasless supported above ~$5-6 min; both same-chain and cross-chain) |
 | BNB Chain | `bnb` | ✅ | ✅ |
 | Base | `base` | ✅ | ✅ |
 | Arbitrum | `arbitrum` | ✅ | ✅ |
@@ -571,11 +571,11 @@ The order is a contract — the user sees the actual order details, confirms, TH
 | Polygon | ✅ Supported | Same-chain confirmed; cross-chain requires 7702 binding first |
 | Arbitrum | ✅ Supported | — |
 | Morph | ✅ Supported | — |
-| Solana | ❌ Not supported | Solana as source chain: `no_gas` not available (quote returns `features: []`). EVM→Sol cross-chain works with gasless on the EVM source chain. |
+| Solana | ✅ Supported (min amount) | Solana gasless has a **minimum amount threshold** (~$5-6 USD). Below threshold, quote returns `features: []`. Above threshold, returns `features: ["no_gas"]`. Both same-chain and cross-chain (Sol→EVM) gasless work. |
 
 **⚠️ Cross-chain gasless requires source chain 7702 binding.** If the wallet has never done a gasless transaction on the source chain, the first cross-chain order will fall back to normal txs. Do a same-chain gasless swap first to bind 7702, then cross-chain gasless will work.
 
-**Only use gasless when `order-quote` returns `"no_gas"` in `features`.** Do not blindly try — the API accepts the flag but backend execution will fail if unsupported.
+**Only use gasless when `order-quote` returns `"no_gas"` in `features`.** Do not blindly try — the API accepts the flag but backend execution will fail if unsupported. Some chains (e.g., Solana) have a minimum amount threshold for gasless; if the amount is too small, try increasing it.
 
 **User override:** If the user explicitly says to use their own gas (e.g., "use my gas", "user gas", "不要 gasless", "用自己的 gas"), do NOT pass `--feature no_gas` to order-create. The order will use normal gas mode instead, and gas is paid from the wallet's native token balance. Show "Gas mode: User Gas (native token)" in the confirmation summary.
 
