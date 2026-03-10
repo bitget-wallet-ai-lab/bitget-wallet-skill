@@ -408,7 +408,7 @@ def main():
     p.add_argument("--market", required=True, help="Market from order-quote response")
     p.add_argument("--slippage", type=float, help="Slippage tolerance (e.g. 3.0 = 3%%)")
     p.add_argument("--fee-rate", help="Partner fee percentage")
-    p.add_argument("--feature", help="Gasless feature: pass 'no_gas' to pay gas with input token")
+    p.add_argument("--feature", help="Gas feature: 'no_gas' to pay gas with input token")
     p.set_defaults(func=cmd_order_create)
 
     # order-submit
