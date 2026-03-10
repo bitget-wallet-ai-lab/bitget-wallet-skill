@@ -10,7 +10,7 @@ Format: date-based versioning (`YYYY.M.DD`). Each release includes a sequential 
 
 ### Updated — Sync with Official API Docs
 - **Chain identifiers expanded** from 10 → 33 chains, split into Order Mode (7 chains) and Market Data (32 chains) tables
-- **noGas thresholds unified** — all chains $5 USD, Morph $1 USD (previously documented as "~$5-6")
+- **Gasless thresholds unified** — all chains $5 USD, Morph $1 USD (previously documented as "~$5-6")
 - **Error codes completed** — full 80000-80015 error code table with descriptions and actions
 - **Security audit labelName reference** — complete Solana (11 checks) and EVM (17 checks) mapping tables added to market-data.md
 - **Token info social fields** documented — twitter, website, telegram, whitepaper, about
