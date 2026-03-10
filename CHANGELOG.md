@@ -6,6 +6,21 @@ Format: date-based versioning (`YYYY.M.DD`). Each release includes a sequential 
 
 ---
 
+## [2026.3.10-1] - 2026-03-10
+
+### Updated — Sync with Official API Docs
+- **Chain identifiers expanded** from 10 → 33 chains, split into Order Mode (7 chains) and Market Data (32 chains) tables
+- **noGas thresholds unified** — all chains $5 USD, Morph $1 USD (previously documented as "~$5-6")
+- **Error codes completed** — full 80000-80015 error code table with descriptions and actions
+- **Security audit labelName reference** — complete Solana (11 checks) and EVM (17 checks) mapping tables added to market-data.md
+- **Token info social fields** documented — twitter, website, telegram, whitepaper, about
+- **K-line buy/sell breakdown fields** documented — buyTurnover, sellTurnover, buyAmount, sellAmount
+- **fromAmount human-readable** explicitly documented in order quote section
+- **fee.gasFee** and EIP-7702 response fields added to order quote docs
+- **README updated** — supported chains split (order vs market data), capabilities table expanded, gasless description updated to include Solana
+
+---
+
 ## [2026.3.9-3] - 2026-03-09
 
 ### Fixed

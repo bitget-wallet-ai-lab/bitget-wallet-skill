@@ -1,7 +1,7 @@
 ---
 name: bitget-wallet
-version: "2026.3.9-3"
-updated: "2026-03-09"
+version: "2026.3.10-1"
+updated: "2026-03-10"
 description: "Interact with Bitget Wallet API for crypto market data, token info, swap quotes, and security audits. Use when the user asks about token prices, market data, swap/trading quotes, token security checks, K-line charts, or token rankings on supported chains (ETH, SOL, BSC, Base, etc.)."
 ---
 
@@ -280,18 +280,55 @@ python3 scripts/x402_pay.py pay --url https://api.example.com/data --private-key
 
 ### Chain Identifiers
 
+**Order Mode chains** (swap-order, 7 chains with gasless):
+
+| Chain | ID | Code | noGas Min |
+|-------|------|------|-----------|
+| Ethereum | 1 | eth | $5 |
+| Solana | 100278 | sol | $5 |
+| BNB Chain | 56 | bnb | $5 |
+| Base | 8453 | base | $5 |
+| Arbitrum | 42161 | arbitrum | $5 |
+| Polygon | 137 | matic | $5 |
+| Morph | 2818 | morph | $1 |
+
+**Market Data chains** (token-info, kline, tx-info, rankings, security — 32 chains):
+
 | Chain | ID | Code |
 |-------|------|------|
 | Ethereum | 1 | eth |
-| Solana | 100278 | sol |
-| BNB Chain | 56 | bnb |
-| Base | 8453 | base |
-| Arbitrum | 42161 | arbitrum |
 | Tron | 6 | trx |
-| Ton | 100280 | ton |
-| Sui | 100281 | suinet |
 | Optimism | 10 | optimism |
+| Scroll | 25 | crol2 |
+| BNB Chain | 56 | bnb |
+| Fuse | 122 | fuse |
 | Polygon | 137 | matic |
+| Manta | 169 | manta |
+| opBNB | 204 | opbnb |
+| Fantom | 250 | ftm |
+| zkSync v2 | 324 | zksv2 |
+| Sonic EVM | 146 | sonic_evm |
+| Morph | 2818 | morph |
+| Merlin | 4200 | merlin |
+| Base | 8453 | base |
+| Klaytn | 8217 | klay |
+| SEI v2 | 1329 | seiv2 |
+| CoreDAO | 1116 | coredao |
+| Arbitrum | 42161 | arbitrum |
+| Celo | 42220 | celo |
+| AVAX C-chain | 43114 | avax_c |
+| zkFair | 42766 | zkfair |
+| Linea | 59144 | linea |
+| Blast | 81457 | blast |
+| Berachain | 80094 | berachain |
+| Solana | 100278 | sol |
+| Aptos | 100279 | apt |
+| TON | 100280 | ton |
+| Sui | 100281 | suinet |
+| Degen | 666666666 | degen |
+| Hyperliquid | 60011 | hyperliquid |
+| FSC | 201022 | fsc |
+| Hyper EVM | 999 | hyper_evm |
 
 Use empty string `""` for native tokens (ETH, SOL, BNB, etc.).
 

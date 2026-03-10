@@ -17,13 +17,13 @@ An AI Agent skill that wraps the [Bitget Wallet API](https://web3.bitget.com/en/
 
 | Capability | Description | Example |
 |------------|-------------|---------|
-| **Token Info** | Price, market cap, holders, social links | "What's the price of SOL?" |
+| **Token Info** | Price, market cap, holders, social links (twitter/website/telegram) | "What's the price of SOL?" |
 | **Batch Price Query** | Multi-token price lookup in one call | Portfolio valuation |
-| **K-line Data** | 1m/5m/1h/4h/1d candlestick data | Trend analysis, charting |
+| **K-line Data** | 1s/1m/5m/15m/30m/1h/4h/1d/1w candlestick data (with buy/sell breakdown) | Trend analysis, charting |
 | **Transaction Stats** | 5m/1h/4h/24h buy/sell volume & trader count | Activity detection, whale monitoring |
 | **Rankings** | Top gainers / top losers / hot picks | Market scanning, alpha discovery |
 | **Liquidity Pools** | LP pool information | Slippage estimation, depth analysis |
-| **Security Audit** | Contract safety checks (honeypot, permissions, blacklist) | Pre-trade risk control |
+| **Security Audit** | Contract safety checks (honeypot, tax, permissions, blacklist, dev rug history, bundle tx) | Pre-trade risk control |
 | **Batch Tx Info** | Batch transaction statistics for multiple tokens | "Compare volume for SOL and ETH" |
 | **Historical Coins** | Discover new tokens by timestamp | "What tokens launched today?" |
 | **Swap Send** | Broadcast signed transactions with MEV protection | "Broadcast my signed swap" |
@@ -45,7 +45,7 @@ Order Mode is the key upgrade in v2026.3.5. It enables two capabilities no other
 - Swap tokens with **zero native token balance** — no ETH, no BNB, no MATIC needed
 - Gas cost is deducted from the input token automatically
 - Agent only signs; a backend relayer pays gas and broadcasts the transaction
-- Supported on all EVM chains (Ethereum, Base, BNB Chain, Arbitrum, Polygon, Morph)
+- Supported on all 7 chains: Ethereum, Solana, BNB Chain, Base, Arbitrum, Polygon, Morph (min $5 USD, Morph $1)
 
 **🌉 One-Step Cross-Chain Swaps**
 - Swap tokens across different chains in a **single order** — no manual bridging
@@ -105,7 +105,9 @@ See [`docs/x402-payments.md`](docs/x402-payments.md) for domain knowledge, signi
 
 ### Supported Chains
 
-Ethereum · Solana · BNB Chain · Base · Arbitrum · Tron · TON · Sui · Optimism and more.
+**Order Mode** (swap + gasless): Ethereum · Solana · BNB Chain · Base · Arbitrum · Polygon · Morph (all support gasless with $5 min, Morph $1)
+
+**Market Data** (32 chains): Ethereum · Solana · BNB Chain · Base · Arbitrum · Polygon · Tron · TON · Sui · Optimism · Morph · Fantom · AVAX · Berachain · Sonic · Linea · Blast · Aptos · Hyperliquid · and more
 
 ---
 
