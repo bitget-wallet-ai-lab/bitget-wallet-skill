@@ -77,8 +77,8 @@ Format: date-based versioning (`YYYY.M.DD`). Each release includes a sequential 
 - Market field in order confirmation summary (e.g., `bgwAggregator`, `bkbridgev3.liqbridge`)
 
 ### Fixed
-- Solana gasless status: changed from "❌ Not working (bug)" to "❌ Not supported" — `no_gas` is not available on Solana (quote returns `features: []`)
-- Gasless rule: only use `no_gas` when quote returns it in `features` array (API accepts flag without validation but execution fails)
+- Solana gasless status: changed from "❌ Not working (bug)" to "❌ Not supported" — gasless is not available on Solana (quote returns `features: []`)
+- Gasless rule: only use gasless when quote returns `"no_gas"` in `features` array (API accepts flag without validation but execution fails)
 - Cross-chain minimum amounts: Solana $10, Morph $5 (previously documented as ~$2 for all)
 
 ---
@@ -92,7 +92,7 @@ Format: date-based versioning (`YYYY.M.DD`). Each release includes a sequential 
   - `order-submit` — submit signed transactions
   - `order-status` — query order lifecycle status
 - **Cross-chain swaps**: swap tokens between different chains in one order (e.g., USDC on Base → USDT on Polygon)
-- **Gasless mode (no_gas)**: pay gas with input token, no native token needed (EVM only)
+- **Gasless mode**: pay gas with input token, no native token needed (EVM only)
 - **EIP-7702 support**: EIP-712 typed data signing for gasless execution
 - **Order status tracking**: full lifecycle (init → processing → success/failed/refunding/refunded)
 - **B2B fee splitting**: `feeRate` parameter for partner commission

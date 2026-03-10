@@ -204,7 +204,7 @@ def cmd_swap_calldata(args):
 
 
 def cmd_order_quote(args):
-    """Get order-mode swap price (supports cross-chain + no_gas)."""
+    """Get order-mode swap price (supports cross-chain + gasless)."""
     body = {
         "fromChain": args.from_chain,
         "fromContract": args.from_contract,
@@ -384,7 +384,7 @@ def main():
     p.add_argument("--txs", nargs="+", required=True, help="Transactions as id:chain:from:rawTx")
     p.set_defaults(func=cmd_swap_send)
 
-    # order-quote (order mode - cross-chain + no_gas support)
+    # order-quote (order mode - cross-chain + gasless support)
     p = sub.add_parser("order-quote", help="Get order-mode swap price (cross-chain + gasless)")
     p.add_argument("--from-chain", required=True, help="Source chain (e.g. base, bnb, eth)")
     p.add_argument("--from-contract", required=True, help="Source token contract (empty for native)")
@@ -408,7 +408,7 @@ def main():
     p.add_argument("--market", required=True, help="Market from order-quote response")
     p.add_argument("--slippage", type=float, help="Slippage tolerance (e.g. 3.0 = 3%%)")
     p.add_argument("--fee-rate", help="Partner fee percentage")
-    p.add_argument("--feature", help="Gas feature: 'no_gas' to pay gas with input token")
+    p.add_argument("--feature", help="Gasless feature: pass 'no_gas' to pay gas with input token")
     p.set_defaults(func=cmd_order_create)
 
     # order-submit
