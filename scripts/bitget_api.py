@@ -243,9 +243,24 @@ def cmd_order_create(args):
 
 def cmd_order_submit(args):
     """Submit signed transactions for an order."""
+    # Flatten signedTxs: if agent passes JSON array string as a single arg,
+    # e.g. --signed-txs '["0xabc..."]', parse it into individual hex strings.
+    signed_txs = []
+    for item in args.signed_txs:
+        stripped = item.strip()
+        if stripped.startswith("["):
+            try:
+                parsed = json.loads(stripped)
+                if isinstance(parsed, list):
+                    signed_txs.extend(parsed)
+                    continue
+            except json.JSONDecodeError:
+                pass
+        signed_txs.append(item)
+
     body = {
         "orderId": args.order_id,
-        "signedTxs": args.signed_txs,
+        "signedTxs": signed_txs,
     }
     print(json.dumps(api_request("/bgw-pro/swapx/order/submitSwapOrder", body), indent=2))
 
