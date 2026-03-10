@@ -275,7 +275,10 @@ for sig_item in order_data["signatures"]:
     hash_bytes = bytes.fromhex(sig_item["hash"][2:])
     signed = acct.unsafe_sign_hash(hash_bytes)
     signed_list.append("0x" + signed.signature.hex())
-# Submit: order-submit --order-id <id> --signed-txs <signed_list>
+# Submit: pass each signature as separate arg
+# order-submit --order-id <id> --signed-txs 0x<sig1> 0x<sig2>
+# Or pass JSON array string directly (auto-parsed):
+# order-submit --order-id <id> --signed-txs '["0x<sig1>","0x<sig2>"]'
 ```
 
 **Signing logic (for `txs` mode — normal gas):**

@@ -1,7 +1,7 @@
 ---
 name: bitget-wallet
-version: "2026.3.9-1"
-updated: "2026-03-06"
+version: "2026.3.9-3"
+updated: "2026-03-09"
 description: "Interact with Bitget Wallet API for crypto market data, token info, swap quotes, and security audits. Use when the user asks about token prices, market data, swap/trading quotes, token security checks, K-line charts, or token rankings on supported chains (ETH, SOL, BSC, Base, etc.)."
 ---
 
@@ -249,8 +249,12 @@ python3 scripts/bitget_api.py order-create \
   --market bkbridgev3.liqbridge --slippage 3.0 --feature no_gas
 
 # Order submit (submit signed transaction)
+# Pass each signed hex string as a separate argument:
 python3 scripts/bitget_api.py order-submit \
-  --order-id <orderId> --signed-txs "0x<signed_hex>"
+  --order-id <orderId> --signed-txs 0x<sig1> 0x<sig2>
+# Or pass the JSON array output from order_sign.py directly (auto-parsed):
+python3 scripts/bitget_api.py order-submit \
+  --order-id <orderId> --signed-txs '["0x<sig1>","0x<sig2>"]'
 
 # Order status (poll order completion)
 python3 scripts/bitget_api.py order-status --order-id <orderId>

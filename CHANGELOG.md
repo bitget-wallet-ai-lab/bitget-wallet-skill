@@ -6,6 +6,17 @@ Format: date-based versioning (`YYYY.M.DD`). Each release includes a sequential 
 
 ---
 
+## [2026.3.9-3] - 2026-03-09
+
+### Fixed
+- **signedTxs double-serialization bug** — `order-submit` now auto-parses JSON array strings
+  - Root cause: `order_sign.py` outputs JSON array, but `--signed-txs` treated the entire string as one argument
+  - Fix: `cmd_order_submit` detects and flattens JSON array input
+  - Updated SKILL.md and trading.md with correct usage examples
+
+---
+
+
 ## [2026.3.9-1] - 2026-03-09
 
 ### Fixed
