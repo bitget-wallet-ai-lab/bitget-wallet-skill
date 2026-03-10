@@ -455,7 +455,7 @@ When a cross-chain order fails after the source transaction is already on-chain,
 
 ### Supported Chains (Order Mode)
 
-| Chain | Code | Same-chain | Cross-chain | noGas Min (USD) |
+| Chain | Code | Same-chain | Cross-chain | Gasless Min (USD) |
 |-------|------|-----------|-------------|----------------|
 | Ethereum | `eth` | ✅ | ✅ | $5 |
 | Solana | `sol` | ✅ | ✅ | $5 |
@@ -581,7 +581,7 @@ The order is a contract — the user sees the actual order details, confirms, TH
 
 **Gasless support by chain (as of 2026-03-04):**
 
-| Chain | Gasless (EIP-7702) | noGas Min (USD) | Notes |
+| Chain | Gasless (EIP-7702) | Gasless Min (USD) | Notes |
 |-------|-------------------|----------------|-------|
 | Ethereum | ✅ Supported | $5 | — |
 | Solana | ✅ Supported | $5 | Both same-chain and cross-chain (Sol→EVM) work |

@@ -282,7 +282,7 @@ python3 scripts/x402_pay.py pay --url https://api.example.com/data --private-key
 
 **Order Mode chains** (swap-order, 7 chains with gasless):
 
-| Chain | ID | Code | noGas Min |
+| Chain | ID | Code | Gasless Min |
 |-------|------|------|-----------|
 | Ethereum | 1 | eth | $5 |
 | Solana | 100278 | sol | $5 |
