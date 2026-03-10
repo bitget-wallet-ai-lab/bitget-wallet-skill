@@ -21,7 +21,7 @@ An AI Agent skill that wraps the [Bitget Wallet API](https://web3.bitget.com/en/
 | **Batch Price Query** | Multi-token price lookup in one call | Portfolio valuation |
 | **K-line Data** | 1m/5m/1h/4h/1d candlestick data | Trend analysis, charting |
 | **Transaction Stats** | 5m/1h/4h/24h buy/sell volume & trader count | Activity detection, whale monitoring |
-| **Rankings** | Top gainers / top losers | Market scanning, alpha discovery |
+| **Rankings** | Top gainers / top losers / hot picks | Market scanning, alpha discovery |
 | **Liquidity Pools** | LP pool information | Slippage estimation, depth analysis |
 | **Security Audit** | Contract safety checks (honeypot, permissions, blacklist) | Pre-trade risk control |
 | **Batch Tx Info** | Batch transaction statistics for multiple tokens | "Compare volume for SOL and ETH" |
@@ -153,7 +153,8 @@ Structured JSON → Agent interprets → Natural language response
 ### 3. Market Monitoring / Alert Agent
 > Automatically scan top gainers, detect anomalies, push alerts
 
-- Rankings + transaction volume + security audit combined
+- Rankings (topGainers / topLosers / Hotpicks) + transaction volume + security audit combined
+- Use Hotpicks for curated trending tokens, topGainers for momentum plays
 - Discover trending tokens → auto-run security audit → filter honeypots → notify user
 - For: on-chain alpha hunters
 - Platforms: Cron jobs, Dify workflows

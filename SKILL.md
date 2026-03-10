@@ -212,8 +212,10 @@ python3 scripts/bitget_api.py tx-info --chain sol --contract <address>
 # Batch transaction info
 python3 scripts/bitget_api.py batch-tx-info --tokens "sol:<addr1>,eth:<addr2>"
 
-# Token rankings (topGainers / topLosers)
-python3 scripts/bitget_api.py rankings --name topGainers
+# Token rankings
+python3 scripts/bitget_api.py rankings --name topGainers   # Top gainers
+python3 scripts/bitget_api.py rankings --name topLosers    # Top losers
+python3 scripts/bitget_api.py rankings --name Hotpicks     # Hot picks (curated trending tokens)
 
 # Token liquidity pools
 python3 scripts/bitget_api.py liquidity --chain sol --contract <address>
