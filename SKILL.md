@@ -243,7 +243,7 @@ python3 scripts/bitget_api.py order-quote \
   --to-chain bnb --to-contract 0x55d398326f99059fF775485246999027B3197955 \
   --amount 2.0 --from-address <wallet>
 
-# Order create (returns unsigned tx data; use --feature no_gas for gasless)
+# Order create (returns unsigned tx data; use --feature no_gas for gasless mode)
 python3 scripts/bitget_api.py order-create \
   --from-chain base --from-contract 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913 \
   --to-chain bnb --to-contract 0x55d398326f99059fF775485246999027B3197955 \
