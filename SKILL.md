@@ -202,7 +202,7 @@ python3 scripts/wallet_cli.py --mnemonic-file /path/to/mnemonic.txt
 | `tx-info` | Get recent transaction stats (buy/sell volume, counts) for one token. | User asks for recent trades or tx activity. |
 | `batch-tx-info` | Batch get recent tx stats. `--tokens` = comma-separated `chain:contract`. | Multiple tokens' tx stats at once. |
 | `historical-coins` | Get recently issued tokens by time. `--create-time` = `YYYY-MM-DD HH:MM:SS`; paginate with response `lastTime`. | User asks for new/launched tokens. |
-| `rankings` | Get token rankings. `--name` = e.g. `topGainers` or `topLosers`. | User asks for hot/popular or top gainers/losers. |
+| `rankings` | Get token rankings. `--name` = e.g. `topGainers`, `topLosers`, or `Hotpicks` (curated trending tokens). | User asks for hot/popular, top gainers/losers, or trending tokens. |
 | `liquidity` | Get liquidity pool info for a token. | User asks for liquidity or pool info. |
 | `security` | Security audit (highRisk, riskCount, buyTax/sellTax, etc.). | Before swap for unfamiliar tokens; user asks for safety check. See `docs/market-data.md`. |
 | `quote` | First quote: returns **multiple market results** in `data.quoteResults`. Agent must **display all** results to the user, **recommend the first**, and allow the user to **choose another** for confirm if they prefer. | Step 1 of swap: show all options; default to first for confirm unless user picks another. |
@@ -240,7 +240,7 @@ python3 scripts/bitget_agent_api.py kline --chain bnb --contract 0x55d398326f990
 python3 scripts/bitget_agent_api.py tx-info --chain bnb --contract 0x55d398326f99059fF775485246999027B3197955
 python3 scripts/bitget_agent_api.py batch-tx-info --tokens "bnb:0x...,eth:0x..."
 python3 scripts/bitget_agent_api.py historical-coins --create-time "2026-02-27 00:00:00" --limit 20
-python3 scripts/bitget_agent_api.py rankings --name topGainers
+python3 scripts/bitget_agent_api.py rankings --name topGainers    # or topLosers, Hotpicks
 python3 scripts/bitget_agent_api.py liquidity --chain bnb --contract 0x55d398326f99059fF775485246999027B3197955
 python3 scripts/bitget_agent_api.py security --chain bnb --contract 0x55d398326f99059fF775485246999027B3197955
 

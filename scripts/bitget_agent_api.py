@@ -348,7 +348,7 @@ def historical_coins(create_time: str, limit: int = 10) -> dict:
 
 
 def rankings(name: str) -> dict:
-    """Get token rankings. name: e.g. topGainers or topLosers."""
+    """Get token rankings. name: e.g. topGainers, topLosers, or Hotpicks."""
     body = {"name": name}
     return _request("/market/v3/topRank/detail", body)
 
@@ -815,8 +815,8 @@ def main():
     p.add_argument("--limit", type=int, default=10)
     p.set_defaults(func=_cmd_historical_coins)
 
-    p = sub.add_parser("rankings", help="[Market] Get token rankings (e.g. topGainers, topLosers)")
-    p.add_argument("--name", required=True, help="e.g. topGainers or topLosers")
+    p = sub.add_parser("rankings", help="[Market] Get token rankings (e.g. topGainers, topLosers, Hotpicks)")
+    p.add_argument("--name", required=True, help="e.g. topGainers, topLosers, or Hotpicks")
     p.set_defaults(func=_cmd_rankings)
 
     p = sub.add_parser("liquidity", help="[Market] Get liquidity pool info for a token")
