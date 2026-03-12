@@ -47,7 +47,7 @@ git submodule add https://github.com/bitget-wallet-ai-lab/bitget-wallet-skill.gi
 2. Reviewed `SKILL.md` to understand API details and script instructions
 3. Cloned the repo to `/home/ubuntu/skills/bitget-wallet-skill/`
 4. Installed `requests` dependency
-5. Ran `python3 scripts/bitget_api.py token-price --chain sol --contract ""`
+5. Ran `python3 scripts/bitget_agent_api.py token-price --chain sol --contract ""`
 6. Ran price query for ETH and security audit for USDC, then presented all results
 
 **Test result:**
@@ -78,7 +78,7 @@ git submodule add https://github.com/bitget-wallet-ai-lab/bitget-wallet-skill.gi
 1. Fetched the repository and read `SKILL.md` and `README.md`
 2. Understood the API structure and available commands
 3. Installed the `requests` dependency
-4. Ran `python3 scripts/bitget_api.py token-price --chain sol --contract ""`
+4. Ran `python3 scripts/bitget_agent_api.py token-price --chain sol --contract ""`
 5. Presented results in a formatted web UI
 
 **Test result:**
@@ -109,9 +109,9 @@ git submodule add https://github.com/bitget-wallet-ai-lab/bitget-wallet-skill.gi
 2. Cloned the bitget-wallet-skill repository
 3. Ran `pip install requests`
 4. Executed three commands sequentially:
-   - `python3 scripts/bitget_api.py token-price --chain sol --contract ""`
-   - `python3 scripts/bitget_api.py token-price --chain eth --contract ""`
-   - `python3 scripts/bitget_api.py security --chain sol --contract EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v`
+   - `python3 scripts/bitget_agent_api.py token-price --chain sol --contract ""`
+   - `python3 scripts/bitget_agent_api.py token-price --chain eth --contract ""`
+   - `python3 scripts/bitget_agent_api.py security --chain sol --contract EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v`
 5. Parsed JSON output and presented structured results
 
 **Test result:**
@@ -187,8 +187,8 @@ These platforms have the required capabilities (file system access, Python execu
 
 | Platform | How to Use |
 |----------|------------|
-| **Dify** | Import `bitget_api.py` as a Code node, or wrap as an external API Tool. |
-| **Coze (扣子)** | Create a plugin with the API endpoints, or use the script as a Code block. |
+| **Dify** | Import `bitget_agent_api.py` as a Code node, or wrap as an external API Tool. |
+| **Coze** | Create a plugin with the API endpoints, or use the script as a Code block. |
 | **n8n** | Use the AI Agent node with a code execution step. |
 | **Langflow / Flowise** | Wrap as a custom tool in the visual workflow builder. |
 
@@ -196,7 +196,7 @@ These platforms have the required capabilities (file system access, Python execu
 
 | Framework | How to Use |
 |-----------|------------|
-| **LangChain / LangGraph** | Import `bitget_api.py` functions as a `Tool`. |
+| **LangChain / LangGraph** | Import `bitget_agent_api.py` functions as a `Tool`. |
 | **CrewAI** | Wrap as a custom `Tool` class for your crew agents. |
 | **AutoGen (Microsoft)** | Register as a function call tool. |
 | **Semantic Kernel** | Import as a native function plugin. |

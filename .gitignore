@@ -1,3 +1,11 @@
 __pycache__/
 .venv/
-bitget-wallet-skill
+wallet/
+.claude/
+.cursor/
+.manus/
+.bolt/
+.devin/
+.openclaw/
+.replit/
+.aider/

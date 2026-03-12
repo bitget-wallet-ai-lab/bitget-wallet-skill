@@ -6,54 +6,58 @@ Format: date-based versioning (`YYYY.M.DD`). Each release includes a sequential 
 
 ---
 
-## [2026.3.10-1] - 2026-03-10
+## [2026.3.12-1] - 2026-03-12
 
-### Updated — Sync with Official API Docs
-- **Chain identifiers expanded** from 10 → 33 chains, split into Order Mode (7 chains) and Market Data (32 chains) tables
-- **Gasless thresholds unified** — all chains $5 USD, Morph $1 USD (previously documented as "~$5-6")
-- **Error codes completed** — full 80000-80015 error code table with descriptions and actions
-- **Security audit labelName reference** — complete Solana (11 checks) and EVM (17 checks) mapping tables added to market-data.md
-- **Token info social fields** documented — twitter, website, telegram, whitepaper, about
-- **K-line buy/sell breakdown fields** documented — buyTurnover, sellTurnover, buyAmount, sellAmount
-- **fromAmount human-readable** explicitly documented in order quote section
-- **fee.gasFee** and EIP-7702 response fields added to order quote docs
-- **README updated** — supported chains split (order vs market data), capabilities table expanded, gasless description updated to include Solana
+### Breaking Changes
+- **New API endpoint**: Migrated from `bopenapi.bgwapi.io` (HMAC auth) to `copenapi.bgwapi.io` (token auth, no API key needed)
+- **New swap flow**: `quote → confirm → makeOrder → sign+send → getOrderDetails` replaces old `order-quote → order-create → sign → order-submit → order-status`
+- **Removed**: `scripts/bitget_api.py` (legacy API client) — replaced by `scripts/bitget_agent_api.py`
+- **Removed**: `docs/trading.md` — replaced by `docs/swap.md`
 
----
+### Added — New Scripts
+- `scripts/bitget_agent_api.py` — Unified API client: swap flow + balance + token search + market data (no API key required)
+- `scripts/wallet_cli.py` — Derive addresses from mnemonic file (outputs only addresses, never keys)
+- `scripts/wallet_from_mnemonic.py` — Multi-chain key derivation (EVM / Solana / Tron) from BIP-39 mnemonic
+- `scripts/wallet_crypto.py` — AES-256-GCM encrypt/decrypt for mnemonic storage
+- `scripts/order_make_sign_send.py` — One-shot makeOrder + sign + send (avoids ~60s expiry)
+- `scripts/json_tool.py` — JSON pretty-print and field extraction helper
+- `scripts/safe_json_reader.sh` — Shell-safe JSON reader
 
-## [2026.3.9-3] - 2026-03-09
+### Added — New API Commands
+- `check-swap-token` — Pre-swap token risk check (forbidden-buy detection)
+- `get-processed-balance` — On-chain balance query per address/chain/token
+- `batch-v2` — Balance + token price in one call (portfolio valuation)
+- `search-tokens` — Search tokens by keyword or contract address
+- `get-token-list` — Popular tokens per chain
+- `confirm` — Second quote with locked market, orderId, and gas estimation
+
+### Added — New Documentation
+- `docs/swap.md` — Complete new swap flow with pre-trade checks, multi-market quote display, and confirmation rules
+- `COMPATIBILITY.md` — Platform compatibility guide (tested: OpenClaw, Manus, Bolt.new, Devin, Replit Agent)
+
+### Changed — Swap Flow
+- Quote now returns **multiple market results** (`data.quoteResults`); agent must display all and recommend the first
+- Confirm step locks one market and returns `orderId` + final `quoteResult`
+- `recommendFeatures` in confirm response indicates gas payment mode (`user_gas` / `no_gas`)
+- **Balance check required before swap** — `get-processed-balance` must run before quote to prevent misleading `40001` errors
+- makeOrder unsigned data expires ~60s; use `order_make_sign_send.py` for combined execution
+
+### Changed — Wallet Management
+- Mnemonic file-based key management: user provides file path, keys derived in memory
+- Mnemonic and private keys never appear in conversation, logs, or output
+- `wallet_cli.py` outputs only addresses (evm_address, solana_address, tron_address)
 
 ### Fixed
-- **signedTxs double-serialization bug** — `order-submit` now auto-parses JSON array strings
-  - Root cause: `order_sign.py` outputs JSON array, but `--signed-txs` treated the entire string as one argument
-  - Fix: `cmd_order_submit` detects and flattens JSON array input
-  - Updated SKILL.md and trading.md with correct usage examples
+- Python 3.9 compatibility: added `from __future__ import annotations` for `str | None` type hints
+
+### Audit
+- ✅ New API base `copenapi.bgwapi.io` uses token-based auth (no API key/secret needed)
+- ✅ Market data endpoints (`/market/v3/*`) work on new API after whitelist
+- ✅ `order_sign.py` updated to support new makeOrder `deriveTransaction` format
+- ✅ Full swap flow verified: quote → confirm → makeOrder → sign → send → getOrderDetails (BNB USDT→USDC, success)
+- ✅ No new external dependencies beyond existing `eth_account` + `requests`
 
 ---
-
-## [2026.3.9-2] - 2026-03-09
-
-### Added
-- **Hotpicks ranking support** — `rankings --name Hotpicks` returns curated trending tokens across chains
-  - Complements existing `topGainers` / `topLosers` rankings
-  - Updated SKILL.md command examples, market-data.md domain knowledge, and README.md
-
----
-
-
-## [2026.3.9-1] - 2026-03-09
-
-### Fixed
-- **Solana gasless IS supported** — corrected previous conclusion that Solana didn't support gasless
-  - Gasless has a **minimum amount threshold (~$5-6 USD)** — below threshold, `features: []`; above, `features: ["no_gas"]`
-  - Same-chain gasless verified: 6 USDC → 5.76 USDT ✅
-  - Cross-chain gasless verified: 20 USDC (Sol) → 19.87 USDC (Base) ✅
-  - Updated all docs: trading.md, wallet-signing.md, README.md
-
-### Tested
-- Solana same-chain gasless (order `6e31ea59`) — pure Python Ed25519 signing ✅
-- Sol→Base cross-chain gasless (order `d106d921`) — 20 USDC, ~20s completion ✅
-- Pure Python signing (zero external deps) works flawlessly for gasless 2-signer transactions
 
 ## [2026.3.6-3] - 2026-03-06
 
@@ -92,8 +96,8 @@ Format: date-based versioning (`YYYY.M.DD`). Each release includes a sequential 
 - Market field in order confirmation summary (e.g., `bgwAggregator`, `bkbridgev3.liqbridge`)
 
 ### Fixed
-- Solana gasless status: changed from "❌ Not working (bug)" to "❌ Not supported" — gasless is not available on Solana (quote returns `features: []`)
-- Gasless rule: only use gasless when quote returns `"no_gas"` in `features` array (API accepts flag without validation but execution fails)
+- Solana gasless status: changed from "❌ Not working (bug)" to "❌ Not supported" — `no_gas` is not available on Solana (quote returns `features: []`)
+- Gasless rule: only use `no_gas` when quote returns it in `features` array (API accepts flag without validation but execution fails)
 - Cross-chain minimum amounts: Solana $10, Morph $5 (previously documented as ~$2 for all)
 
 ---
@@ -107,7 +111,7 @@ Format: date-based versioning (`YYYY.M.DD`). Each release includes a sequential 
   - `order-submit` — submit signed transactions
   - `order-status` — query order lifecycle status
 - **Cross-chain swaps**: swap tokens between different chains in one order (e.g., USDC on Base → USDT on Polygon)
-- **Gasless mode**: pay gas with input token, no native token needed (EVM only)
+- **Gasless mode (no_gas)**: pay gas with input token, no native token needed (EVM only)
 - **EIP-7702 support**: EIP-712 typed data signing for gasless execution
 - **Order status tracking**: full lifecycle (init → processing → success/failed/refunding/refunded)
 - **B2B fee splitting**: `feeRate` parameter for partner commission

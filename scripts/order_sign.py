@@ -15,11 +15,11 @@ Usage:
     python3 scripts/order_sign.py --order-json '<json>' --private-key-sol <base58|hex>
 
     # Pipe from order-create
-    python3 scripts/bitget_api.py order-create ... | python3 scripts/order_sign.py --private-key <hex>
+    python3 scripts/bitget_agent_api.py order-create ... | python3 scripts/order_sign.py --private-key <hex>
 
 Output: JSON array of signed strings, ready for order-submit --signed-txs
 
-Dependencies: Python 3.11+ stdlib + eth_account (EVM only). Solana signing is
+Dependencies: Python 3.9+ stdlib + eth_account (EVM only). Solana signing is
 fully self-contained — no external packages required (pure-Python Ed25519 + base58).
 """
 
@@ -27,6 +27,9 @@ import argparse
 import hashlib
 import json
 import sys
+
+# Solana chainId — must not be signed as EVM; use sign_order_txs_solana for chainId 501
+_SOLANA_CHAIN_ID = 501
 
 
 # ===========================================================================
@@ -324,6 +327,7 @@ def sign_solana_tx(serialized_tx_b58: str, seed: bytes, pubkey: bytes) -> str:
 def sign_order_txs_solana(order_data: dict, private_key_sol: str) -> list[str]:
     """
     Sign all Solana transactions in an order-create txs response.
+    Uses pre-serialized transactions (serializedTx); no gas/fee conversion — Solana uses lamports and compute units.
 
     Args:
         order_data: The 'data' field from order-create response
@@ -340,6 +344,11 @@ def sign_order_txs_solana(order_data: dict, private_key_sol: str) -> list[str]:
         raise ValueError("No txs in order data")
 
     for tx_item in txs:
+        item_cid = tx_item.get("chainId") or (tx_item.get("deriveTransaction") or {}).get("chainId")
+        if item_cid is not None and int(item_cid) != _SOLANA_CHAIN_ID:
+            raise ValueError(
+                f"Tx item has non-Solana chainId {item_cid}. Use --private-key for EVM orders."
+            )
         # Unwrap to find the innermost dict with serializedTx
         tx_data = tx_item
 
@@ -408,17 +417,46 @@ def sign_order_signatures(order_data: dict, private_key: str) -> list[str]:
     return signed_list
 
 
+def _normalize_tx_item_for_signing(tx_item: dict) -> tuple[dict, int]:
+    """
+    Normalize order-create / makeOrder tx item to { to, calldata, gasLimit, nonce, gasPrice, value } and chainId.
+    Supports legacy format (tx_item["data"] is dict) and new format (tx_item has deriveTransaction, data is hex string).
+    Rejects Solana (chainId 501) — use sign_order_txs_solana for that.
+    """
+    derive = tx_item.get("deriveTransaction")
+    data_raw = tx_item.get("data")
+    cid = int(tx_item.get("chainId") or (derive.get("chainId") if derive else 1))
+    if cid == _SOLANA_CHAIN_ID:
+        raise ValueError(
+            "Tx item is Solana (chainId 501). Use --private-key-sol; order should be detected as Solana."
+        )
+
+    if derive and isinstance(data_raw, str):
+        # New swap flow makeOrder format: data is hex string, deriveTransaction has chain params
+        d = derive
+        tx_data = {
+            "to": tx_item["to"],
+            "calldata": data_raw,
+            "gasLimit": str(d.get("gasLimit", tx_item.get("gasLimit", 0))),
+            "nonce": int(d.get("nonce", tx_item.get("nonce", 0))),
+            "gasPrice": d.get("gasPrice") or tx_item.get("gasPrice", "0"),
+            "value": d.get("value") or tx_item.get("value", "0"),
+            "supportEIP1559": False,
+            "maxFeePerGas": None,
+            "maxPriorityFeePerGas": None,
+        }
+        return tx_data, cid
+    # Legacy order-create format: tx_item["data"] is dict
+    tx_data = tx_item["data"]
+    cid = int(tx_item.get("chainId", 1))
+    return tx_data, cid
+
+
 def sign_order_txs_evm(order_data: dict, private_key: str, chain_id: int = None) -> list[str]:
     """
-    Sign all EVM transactions in an order-create txs response.
-
-    Args:
-        order_data: The 'data' field from order-create response
-        private_key: Hex private key
-        chain_id: Override chain ID (optional)
-
-    Returns:
-        List of signed raw transaction hex strings (0x-prefixed)
+    Sign all EVM transactions in an order-create or makeOrder txs response.
+    Supports legacy order-create format (data dict with to/calldata) and new makeOrder format (deriveTransaction + data hex).
+    Skips or rejects Solana tx items (chainId 501); use sign_order_txs_solana for those.
     """
     from eth_account import Account
     acct = Account.from_key(private_key)
@@ -429,26 +467,38 @@ def sign_order_txs_evm(order_data: dict, private_key: str, chain_id: int = None)
         raise ValueError("No txs in order data. Is this a 'signatures' mode order?")
 
     for tx_item in txs:
-        tx_data = tx_item["data"]
-        cid = chain_id or int(tx_item.get("chainId", 1))
+        item_cid = int(tx_item.get("chainId") or (tx_item.get("deriveTransaction") or {}).get("chainId") or 0)
+        if item_cid == _SOLANA_CHAIN_ID:
+            raise ValueError(
+                "One or more tx items are Solana (chainId 501). Use --private-key-sol for Solana orders."
+            )
+        tx_data, cid = _normalize_tx_item_for_signing(tx_item)
+        cid = chain_id or cid
 
         tx_dict = {
             "to": tx_data["to"],
-            "data": tx_data["calldata"],
-            "gas": int(tx_data["gasLimit"]),
-            "nonce": int(tx_data["nonce"]),
+            "data": tx_data.get("calldata") or tx_data.get("data"),
+            "gas": int(tx_data.get("gasLimit", 0)),
+            "nonce": int(tx_data.get("nonce", 0)),
             "chainId": cid,
         }
 
-        # EIP-1559 vs legacy
         if tx_data.get("supportEIP1559") or tx_data.get("maxFeePerGas"):
             tx_dict["maxFeePerGas"] = int(tx_data["maxFeePerGas"])
             tx_dict["maxPriorityFeePerGas"] = int(tx_data["maxPriorityFeePerGas"])
             tx_dict["type"] = 2
         else:
-            tx_dict["gasPrice"] = int(tx_data["gasPrice"])
+            gp = tx_data.get("gasPrice", "0")
+            if isinstance(gp, str) and "." in gp:
+                # API gives gasPrice in native token (BNB/ETH, 18 decimals); convert to wei
+                gpf = float(gp)
+                if 0 < gpf < 1:
+                    tx_dict["gasPrice"] = int(gpf * 1e18)
+                else:
+                    tx_dict["gasPrice"] = int(gpf * 1e9)
+            else:
+                tx_dict["gasPrice"] = int(gp)
 
-        # Value
         value = tx_data.get("value", "0")
         if isinstance(value, str) and "." in value:
             tx_dict["value"] = int(float(value) * 1e18)
@@ -469,9 +519,8 @@ def _is_solana_order(order_data: dict) -> bool:
     """Detect if order data is for Solana chain."""
     txs = order_data.get("txs", [])
     for tx_item in txs:
-        # Check chainId
-        chain_id = tx_item.get("chainId", "")
-        if str(chain_id) == "501":
+        chain_id = tx_item.get("chainId") or (tx_item.get("deriveTransaction") or {}).get("chainId")
+        if chain_id is not None and int(chain_id) == _SOLANA_CHAIN_ID:
             return True
         # Check chainName
         chain_name = tx_item.get("chainName", "").lower()
