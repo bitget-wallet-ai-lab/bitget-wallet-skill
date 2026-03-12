@@ -139,7 +139,7 @@ Format: date-based versioning (`YYYY.M.DD`). Each release includes a sequential 
 
 ### Fixed
 - Solana gasless status: changed from "❌ Not working (bug)" to "❌ Not supported" — gasless is not available on Solana (quote returns `features: []`)
-- Gasless rule: only use gasless when quote returns it in `features` array (API accepts flag without validation but execution fails)
+- Gasless rule: only use gasless when quote returns `"no_gas"` in `features` array (API accepts flag without validation but execution fails)
 - Cross-chain minimum amounts: Solana $10, Morph $5 (previously documented as ~$2 for all)
 
 ---
