@@ -220,8 +220,8 @@ All scripts are in `scripts/`, Python 3.9+. Each command below states **what it 
 | `security` | Security audit (highRisk, riskCount, buyTax/sellTax, etc.). | Before swap for unfamiliar tokens; user asks for safety check. See `docs/market-data.md`. |
 | `quote` | First quote: returns **multiple market results** in `data.quoteResults`. Agent must **display all** results to the user, **recommend the first**, and allow the user to **choose another** for confirm if they prefer. | Step 1 of swap: show all options; default to first for confirm unless user picks another. |
 | `confirm` | Second quote: locks in **one** market (the chosen one from quote), returns `data.orderId` and `data.quoteResult`. Use market/protocol/slippage from the **selected** quote result (default first; or the item user chose). | Step 2 of swap: get orderId and latest quoteResult for makeOrder/send using the user’s chosen market. |
-| `make-order` | Creates order; returns unsigned `data.txs` (expires ~60s). | Step 3 of swap: get unsigned txs for signing. |
-| `send` | Submits signed order: body is `{ "orderId", "txs" }` with `txs[].sig` filled. Input via `--json-stdin` or `--json-file`. | After signing makeOrder txs via `order_sign.py`. |
+| `make-order` | Creates order; returns unsigned `data.txs` (expires ~60s). | Only if not using `order_make_sign_send.py`; otherwise use combined script. |
+| `send` | Submits signed order: body is `{ "orderId", "txs" }` with `txs[].sig` filled. Input via `--json-stdin` or `--json-file`. | After signing makeOrder txs (e.g. via `order_sign.py`); or use `order_make_sign_send.py` for combined flow. |
 | `get-order-details` | Returns order status and result (e.g. `data.details.status`, `fromTxId`, `toTxId`). | After send: show user whether swap succeeded and tx links. |
 
 ```bash
@@ -273,6 +273,20 @@ python3 scripts/order_sign.py --order-json "$(cat /tmp/makeorder.json)" --privat
 python3 scripts/bitget_agent_api.py get-order-details --order-id <orderId>
 ```
 
+
+---
+
+### `scripts/order_make_sign_send.py` — One-shot makeOrder + sign + send
+
+**Purpose:** Runs makeOrder, derives signing keys from mnemonic file in memory, signs `data.txs`, and calls send — all in one process. Avoids the ~60s makeOrder expiry. **Never** outputs mnemonic or private keys.
+
+| When to use | When NOT to use |
+|-------------|-----------------|
+| After user confirms swap: run with orderId and params from confirm. | If signing with an external signer (e.g. hardware wallet), use make-order → sign externally → send instead. |
+
+```bash
+python3 scripts/order_make_sign_send.py --mnemonic-file <path> --from-address <addr> --to-address <addr> --order-id <from_confirm> --from-chain bnb --from-contract <addr> --from-symbol USDT --to-chain bnb --to-contract "" --to-symbol BNB --from-amount 0.01 --slippage 1.00 --market bgwevmaggregator --protocol bgwevmaggregator_v000
+```
 
 ---
 

@@ -13,9 +13,10 @@ This document describes the **Swap flow**: use `scripts/bitget_agent_api.py` for
 | 0 | `bitget_agent_api.py check-swap-token` | Check fromToken and toToken for risks **before** quote; if risks or forbidden-buy on toToken, prompt user or stop. |
 | 1 | `bitget_agent_api.py quote` | First quote; returns multiple markets in `data.quoteResults`. Agent shows **all** results, recommends the first; user may choose another for confirm. |
 | 2 | `bitget_agent_api.py confirm` | Second quote; use market/protocol/slippage from **chosen** quote result (default first); Get latest quoteResult and orderId. The agent should display the `data.quoteResult`. If the `data.tips` are not empty, agent should display and remind user |
-| 3 | `bitget_agent_api.py make-order` | Create order; returns unsigned data.txs (~60s expiry) |
-| 4 | `order_sign.py` + fill `txs[].sig` | Sign data.txs with private key (derived from mnemonic, discarded after) |
-| 5 | `bitget_agent_api.py send` | Submit signed order (body: orderId + txs) |
+| 3+4+5 | **`order_make_sign_send.py`** (recommended) | makeOrder + sign (from mnemonic file) + send in one run |
+| 3′ | `bitget_agent_api.py make-order` | Create order; returns unsigned data.txs (~60s expiry) |
+| 4′ | `order_sign.py` + fill `txs[].sig` | Sign data.txs with private key (derived from mnemonic, discarded after) |
+| 5′ | `bitget_agent_api.py send` | Submit signed order (body: orderId + txs) |
 | 6 | `bitget_agent_api.py get-order-details` | Query order status and result |
 
 **Balance and token discovery:** For balance only use `get-processed-balance`. For balance **plus token price** (e.g. portfolio value in USD) use **`batch-v2`** (same request format: `list: [{ chain, address, contract }]`). 
@@ -78,9 +79,14 @@ Or with JSON stdin: `echo '{"list":[{"chain":"...","contract":"...","symbol":"..
   - **`no_gas`** — Main-chain balance is insufficient but **gasLess** applies; gas will be paid from **fromSymbol**. Proceed with the swap.
   - **Any other value** — Gas is insufficient and gasLess does not apply. **Do not proceed.** Tell the user that gas is insufficient, the swap cannot be executed, and they need to top up main-chain native token; then stop.
 
-### 3–5. makeOrder, sign, send
+### 3–5. makeOrder, sign, send (combined — recommended)
 
-**Important:** makeOrder unsigned data expires in ~60 seconds. Steps 3–5 must be executed quickly after user confirms.
+- **Script:** `python3 scripts/order_make_sign_send.py --mnemonic-file <path> --from-address <addr> --to-address <addr> --order-id <from_confirm> --from-chain ... --from-contract ... --from-symbol ... --to-chain ... --to-contract ... --to-symbol ... --from-amount ... --slippage ... --market ... --protocol ...`
+- **Behavior:** Reads mnemonic from file, derives keys in memory, calls makeOrder, signs `data.txs`, fills `txs[].sig`, then sends. Never outputs mnemonic or private keys. Use this so the ~60s makeOrder expiry does not run out.
+
+### 3′–5′. makeOrder, sign, send (separate steps)
+
+Use only when not using the combined script (e.g. external signer, or key from secure storage like 1Password).
 
 - **makeOrder:** `bitget_agent_api.py make-order` with orderId, market, protocol, slippage from confirm. Response `data.txs` expires in ~60s.
 - **Sign:** Derive private key from mnemonic in secure storage. Pass full makeOrder response to `order_sign.py` (stdin or `--order-json`) with `--private-key <hex>`. Output is an array of signature hex strings. **Discard the private key immediately after signing.**
@@ -111,7 +117,7 @@ Recommended flow:
 5. confirm → use market/protocol/slippage from the chosen quote result (default first); get and show latest quoteResult(data.quoteResult), orderId(data.orderId) and gasFee(data.gasFee); also show tips(data.tips) if not empty
 6. PRESENT → show confirmation summary (required)
 7. WAIT → user explicitly confirms
-8. make-order → order_sign.py --private-key <derived_key> → fill txs[].sig → send (must complete within ~60s)
+8. order_make_sign_send.py (recommended) or make-order → order_sign.py → send (must complete within ~60s)
 9. get-order-details → show final status and txId / explorer link
 ```
 
@@ -158,7 +164,7 @@ On EVM chains, tokens must be **approved** for the router before spending. Witho
 2. **Human-readable amounts:** In the swap flow, **fromAmount** (and toAmount, fromAmount in makeOrder, etc.) are always **human-readable** (e.g. `0.01` for 0.01 USDT, `1` for 1 token). Do **not** convert to smallest units (wei, lamports, or token decimals); pass the value as the user would say it (e.g. `--from-amount 0.01`).
 3. **Native token contract:** Use empty string `""` for toContract/fromContract when the token is native.
 4. **Do not submit twice:** One confirmation, one sign+send; duplicate submit can double-spend.
-5. **makeOrder data expiry:** Unsigned txs from makeOrder are valid ~60s; sign and send immediately after makeOrder to avoid expiry.
+5. **makeOrder data expiry:** Unsigned txs from makeOrder are valid ~60s; use **order_make_sign_send.py** or sign and send immediately after makeOrder to avoid expiry.
 6. **Chain codes:** Use API chain codes (`bnb`, `sol`, `eth`), not aliases (`bsc`, `solana`).
 
 For request/response details, see the script help: `python3 scripts/bitget_agent_api.py <command> --help`.
