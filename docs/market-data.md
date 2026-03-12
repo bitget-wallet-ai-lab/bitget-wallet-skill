@@ -20,6 +20,7 @@ The `security` command returns raw audit data. Key fields to check:
 - **Periods**: `1s`, `1m`, `5m`, `15m`, `30m`, `1h`, `4h`, `1d`, `1w`
 - **Max entries**: 1440 per request
 - Other period values will return an error or empty data.
+- **Buy/Sell breakdown fields**: Each K-line entry includes `buyTurnover`/`sellTurnover` (buy/sell volume in USD) and `buyAmount`/`sellAmount` (buy/sell quantity). Use these to detect buying vs selling pressure within each candle.
 
 ## Transaction Info: Valid Intervals
 
