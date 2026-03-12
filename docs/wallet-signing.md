@@ -19,18 +19,61 @@ Mnemonic (12/24 words)
 - **Solana uses a different key.** Ed25519 (not secp256k1). Different address, different signing algorithm.
 - **Private key ≠ mnemonic.** A private key is one specific key derived from the mnemonic. Losing the mnemonic means losing access to all derived keys.
 
-## Mnemonic file and addresses (no wallet directory)
+## Key Management for Agents
 
-This skill **does not** use a `wallet/` directory. There is no create-wallet, no multi-wallet, no list/switch.
+**Principle: mnemonic is the only persistent secret. Private keys are ephemeral.**
 
-**Critical rule for agents:** The user provides a **file path** to their BIP-39 mnemonic. Run `python3 scripts/wallet_cli.py --mnemonic-file <path>` to get **only** addresses (evm_address, solana_address, tron_address) and store them in context. **Do not** output or store mnemonic or private keys anywhere in the conversation.
+```
+Storage:     Mnemonic in secure storage (encrypted vault, keychain, etc.)
+Derivation:  On-the-fly, per signing operation
+Lifecycle:   Derive → sign → discard. Keys never persist beyond a single operation.
+```
 
-- **Addresses in context:** Store the output of `wallet_cli.py --mnemonic-file <path>` (evm_address, solana_address, tron_address) in conversation context. Use them for `--from-address` / `--to-address` in quote, confirm, balance, and `order_make_sign_send.py`.
-- **Before balance or swap:** If the user has not provided a mnemonic file path in the conversation, prompt them first; then run `wallet_cli.py --mnemonic-file <path>` and store addresses in context.
+**Why store a mnemonic, not individual keys:**
+- One mnemonic → all chains (EVM, Solana, future chains)
+- No key inventory to manage — derive what you need, when you need it
+- Adding new chains requires zero storage changes
+- Reduced attack surface — fewer persistent secrets
 
-### Security and signing
+**Secure storage requirements:**
+The mnemonic must be stored in a mechanism that:
+1. Encrypts at rest
+2. Requires authentication to read
+3. Does not expose secrets in logs, shell history, or environment dumps
 
-Mnemonic and private keys must **never** appear in conversation, prompts, logs, or any output. Only the mnemonic **file path** and derived **addresses** may be stored or shown. **`order_make_sign_send.py`** reads the mnemonic file locally, derives keys in memory, signs, and never prints mnemonic or keys. It requires `--mnemonic-file`, `--from-address`, `--to-address` (from context). MakeOrder unsigned data expires in ~60 seconds; run `order_make_sign_send.py` in one go right after user confirms. Key derivation: `derive_wallets_from_mnemonic()` in `wallet_from_mnemonic.py`; used by `wallet_cli.py` (addresses only) and `order_make_sign_send.py` (sign in memory). **⚠️ Never** output mnemonic or private keys in chat or logs.
+Examples: password managers (1Password, Bitwarden), OS keychains, encrypted vaults, hardware security modules.
+
+**Signing pipeline:**
+```
+Secure storage → mnemonic → derive private key (in memory) → order_sign.py → signed tx → discard key
+```
+
+**Key derivation (conceptual):**
+```python
+# 1. Retrieve mnemonic from secure storage
+mnemonic = retrieve_from_secure_storage("Agent Wallet", "mnemonic")
+
+# 2. Derive key for the target chain
+if chain == "evm":
+    # m/44'/60'/0'/0/0, secp256k1
+    from eth_account import Account
+    Account.enable_unaudited_hdwallet_features()
+    key = Account.from_mnemonic(mnemonic).key.hex()
+elif chain == "sol":
+    # m/44'/501'/0'/0', Ed25519 via SLIP-0010
+    key = derive_solana_key(mnemonic)  # HMAC-SHA512 chain derivation
+
+del mnemonic  # discard mnemonic immediately after derivation
+
+# 3. Sign transaction
+signed = sign_order(order_json, key)
+del key  # discard key immediately after signing
+```
+
+**⚠️ Never:**
+- Store derived private keys persistently
+- Print mnemonic or keys to chat channels (except during initial wallet setup)
+- Pass secrets via command-line arguments visible in `ps` output (prefer stdin/env vars for production)
 
 ## Signature Types (EVM)
 
@@ -99,10 +142,10 @@ The first N account keys in the message correspond to required signers (N = `hea
 
 | Mode | sig[0] | sig[1] | Description |
 |------|--------|--------|-------------|
-| **Gasless (no_gas)** | Relayer (fee payer) | User wallet | Backend fills sig[0] after submission |
+| **Gasless** | Relayer (fee payer) | User wallet | Backend fills sig[0] after submission |
 | **User gas** | User wallet | — | User is the sole signer and fee payer |
 
-**⚠️ Solana gasless status (2026-03-06):** Backend does NOT currently support Solana gasless. `features: []` returned for all Solana quotes. Forcing `no_gas` creates the order but relayer never signs `sig[0]` → order fails immediately. Use `user_gas` mode only.
+**Solana gasless status (2026-03-09 updated):** Solana gasless IS supported, but has a **minimum amount threshold (~$5-6 USD)**. Below this threshold, `order-quote` returns `features: []`. Above it, `features: ["no_gas"]` is returned and gasless works correctly — relayer signs `sig[0]`, user partial-signs `sig[1]`. Both same-chain swaps and cross-chain (Sol→EVM) gasless are verified working.
 
 ### Partial Signing Pattern
 

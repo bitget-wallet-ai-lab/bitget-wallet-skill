@@ -18,10 +18,7 @@ Format: date-based versioning (`YYYY.M.DD`). Each release includes a sequential 
 - `scripts/bitget_agent_api.py` — Unified API client: swap flow + balance + token search + market data (no API key required)
 - `scripts/wallet_cli.py` — Derive addresses from mnemonic file (outputs only addresses, never keys)
 - `scripts/wallet_from_mnemonic.py` — Multi-chain key derivation (EVM / Solana / Tron) from BIP-39 mnemonic
-- `scripts/wallet_crypto.py` — AES-256-GCM encrypt/decrypt for mnemonic storage
 - `scripts/order_make_sign_send.py` — One-shot makeOrder + sign + send (avoids ~60s expiry)
-- `scripts/json_tool.py` — JSON pretty-print and field extraction helper
-- `scripts/safe_json_reader.sh` — Shell-safe JSON reader
 
 ### Added — New API Commands
 - `check-swap-token` — Pre-swap token risk check (forbidden-buy detection)
