@@ -51,6 +51,56 @@ Format: date-based versioning (`YYYY.M.DD`). Each release includes a sequential 
 
 ---
 
+## [2026.3.10-1] - 2026-03-10
+
+### Updated — Sync with Official API Docs
+- **Chain identifiers expanded** from 10 → 33 chains, split into Order Mode (7 chains) and Market Data (32 chains) tables
+- **Gasless thresholds unified** — all chains $5 USD, Morph $1 USD (previously documented as "~$5-6")
+- **Error codes completed** — full 80000-80015 error code table with descriptions and actions
+- **Security audit labelName reference** — complete Solana (11 checks) and EVM (17 checks) mapping tables added to market-data.md
+- **Token info social fields** documented — twitter, website, telegram, whitepaper, about
+- **K-line buy/sell breakdown fields** documented — buyTurnover, sellTurnover, buyAmount, sellAmount
+- **fromAmount human-readable** explicitly documented in order quote section
+- **fee.gasFee** and EIP-7702 response fields added to order quote docs
+- **README updated** — supported chains split (order vs market data), capabilities table expanded, gasless description updated to include Solana
+
+---
+
+## [2026.3.9-3] - 2026-03-09
+
+### Fixed
+- **signedTxs double-serialization bug** — `order-submit` now auto-parses JSON array strings
+  - Root cause: `order_sign.py` outputs JSON array, but `--signed-txs` treated the entire string as one argument
+  - Fix: `cmd_order_submit` detects and flattens JSON array input
+  - Updated SKILL.md and trading.md with correct usage examples
+
+---
+
+## [2026.3.9-2] - 2026-03-09
+
+### Added
+- **Hotpicks ranking support** — `rankings --name Hotpicks` returns curated trending tokens across chains
+  - Complements existing `topGainers` / `topLosers` rankings
+  - Updated SKILL.md command examples, market-data.md domain knowledge, and README.md
+
+---
+
+## [2026.3.9-1] - 2026-03-09
+
+### Fixed
+- **Solana gasless IS supported** — corrected previous conclusion that Solana didn't support gasless
+  - Gasless has a **minimum amount threshold (~$5-6 USD)** — below threshold, `features: []`; above, `features: ["no_gas"]`
+  - Same-chain gasless verified: 6 USDC → 5.76 USDT ✅
+  - Cross-chain gasless verified: 20 USDC (Sol) → 19.87 USDC (Base) ✅
+  - Updated all docs: trading.md, wallet-signing.md, README.md
+
+### Tested
+- Solana same-chain gasless (order `6e31ea59`) — pure Python Ed25519 signing ✅
+- Sol→Base cross-chain gasless (order `d106d921`) — 20 USDC, ~20s completion ✅
+- Pure Python signing (zero external deps) works flawlessly for gasless 2-signer transactions
+
+---
+
 ## [2026.3.6-3] - 2026-03-06
 
 ### Added
