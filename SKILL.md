@@ -12,7 +12,7 @@ description: "Wallet Manage, Interact with Bitget Wallet API for crypto market d
 **How to handle tasks:**
 
 1. **Primary sources:** Use the **Scripts** section in this SKILL and the files under **`docs/`** to decide which commands to run and how. Scripts lists each Python CLI with purpose, subcommands, and when to use them; `docs/swap.md`, `docs/wallet-signing.md`, `docs/market-data.md`, etc. describe flows and domain rules.
-2. **Run commands as documented:** Execute the script invocations shown in Scripts (e.g. `python3 scripts/bitget_agent_api.py ...`, `python3 scripts/wallet_cli.py ...`, `python3 scripts/order_make_sign_send.py ...`). For swap, balance, wallet, and signing, follow the flows in `docs/swap.md` and `docs/wallet-signing.md`.
+2. **Run commands as documented:** Execute the script invocations shown in Scripts (e.g. `python3 scripts/bitget_agent_api.py ...`, `python3 scripts/order_sign.py ...`). For swap, balance, wallet, and signing, follow the flows in `docs/swap.md` and `docs/wallet-signing.md`.
 
 **Before starting a new swap — two mandatory pre-checks:**
 
@@ -56,24 +56,52 @@ This skill uses date-based versioning (`YYYY.M.DD`). Each release includes a seq
 
 ### Wallet Domain Knowledge
 
-#### Mnemonic file and addresses (no persistent wallet storage)
+#### First-Time Wallet Setup
 
-- **No wallet directory.** The skill does **not** create or use a `wallet/` directory. There is no create-wallet, no multi-wallet, no list/switch.
-- **User provides a mnemonic file path.** The user specifies a **file path** where their BIP-39 mnemonic is stored (e.g. `~/keys/mnemonic.txt`). The agent and scripts **never** output the mnemonic or private keys; they are only read when needed for signing and derived in memory.
-- **Addresses in context.** Run `python3 scripts/wallet_cli.py --mnemonic-file <path>` to derive and output **only** `evm_address`, `solana_address`, `tron_address` (JSON). Store these addresses in the **conversation context** and use them for balance, quote, confirm, and as `--from-address` / `--to-address` when calling APIs or `order_make_sign_send.py`.
+When a user first requests a swap or any signing operation, check if a wallet is already configured. If not, guide them through setup:
 
-#### Before balance or swap: require mnemonic path in context
+**Path 1: Create a new wallet**
 
-**If the user has not yet provided a mnemonic file path in this conversation**, do **not** run balance query, quote, confirm, or swap. Prompt the user: *"To check balance or perform a swap, I need the path to your mnemonic file (e.g. /path/to/mnemonic.txt). The file content is only read locally to derive addresses and sign; it is never sent or shown."* After they provide the path, run `wallet_cli.py --mnemonic-file <path>` to get addresses, store addresses in context, and then proceed with balance/swap using those addresses.
+1. **Generate a BIP-39 mnemonic** (24 words / 256 bits recommended). Use any available BIP-39 library in the agent's runtime (e.g., `mnemonic`, `bip_utils`, or equivalent).
+2. **Store the mnemonic in secure storage** immediately after generation. The agent must never output the mnemonic to chat, logs, or any messaging channel.
+3. **Inform the user** that the wallet has been created and where the mnemonic is stored. The user should retrieve and back up the mnemonic through secure means (e.g., directly accessing the password manager or vault) — not through the agent conversation.
+4. **Derive and show addresses** for EVM and Solana so the user can verify and fund the wallet.
+5. **Done.** The agent now has a wallet.
 
-#### Security: mnemonic and private keys never in context
+**Path 2: Query only (no wallet)**
 
-- **Mnemonic words and private keys must NEVER appear in the conversation, in prompts, in logs, or in any output you show to the user.** Only the **mnemonic file path** (e.g. `/home/user/mnemonic.txt`) and the **derived addresses** (evm_address, solana_address, tron_address) may be stored in context or shown.
-- Signing scripts read the mnemonic file on disk, derive keys in memory, sign, and exit without printing mnemonic or keys.
+If the user only wants price queries, token info, and security checks — no wallet setup needed. Skip this flow entirely. Signing operations will be unavailable.
 
-#### Signing flow
+**Key management rules:**
+- **Only the mnemonic is persisted.** Never store derived private keys — they are ephemeral.
+- **Private keys are derived on-the-fly** each time signing is needed, used, then immediately discarded (variable cleanup, scope exit, etc.)
+- **Mnemonic is never sent to chat channels** — not during setup, not after. The agent retrieves it programmatically for derivation only.
+- **The agent must use secure storage** appropriate to its environment. The storage mechanism must: (1) encrypt at rest, (2) require authentication to read, (3) not expose secrets in logs, shell history, or environment dumps.
 
-- **Swap flow:** quote → confirm → present to user → user confirms → **`order_make_sign_send.py`** with `--mnemonic-file <path>`, `--from-address`, `--to-address` (addresses from context). The script reads the mnemonic file, derives keys in memory, signs, and sends; it never outputs mnemonic or private keys.
+**Signing pipeline (how keys flow):**
+```
+Secure storage (mnemonic) → derive private key (in memory) → sign transaction → discard key
+```
+
+#### First-Time Swap Configuration
+
+The first time a user initiates a swap, **before executing**, guide them through these one-time preferences:
+
+1. **Transaction deadline** — how long the on-chain transaction remains valid:
+   - Conservative: `120` seconds (better protection against sandwich attacks in volatile markets)
+   - Standard: `300` seconds (balanced — suitable for most users)
+   - Relaxed: `600` seconds (for slow signing workflows, e.g., hardware wallets or multi-sig)
+   - Explain: _"A shorter deadline protects you from price manipulation, but if signing takes too long (e.g., you're away from your wallet), the transaction will fail on-chain and waste gas."_
+
+2. **Automatic security check** — whether to audit unfamiliar tokens before swaps:
+   - Recommended: Always check (default) — runs `security` automatically before swap
+   - Ask each time: Prompt before each swap involving unfamiliar tokens
+   - Skip: Never check (not recommended — risk of honeypot tokens)
+
+3. **Save preferences** — store in the agent's memory/config for future swaps
+4. **Remind user** they can update anytime (e.g., "update my swap settings" or "change my default deadline")
+
+If the user declines configuration, use sensible defaults: `deadline=300`, `security=always`.
 
 **Derivation paths:**
 
@@ -134,9 +162,9 @@ Load the following when the task requires it:
 3. **Stale quotes:** Re-quote if more than ~30 seconds before execute; prices may have moved.
 4. **Insufficient gas:** Swap can fail if the wallet lacks native token for gas. Check balance before proceeding.
 5. **Token approval (EVM):** ERC-20 must be approved for the router; see "EVM Token Approval" in `docs/swap.md`.
-6. **Mnemonic path before balance/swap:** If the user has not provided a mnemonic file path in this conversation, do not run balance, quote, or swap; prompt them to provide the path first, then run `wallet_cli.py --mnemonic-file <path>` and store the output addresses in context.
-7. **Script usage:** Use CLI commands from this SKILL (e.g. `bitget_agent_api.py`, `wallet_cli.py`, `order_make_sign_send.py`).
-8. **Addresses from context:** Use the stored `evm_address` / `solana_address` / `tron_address` (from `wallet_cli.py --mnemonic-file`) for `--from-address`, `--to-address`, and balance/quote/confirm; never ask the user to paste mnemonic or private keys.
+6. **Wallet before balance/swap:** If no wallet is configured, guide the user through First-Time Wallet Setup (see Wallet Domain Knowledge above).
+7. **Script usage:** Use CLI commands from this SKILL (e.g. `bitget_agent_api.py`, `order_sign.py`).
+8. **Key security:** Derive private keys from mnemonic on-the-fly, pass to `order_sign.py --private-key`, discard immediately after signing. Never store keys or output mnemonic/keys to chat.
 9. **Human-readable amounts:** Pass fromAmount etc. as user-facing numbers (e.g. `0.01`), not wei/lamports/decimals.
 10. **Security:** Mnemonic and private keys must **never** appear in conversation, prompts, or any output. Only mnemonic **file path** and derived **addresses** may be in context.
 
@@ -167,21 +195,6 @@ All scripts are in `scripts/`, Python 3.9+. Each command below states **what it 
 
 ---
 
-### `scripts/wallet_cli.py` — Set mnemonic file path, Derive addresses from mnemonic file (output only addresses)
-
-**Purpose:** Read a mnemonic from a file and output **only** EVM/Solana/Tron addresses (JSON). No mnemonic, no private keys, no persistent wallet storage. **Use for:** When the user has provided a mnemonic file path; run this to get addresses and store them in conversation context for balance, quote, and swap. Do not run balance or swap until the user has provided a mnemonic path and you have run this to obtain addresses.
-
-| Option | What it does |
-|--------|----------------|
-| `--mnemonic-file PATH` | Path to file containing BIP-39 mnemonic (one line, space-separated). Script reads it, derives addresses, prints only `evm_address`, `solana_address`, `tron_address` as JSON. |
-
-```bash
-# User provides path; agent stores output addresses in context. Never output mnemonic or keys.
-python3 scripts/wallet_cli.py --mnemonic-file /path/to/mnemonic.txt
-```
-
----
-
 ### `scripts/bitget_agent_api.py` — Balance, token list, swap flow, **market data**, order send, order status
 
 **Purpose:** Calls the Bitget Agent API for: balances and balance+price; token search and token list; **market data** — token info, price, K-line, tx info, rankings, liquidity, security; swap flow (quote → confirm → makeOrder → send); order details. 
@@ -207,8 +220,8 @@ python3 scripts/wallet_cli.py --mnemonic-file /path/to/mnemonic.txt
 | `security` | Security audit (highRisk, riskCount, buyTax/sellTax, etc.). | Before swap for unfamiliar tokens; user asks for safety check. See `docs/market-data.md`. |
 | `quote` | First quote: returns **multiple market results** in `data.quoteResults`. Agent must **display all** results to the user, **recommend the first**, and allow the user to **choose another** for confirm if they prefer. | Step 1 of swap: show all options; default to first for confirm unless user picks another. |
 | `confirm` | Second quote: locks in **one** market (the chosen one from quote), returns `data.orderId` and `data.quoteResult`. Use market/protocol/slippage from the **selected** quote result (default first; or the item user chose). | Step 2 of swap: get orderId and latest quoteResult for makeOrder/send using the user’s chosen market. |
-| `make-order` | Creates order; returns unsigned `data.txs` (expires ~60s). | Only if not using `order_make_sign_send.py`; otherwise use combined script. |
-| `send` | Submits signed order: body is `{ "orderId", "txs" }` with `txs[].sig` filled. Input via `--json-stdin` or `--json-file`. | After signing makeOrder txs (e.g. via `order_sign.py`); or use `order_make_sign_send.py` to do makeOrder+sign+send in one run. |
+| `make-order` | Creates order; returns unsigned `data.txs` (expires ~60s). | Step 3 of swap: get unsigned txs for signing. |
+| `send` | Submits signed order: body is `{ "orderId", "txs" }` with `txs[].sig` filled. Input via `--json-stdin` or `--json-file`. | After signing makeOrder txs via `order_sign.py`. |
 | `get-order-details` | Returns order status and result (e.g. `data.details.status`, `fromTxId`, `toTxId`). | After send: show user whether swap succeeded and tx links. |
 
 ```bash
@@ -251,7 +264,10 @@ python3 scripts/bitget_agent_api.py quote --from-address <wallet> --from-chain b
 python3 scripts/bitget_agent_api.py confirm --from-chain bnb --from-symbol USDT --from-contract <addr> --from-amount 0.01 --from-address <wallet> --to-chain bnb --to-symbol BNB --to-contract "" --to-address <wallet> --market <chosen market.id> --protocol <chosen market.protocol> --slippage <chosen slippageInfo.recommendSlippage>
 
 # 3–5. makeOrder + sign + send (one run; requires mnemonic path and addresses from context)
-python3 scripts/order_make_sign_send.py --mnemonic-file <path_from_user> --from-address <evm_from_context> --to-address <evm_from_context> --order-id <from_confirm> --from-chain bnb --from-contract <addr> --from-symbol USDT --to-chain bnb --to-contract "" --to-symbol BNB --from-amount 0.01 --slippage 1.00 --market bgwevmaggregator --protocol bgwevmaggregator_v000
+# 3. makeOrder → sign → send (separate steps; sign+send must complete within ~60s of makeOrder)
+python3 scripts/bitget_agent_api.py make-order --order-id <from_confirm> --from-chain bnb --from-contract <addr> --from-symbol USDT --to-chain bnb --to-contract "" --to-symbol BNB --from-address <wallet> --to-address <wallet> --from-amount 0.01 --slippage 1.00 --market bgwevmaggregator --protocol bgwevmaggregator_v000 > /tmp/makeorder.json
+python3 scripts/order_sign.py --order-json "$(cat /tmp/makeorder.json)" --private-key <hex_key> > /tmp/sigs.json
+# Fill txs[i].sig from sigs array, then send
 
 # 6. Order status
 python3 scripts/bitget_agent_api.py get-order-details --order-id <orderId>
@@ -260,27 +276,13 @@ python3 scripts/bitget_agent_api.py get-order-details --order-id <orderId>
 
 ---
 
-### `scripts/order_make_sign_send.py` — One-shot makeOrder + sign (from mnemonic file) + send
-
-**Purpose:** Runs makeOrder, derives signing keys from the user's **mnemonic file** in memory, signs `data.txs`, and calls send — all in one process. **Never** outputs mnemonic or private keys. **Use for:** Executing the swap after user confirms; avoids the ~60s makeOrder expiry. **Required:** `--mnemonic-file <path>`, `--from-address`, `--to-address` (use addresses from context; obtain them via `wallet_cli.py --mnemonic-file`).
-
-| When to use | When not to use |
-|--------------|------------------|
-| After user confirms swap: run with orderId and params from confirm, plus `--mnemonic-file` (path user provided) and `--from-address` / `--to-address` from context. | If signing with a different signer (e.g. hardware wallet), use make-order → sign externally → send instead. |
-
-```bash
-python3 scripts/order_make_sign_send.py --mnemonic-file <path> --from-address <evm_addr> --to-address <evm_addr> --order-id <from_confirm> --from-chain bnb --from-contract <addr> --from-symbol USDT --to-chain bnb --to-contract "" --to-symbol BNB --from-amount 0.01 --slippage 1.00 --market bgwevmaggregator --protocol bgwevmaggregator_v000
-```
-
----
-
 ### `scripts/order_sign.py` — Sign order/makeOrder transaction data
 
-**Purpose:** Takes order-create or makeOrder response JSON (stdin or `--order-json`), signs `data.txs` with the given private key, outputs a JSON array of signature hex strings. Supports both legacy order-create format and new makeOrder format (deriveTransaction). **Use for:** Signing makeOrder txs when **not** using `order_make_sign_send.py` (e.g. external signer or custom flow). Agent must then fill `txs[i].sig` and call `bitget_agent_api.py send`.
+**Purpose:** Takes makeOrder response JSON (stdin or `--order-json`), signs `data.txs` with the given private key, outputs a JSON array of signature hex strings. Agent must then fill `txs[i].sig` and call `bitget_agent_api.py send`.
 
 | When to use | Notes |
 |--------------|-------|
-| You have makeOrder response and need raw signatures (e.g. external signer); not using order_make_sign_send.py. | Pipe makeOrder full response into stdin; pass `--private-key` (EVM). Output = list of hex strings; set `data.txs[i].sig` and send. Never pass private key via conversation; obtain it securely. |
+| You have makeOrder response and need to sign. | Pipe makeOrder full response into stdin; pass `--private-key` (EVM). Output = list of hex strings; set `data.txs[i].sig` and send. Derive private key from mnemonic in secure storage; discard after signing. |
 
 ```bash
 echo '<makeOrder_full_response_json>' | python3 scripts/order_sign.py --private-key <hex>
@@ -308,7 +310,7 @@ python3 scripts/x402_pay.py pay --url https://api.example.com/data --private-key
 
 ## Safety Rules
 
-- **Mnemonic and private keys must never appear in conversation, prompts, logs, or any output.** Only the mnemonic **file path** and derived **addresses** (evm_address, solana_address, tron_address) may be stored in context or shown. Scripts read the mnemonic file locally to derive and sign; they never print mnemonic or keys.
+- **Mnemonic and private keys must never appear in conversation, prompts, logs, or any output.** Only derived **addresses** may be stored in context or shown. Private keys are derived from mnemonic in secure storage, used for signing, and immediately discarded.
 - Built-in demo keys are public; if using custom keys via env vars, avoid exposing them in output.
 - For large trades, always show the quote first and ask for user confirmation.
 - Present security audit results before recommending any token action.

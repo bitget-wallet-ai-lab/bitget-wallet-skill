@@ -3,7 +3,7 @@
 Bitget Wallet Agent API client — new swap flow (no apiKey).
 
 Flow: quote → confirm → makeOrder → send → getOrderDetails.
-Addresses from wallet_cli.py --mnemonic-file (store in context); signing via order_make_sign_send.py (reads mnemonic file, derives in memory; never outputs keys) or order_sign.py.
+Signing via order_sign.py with private key derived from mnemonic in secure storage (derive on-the-fly, discard after signing).
 """
 
 from __future__ import annotations

@@ -16,9 +16,6 @@ Format: date-based versioning (`YYYY.M.DD`). Each release includes a sequential 
 
 ### Added — New Scripts
 - `scripts/bitget_agent_api.py` — Unified API client: swap flow + balance + token search + market data (no API key required)
-- `scripts/wallet_cli.py` — Derive addresses from mnemonic file (outputs only addresses, never keys)
-- `scripts/wallet_from_mnemonic.py` — Multi-chain key derivation (EVM / Solana / Tron) from BIP-39 mnemonic
-- `scripts/order_make_sign_send.py` — One-shot makeOrder + sign + send (avoids ~60s expiry)
 
 ### Added — New API Commands
 - `check-swap-token` — Pre-swap token risk check (forbidden-buy detection)
@@ -37,12 +34,10 @@ Format: date-based versioning (`YYYY.M.DD`). Each release includes a sequential 
 - Confirm step locks one market and returns `orderId` + final `quoteResult`
 - `recommendFeatures` in confirm response indicates gas payment mode (`user_gas` / `no_gas`)
 - **Balance check required before swap** — `get-processed-balance` must run before quote to prevent misleading `40001` errors
-- makeOrder unsigned data expires ~60s; use `order_make_sign_send.py` for combined execution
 
 ### Changed — Wallet Management
 - Mnemonic file-based key management: user provides file path, keys derived in memory
 - Mnemonic and private keys never appear in conversation, logs, or output
-- `wallet_cli.py` outputs only addresses (evm_address, solana_address, tron_address)
 
 ### Fixed
 - Python 3.9 compatibility: added `from __future__ import annotations` for `str | None` type hints

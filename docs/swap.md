@@ -1,10 +1,10 @@
 # Swap (Token Swap) Domain Knowledge
 
-This document describes the **Swap flow**: use `scripts/bitget_agent_api.py` for the new API (no apiKey). Flow: **quote → confirm → makeOrder → sign & send → getOrderDetails**. Addresses come from context (obtained via `wallet_cli.py --mnemonic-file <path>`); signing uses **`order_make_sign_send.py`** with `--mnemonic-file`, `--from-address`, `--to-address`. See [Wallet & Signing](wallet-signing.md) for details.
+This document describes the **Swap flow**: use `scripts/bitget_agent_api.py` for the new API (no apiKey). Flow: **quote → confirm → makeOrder → sign & send → getOrderDetails**. See [Wallet & Signing](wallet-signing.md) for key management details.
 
-**Mnemonic path before quote/balance/swap:** If the user has **not** provided a mnemonic file path in this conversation, do **not** run quote, balance query, or swap. Prompt the user to provide the path to their mnemonic file first. After they provide it, run `python3 scripts/wallet_cli.py --mnemonic-file <path>` to get addresses, store them in context, and use `evm_address` / `solana_address` / `tron_address` (by chain) for `--from-address` / `--to-address`. **Mnemonic and private keys must never appear in context.**
+**Wallet before swap:** The agent must have a configured wallet (mnemonic in secure storage, derived addresses in context). If not, guide the user through First-Time Wallet Setup (see SKILL.md). **Mnemonic and private keys must never appear in context.**
 
-**Default for execution:** Because makeOrder's unsigned data expires in ~60 seconds, **makeOrder, sign, and send** should be run together via **`scripts/order_make_sign_send.py`** once the user confirms. Required args: `--mnemonic-file <path>`, `--from-address`, `--to-address` (from context), plus order params. Use separate steps (make-order → order_sign → send) only when signing outside this script (e.g. hardware wallet).
+**Signing flow:** After makeOrder, derive the private key from mnemonic in secure storage, pass to `order_sign.py --private-key <key>`, fill `txs[].sig`, then send. MakeOrder unsigned data expires in ~60 seconds — sign and send must follow immediately.
 
 ## Flow Overview
 
@@ -13,10 +13,9 @@ This document describes the **Swap flow**: use `scripts/bitget_agent_api.py` for
 | 0 | `bitget_agent_api.py check-swap-token` | Check fromToken and toToken for risks **before** quote; if risks or forbidden-buy on toToken, prompt user or stop. |
 | 1 | `bitget_agent_api.py quote` | First quote; returns multiple markets in `data.quoteResults`. Agent shows **all** results, recommends the first; user may choose another for confirm. |
 | 2 | `bitget_agent_api.py confirm` | Second quote; use market/protocol/slippage from **chosen** quote result (default first); Get latest quoteResult and orderId. The agent should display the `data.quoteResult`. If the `data.tips` are not empty, agent should display and remind user |
-| 3+4+5 | **`order_make_sign_send.py`** (recommended) | makeOrder + sign (from mnemonic file) + send in one run; requires `--mnemonic-file`, `--from-address`, `--to-address` |
-| 3′ | `bitget_agent_api.py make-order` | Create order; returns unsigned data.txs (only if not using combined script) |
-| 4′ | `order_sign.py` + fill `txs[].sig` | Sign data.txs (e.g. with key derived from mnemonic file externally) |
-| 5′ | `bitget_agent_api.py send` | Submit signed order (body: orderId + txs) |
+| 3 | `bitget_agent_api.py make-order` | Create order; returns unsigned data.txs (~60s expiry) |
+| 4 | `order_sign.py` + fill `txs[].sig` | Sign data.txs with private key (derived from mnemonic, discarded after) |
+| 5 | `bitget_agent_api.py send` | Submit signed order (body: orderId + txs) |
 | 6 | `bitget_agent_api.py get-order-details` | Query order status and result |
 
 **Balance and token discovery:** For balance only use `get-processed-balance`. For balance **plus token price** (e.g. portfolio value in USD) use **`batch-v2`** (same request format: `list: [{ chain, address, contract }]`). 
@@ -79,18 +78,12 @@ Or with JSON stdin: `echo '{"list":[{"chain":"...","contract":"...","symbol":"..
   - **`no_gas`** — Main-chain balance is insufficient but **gasLess** applies; gas will be paid from **fromSymbol**. Proceed with the swap.
   - **Any other value** — Gas is insufficient and gasLess does not apply. **Do not proceed.** Tell the user that gas is insufficient, the swap cannot be executed, and they need to top up main-chain native token; then stop.
 
-### 3–5. makeOrder, sign, send (combined — default)
+### 3–5. makeOrder, sign, send
 
-- **Script:** `python3 scripts/order_make_sign_send.py --mnemonic-file <path> --from-address <evm_from_context> --to-address <evm_from_context> --order-id <from_confirm> --from-chain ... --from-contract ... --from-symbol ... --to-chain ... --to-contract ... --to-symbol ... --from-amount ... --slippage ... --market ... --protocol ...`
-- **Behavior:** Reads mnemonic from file, derives keys in memory, calls makeOrder, signs `data.txs`, fills `txs[].sig`, then send. Never outputs mnemonic or private keys. Use this so the ~60s makeOrder expiry does not run out.
-- **Output:** Prints send response JSON; on success, suggests checking with `get-order-details --order-id <orderId>`.
-
-### 3′–5′. makeOrder, sign, send (separate steps)
-
-Use only when not using the combined script (e.g. external signer).
+**Important:** makeOrder unsigned data expires in ~60 seconds. Steps 3–5 must be executed quickly after user confirms.
 
 - **makeOrder:** `bitget_agent_api.py make-order` with orderId, market, protocol, slippage from confirm. Response `data.txs` expires in ~60s.
-- **Sign:** Pass full makeOrder response to `order_sign.py` (stdin or `--order-json`) with private key (e.g. derived from mnemonic file in a secure way; never pass key via conversation). Output is an array of signature hex strings.
+- **Sign:** Derive private key from mnemonic in secure storage. Pass full makeOrder response to `order_sign.py` (stdin or `--order-json`) with `--private-key <hex>`. Output is an array of signature hex strings. **Discard the private key immediately after signing.**
 - **Fill & send:** Set `data.txs[i].sig` from that array, then `bitget_agent_api.py send --json-stdin` or `--json-file` with body `{ "orderId": data.orderId, "txs": data.txs }`.
 
 ### 6. Query order (getOrderDetails)
@@ -110,7 +103,7 @@ Use only when not using the combined script (e.g. external signer).
 Recommended flow:
 
 ```
-0. If no mnemonic file path in context → prompt user; then run wallet_cli.py --mnemonic-file <path> and store evm_address, solana_address, tron_address in context
+0. If no wallet configured → guide user through First-Time Wallet Setup (see SKILL.md); derive and store addresses in context
 1. get-processed-balance → verify fromToken balance ≥ fromAmount AND native token > 0 for gas; if insufficient, inform user and stop
 2. check-swap-token → for from + to tokens; if error_code != 0 show msg and stop; if checkTokenList non-empty show tips; if toToken has waringType "forbidden-buy" do not proceed and warn
 3. security / token-info / liquidity (silent, as applicable)
@@ -118,7 +111,7 @@ Recommended flow:
 5. confirm → use market/protocol/slippage from the chosen quote result (default first); get and show latest quoteResult(data.quoteResult), orderId(data.orderId) and gasFee(data.gasFee); also show tips(data.tips) if not empty
 6. PRESENT → show confirmation summary (required)
 7. WAIT → user explicitly confirms
-8. order_make_sign_send.py --mnemonic-file <path> --from-address <evm_from_context> --to-address <evm_from_context> ... (one command: makeOrder + sign + send)
+8. make-order → order_sign.py --private-key <derived_key> → fill txs[].sig → send (must complete within ~60s)
 9. get-order-details → show final status and txId / explorer link
 ```
 
@@ -165,7 +158,7 @@ On EVM chains, tokens must be **approved** for the router before spending. Witho
 2. **Human-readable amounts:** In the swap flow, **fromAmount** (and toAmount, fromAmount in makeOrder, etc.) are always **human-readable** (e.g. `0.01` for 0.01 USDT, `1` for 1 token). Do **not** convert to smallest units (wei, lamports, or token decimals); pass the value as the user would say it (e.g. `--from-amount 0.01`).
 3. **Native token contract:** Use empty string `""` for toContract/fromContract when the token is native.
 4. **Do not submit twice:** One confirmation, one sign+send; duplicate submit can double-spend.
-5. **makeOrder data expiry:** Unsigned txs from makeOrder are valid ~60s; use **order_make_sign_send.py** right after user confirms to avoid expiry.
+5. **makeOrder data expiry:** Unsigned txs from makeOrder are valid ~60s; sign and send immediately after makeOrder to avoid expiry.
 6. **Chain codes:** Use API chain codes (`bnb`, `sol`, `eth`), not aliases (`bsc`, `solana`).
 
 For request/response details, see the script help: `python3 scripts/bitget_agent_api.py <command> --help`.
