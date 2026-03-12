@@ -32,7 +32,7 @@ Format: date-based versioning (`YYYY.M.DD`). Each release includes a sequential 
 ### Changed — Swap Flow
 - Quote now returns **multiple market results** (`data.quoteResults`); agent must display all and recommend the first
 - Confirm step locks one market and returns `orderId` + final `quoteResult`
-- `recommendFeatures` in confirm response indicates gas payment mode (`user_gas` / gasless)
+- `recommendFeatures` in confirm response indicates gas payment mode (`user_gas` / `no_gas` for gasless)
 - **Balance check required before swap** — `get-processed-balance` must run before quote to prevent misleading `40001` errors
 
 ### Changed — Wallet Management
