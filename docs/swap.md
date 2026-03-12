@@ -35,7 +35,7 @@ python3 scripts/bitget_agent_api.py get-processed-balance --chain <fromChain> --
 ```
 
 - If **fromToken balance < fromAmount**: inform the user of the shortfall (e.g., "You have 5.85 USDT but requested 6 USDT") and **do not proceed**.
-- If **native token balance ≈ 0**: warn the user about insufficient gas. Suggest reducing the swap amount or using gasless mode (`features: ["no_gas"]`) if available.
+- If **native token balance ≈ 0**: warn the user about insufficient gas. Suggest reducing the swap amount or using gasless mode if available.
 - The API error `40001: Demo trading failed` from the confirm step is often caused by insufficient balance, not slippage — always check balance first.
 
 **2. Token risk check (required before every new swap)**
@@ -71,12 +71,12 @@ Or with JSON stdin: `echo '{"list":[{"chain":"...","contract":"...","symbol":"..
 ### 2. Second quote (confirm)
 
 - **Script:** `python3 scripts/bitget_agent_api.py confirm ...`
-- **Request:** `market` and `protocol` from the **chosen** quote result (default: `data.quoteResults[0].market.id` and `.protocol`; if the user picked another, use that item's `market.id` and `market.protocol`). `slippage` from the same chosen result's `slippageInfo.recommendSlippage`. `features` a single-element array: `["user_gas"]` when user pays gas in native token, else `["no_gas"]` (prefer user_gas when balance is enough).
+- **Request:** `market` and `protocol` from the **chosen** quote result (default: `data.quoteResults[0].market.id` and `.protocol`; if the user picked another, use that item's `market.id` and `market.protocol`). `slippage` from the same chosen result's `slippageInfo.recommendSlippage`. `features` a single-element array: `["user_gas"]` when user pays gas in native token, else gasless (prefer user_gas when balance is enough).
 - **Response:** If `error_code != 0`, show `msg` and stop. Show `data.quoteResult.outAmount`, `data.quoteResult.minAmount`, `data.quoteResult.gasFees.gasTotalAmount`. Store `data.orderId` for makeOrder, send, getOrderDetails.
 - **Agent — must show in Second quote stage:** In the confirm step, the agent **must** present to the user the following from the confirm response: **`data.quoteResult.outAmount`** (expected output amount), **`data.quoteResult.minAmount`** (minimum output amount), and **`data.quoteResult.gasFees.gasTotalAmount`** (gas cost). Do not skip displaying these three fields before asking for user confirmation.
 - **Agent: handle `data.quoteResult.recommendFeatures` (gas payment):**
   - **`user_gas` or empty string** — User can pay gas with their **main-chain native token** balance; proceed with the swap flow.
-  - **`no_gas`** — Main-chain balance is insufficient but **gasLess** applies; gas will be paid from **fromSymbol**. Proceed with the swap.
+  - **gasless** — Main-chain balance is insufficient but **gasless** applies; gas will be paid from **fromSymbol**. Proceed with the swap.
   - **Any other value** — Gas is insufficient and gasLess does not apply. **Do not proceed.** Tell the user that gas is insufficient, the swap cannot be executed, and they need to top up main-chain native token; then stop.
 
 ### 3–5. makeOrder, sign, send (combined — recommended)

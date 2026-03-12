@@ -107,7 +107,7 @@ def confirm(
     """
     Second quote; get final quote and orderId for one market.
     market/protocol from quote response data.quoteResults[].market.id / .protocol.
-    features: single-element array, ["user_gas"] when user pays gas in native token, else ["no_gas"].
+    features: single-element array, ["user_gas"] when user pays gas in native token, else gasless.
     """
     body = {
         "fromChain": from_chain,

@@ -145,7 +145,7 @@ The first N account keys in the message correspond to required signers (N = `hea
 | **Gasless** | Relayer (fee payer) | User wallet | Backend fills sig[0] after submission |
 | **User gas** | User wallet | — | User is the sole signer and fee payer |
 
-**Solana gasless status (2026-03-09 updated):** Solana gasless IS supported, but has a **minimum amount threshold (~$5-6 USD)**. Below this threshold, `order-quote` returns `features: []`. Above it, `features: ["no_gas"]` is returned and gasless works correctly — relayer signs `sig[0]`, user partial-signs `sig[1]`. Both same-chain swaps and cross-chain (Sol→EVM) gasless are verified working.
+**Solana gasless status (2026-03-09 updated):** Solana gasless IS supported, but has a **minimum amount threshold (~$5-6 USD)**. Below this threshold, quote returns `features: []`. Above it, gasless is returned in `features` and works correctly — relayer signs `sig[0]`, user partial-signs `sig[1]`. Both same-chain swaps and cross-chain (Sol→EVM) gasless are verified working.
 
 ### Partial Signing Pattern
 
