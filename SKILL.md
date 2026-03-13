@@ -278,14 +278,14 @@ python3 scripts/bitget_agent_api.py get-order-details --order-id <orderId>
 
 ### `scripts/order_make_sign_send.py` — One-shot makeOrder + sign + send
 
-**Purpose:** Runs makeOrder, derives signing keys from mnemonic file in memory, signs `data.txs`, and calls send — all in one process. Avoids the ~60s makeOrder expiry. **Never** outputs mnemonic or private keys.
+**Purpose:** Runs makeOrder, signs `data.txs` with the provided private key, and calls send — all in one process. Avoids the ~60s makeOrder expiry. Private key is used in memory only, never output.
 
 | When to use | When NOT to use |
 |-------------|-----------------|
 | After user confirms swap: run with orderId and params from confirm. | If signing with an external signer (e.g. hardware wallet), use make-order → sign externally → send instead. |
 
 ```bash
-python3 scripts/order_make_sign_send.py --mnemonic-file <path> --from-address <addr> --to-address <addr> --order-id <from_confirm> --from-chain bnb --from-contract <addr> --from-symbol USDT --to-chain bnb --to-contract "" --to-symbol BNB --from-amount 0.01 --slippage 1.00 --market bgwevmaggregator --protocol bgwevmaggregator_v000
+python3 scripts/order_make_sign_send.py --private-key "$KEY" --from-address <addr> --to-address <addr> --order-id <from_confirm> --from-chain bnb --from-contract <addr> --from-symbol USDT --to-chain bnb --to-contract "" --to-symbol BNB --from-amount 0.01 --slippage 1.00 --market bgwevmaggregator --protocol bgwevmaggregator_v000
 ```
 
 ---

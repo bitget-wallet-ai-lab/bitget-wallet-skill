@@ -1,15 +1,14 @@
 #!/usr/bin/env python3
 """
-One-shot: makeOrder (new swap flow) → sign with keys derived from mnemonic file → send.
+One-shot: makeOrder (new swap flow) → sign → send.
 Use this to avoid the ~60s expiry of makeOrder unsigned data. Run immediately after user confirms.
 
-Security: --mnemonic-file is read only to derive keys in memory; mnemonic and private keys
-are never printed or logged. Addresses must be passed via --from-address and --to-address
-(from conversation context; obtain them via wallet_cli.py derive-addresses --mnemonic-file <path>).
+Security: --private-key is used only in memory for signing; never printed or logged.
+The agent retrieves the private key from secure storage (e.g. 1Password) and passes it here.
 
 Example:
   python3 scripts/order_make_sign_send.py \\
-    --mnemonic-file /path/to/mnemonic.txt --from-address 0x... --to-address 0x... \\
+    --private-key "$EVM_KEY" --from-address 0x... --to-address 0x... \\
     --order-id <from confirm> --from-chain bnb --from-contract 0x55d398326f99059fF775485246999027B3197955 \\
     --from-symbol USDT --to-chain bnb --to-contract "" --to-symbol BNB \\
     --from-amount 1 --slippage 1.00 --market bgwevmaggregator --protocol bgwevmaggregator_v000
@@ -24,22 +23,13 @@ if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
 
 
-def _load_mnemonic(path: Path) -> str:
-    text = path.read_text(encoding="utf-8").strip()
-    words = text.split()
-    if len(words) not in [12, 15, 18, 21, 24]:
-        print(f"Error: mnemonic must be 12/15/18/21/24 words, got {len(words)}", file=sys.stderr)
-        sys.exit(1)
-    return " ".join(words)
-
-
 def main():
     import argparse
     parser = argparse.ArgumentParser(
-        description="makeOrder + sign (from mnemonic file) + send. Mnemonic/keys never output."
+        description="makeOrder + sign + send. Private key used in memory only, never output."
     )
-    parser.add_argument("--mnemonic-file", required=True, help="Path to mnemonic file (used only to derive keys in memory)")
-    parser.add_argument("--from-address", required=True, help="EVM address for from (from context; use wallet_cli derive-addresses to get it)")
+    parser.add_argument("--private-key", required=True, help="EVM private key (hex, from secure storage)")
+    parser.add_argument("--from-address", required=True, help="EVM address for from")
     parser.add_argument("--to-address", required=True, help="EVM address for to (usually same as from-address)")
     parser.add_argument("--order-id", required=True, help="From confirm response data.orderId")
     parser.add_argument("--from-chain", required=True)
@@ -54,15 +44,7 @@ def main():
     parser.add_argument("--protocol", required=True)
     args = parser.parse_args()
 
-    mnemonic_path = Path(args.mnemonic_file).expanduser().resolve()
-    if not mnemonic_path.exists():
-        print(f"Error: mnemonic file not found: {mnemonic_path}", file=sys.stderr)
-        sys.exit(1)
-    mnemonic = _load_mnemonic(mnemonic_path)
-
-    from wallet_from_mnemonic import derive_wallets_from_mnemonic
-    wallets = derive_wallets_from_mnemonic(mnemonic)
-    evm_private_key = wallets["evm"]["private_key"]
+    private_key = args.private_key
 
     from bitget_agent_api import make_order, send
 
@@ -94,10 +76,14 @@ def main():
 
     from order_sign import sign_order_txs_evm
 
-    signed = sign_order_txs_evm(data, evm_private_key)
+    signed = sign_order_txs_evm(data, private_key)
     for i, sig in enumerate(signed):
         if i < len(txs):
             txs[i]["sig"] = sig
+
+    # Clear private key from memory
+    private_key = None
+    del args
 
     send_resp = send(order_id=order_id, txs=txs)
     print(json.dumps(send_resp, indent=2))

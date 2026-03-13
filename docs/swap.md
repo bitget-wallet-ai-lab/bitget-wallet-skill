@@ -13,7 +13,7 @@ This document describes the **Swap flow**: use `scripts/bitget_agent_api.py` for
 | 0 | `bitget_agent_api.py check-swap-token` | Check fromToken and toToken for risks **before** quote; if risks or forbidden-buy on toToken, prompt user or stop. |
 | 1 | `bitget_agent_api.py quote` | First quote; returns multiple markets in `data.quoteResults`. Agent shows **all** results, recommends the first; user may choose another for confirm. |
 | 2 | `bitget_agent_api.py confirm` | Second quote; use market/protocol/slippage from **chosen** quote result (default first); Get latest quoteResult and orderId. The agent should display the `data.quoteResult`. If the `data.tips` are not empty, agent should display and remind user |
-| 3+4+5 | **`order_make_sign_send.py`** (recommended) | makeOrder + sign (from mnemonic file) + send in one run |
+| 3+4+5 | **`order_make_sign_send.py`** (recommended) | makeOrder + sign + send in one run |
 | 3′ | `bitget_agent_api.py make-order` | Create order; returns unsigned data.txs (~60s expiry) |
 | 4′ | `order_sign.py` + fill `txs[].sig` | Sign data.txs with private key (derived from mnemonic, discarded after) |
 | 5′ | `bitget_agent_api.py send` | Submit signed order (body: orderId + txs) |
@@ -81,7 +81,7 @@ Or with JSON stdin: `echo '{"list":[{"chain":"...","contract":"...","symbol":"..
 
 ### 3–5. makeOrder, sign, send (combined — recommended)
 
-- **Script:** `python3 scripts/order_make_sign_send.py --mnemonic-file <path> --from-address <addr> --to-address <addr> --order-id <from_confirm> --from-chain ... --from-contract ... --from-symbol ... --to-chain ... --to-contract ... --to-symbol ... --from-amount ... --slippage ... --market ... --protocol ...`
+- **Script:** `python3 scripts/order_make_sign_send.py --private-key "$KEY" --from-address <addr> --to-address <addr> --order-id <from_confirm> --from-chain ... --from-contract ... --from-symbol ... --to-chain ... --to-contract ... --to-symbol ... --from-amount ... --slippage ... --market ... --protocol ...`
 - **Behavior:** Reads mnemonic from file, derives keys in memory, calls makeOrder, signs `data.txs`, fills `txs[].sig`, then sends. Never outputs mnemonic or private keys. Use this so the ~60s makeOrder expiry does not run out.
 
 ### 3′–5′. makeOrder, sign, send (separate steps)
