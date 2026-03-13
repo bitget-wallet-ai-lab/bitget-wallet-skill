@@ -452,10 +452,34 @@ def _normalize_tx_item_for_signing(tx_item: dict) -> tuple[dict, int]:
     return tx_data, cid
 
 
+def _sign_msgs_eth_sign(msgs: list, acct) -> list[str]:
+    """
+    Sign gasPayMaster msgs using eth_sign.
+    Each msg has: hash (bytes32 hex), signType ("eth_sign"), call[], deadline, nonce, etc.
+    eth_sign = sign(keccak256("\\x19Ethereum Signed Message:\\n32" + hash_bytes))
+    Returns list of signature hex strings.
+    """
+    sig_list = []
+    for msg in msgs:
+        sign_type = msg.get("signType", "")
+        msg_hash = msg.get("hash", "")
+        if sign_type != "eth_sign" or not msg_hash:
+            raise ValueError(f"Unsupported msg signType: {sign_type!r} or missing hash")
+        hash_bytes = bytes.fromhex(msg_hash.replace("0x", ""))
+        # eth_sign: sign raw 32-byte hash directly (unsafe_sign_hash, no Ethereum prefix)
+        signed = acct.unsafe_sign_hash(hash_bytes)
+        sig_hex = signed.signature.hex()
+        sig_list.append(sig_hex if sig_hex.startswith("0x") else "0x" + sig_hex)
+    return sig_list
+
+
 def sign_order_txs_evm(order_data: dict, private_key: str, chain_id: int = None) -> list[str]:
     """
     Sign all EVM transactions in an order-create or makeOrder txs response.
-    Supports legacy order-create format (data dict with to/calldata) and new makeOrder format (deriveTransaction + data hex).
+    Supports:
+      1. Legacy order-create format (tx_item["data"] is dict)
+      2. New makeOrder format (deriveTransaction + data hex) — raw tx signing
+      3. gasPayMaster mode (msgs[] with signType "eth_sign") — hash signing for gasless
     Skips or rejects Solana tx items (chainId 501); use sign_order_txs_solana for those.
     """
     from eth_account import Account
@@ -472,6 +496,25 @@ def sign_order_txs_evm(order_data: dict, private_key: str, chain_id: int = None)
             raise ValueError(
                 "One or more tx items are Solana (chainId 501). Use --private-key-sol for Solana orders."
             )
+
+        # Check for gasPayMaster mode: msgs[] with eth_sign
+        derive = tx_item.get("deriveTransaction") or {}
+        msgs = tx_item.get("msgs") or derive.get("msgs") or []
+        if msgs and any(m.get("signType") == "eth_sign" for m in msgs):
+            # gasPayMaster / gasless mode: sign msg hashes instead of raw tx
+            msg_sigs = _sign_msgs_eth_sign(msgs, acct)
+            # Put signature into each msg's "sig" field (mutates tx_item in-place)
+            for j, sig in enumerate(msg_sigs):
+                msgs[j]["sig"] = sig
+            # Also update deriveTransaction msgs if they exist
+            derive_msgs = derive.get("msgs") or []
+            for j, sig in enumerate(msg_sigs):
+                if j < len(derive_msgs):
+                    derive_msgs[j]["sig"] = sig
+            # Return the first msg sig as txs[].sig (API may use either)
+            signed_list.append(msg_sigs[0])
+            continue
+
         tx_data, cid = _normalize_tx_item_for_signing(tx_item)
         cid = chain_id or cid
 
