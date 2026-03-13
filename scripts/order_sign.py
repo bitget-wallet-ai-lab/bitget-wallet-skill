@@ -349,6 +349,12 @@ def sign_order_txs_solana(order_data: dict, private_key_sol: str) -> list[str]:
             raise ValueError(
                 f"Tx item has non-Solana chainId {item_cid}. Use --private-key for EVM orders."
             )
+        # Also accept chain="sol" when chainId is absent (gasPayMaster mode)
+        chain_field = (tx_item.get("chain") or "").lower()
+        if item_cid is None and chain_field not in ("sol", "solana", ""):
+            raise ValueError(
+                f"Tx item has non-Solana chain '{chain_field}'. Use --private-key for EVM orders."
+            )
         # Unwrap to find the innermost dict with serializedTx
         tx_data = tx_item
 
@@ -362,8 +368,8 @@ def sign_order_txs_solana(order_data: dict, private_key_sol: str) -> list[str]:
         # Get serializedTx
         serialized_tx = tx_data.get("serializedTx")
         if not serialized_tx:
-            # Try source.serializedTransaction
-            source = tx_data.get("source", {})
+            # Try source.serializedTransaction (in tx_data or deriveTransaction)
+            source = tx_data.get("source") or (tx_item.get("deriveTransaction") or {}).get("source")
             serialized_tx = source.get("serializedTransaction") if isinstance(source, dict) else None
         if not serialized_tx:
             # Try top-level data field as string
@@ -565,13 +571,16 @@ def _is_solana_order(order_data: dict) -> bool:
         chain_id = tx_item.get("chainId") or (tx_item.get("deriveTransaction") or {}).get("chainId")
         if chain_id is not None and int(chain_id) == _SOLANA_CHAIN_ID:
             return True
-        # Check chainName
-        chain_name = tx_item.get("chainName", "").lower()
+        # Check chainName or chain field
+        chain_name = (tx_item.get("chainName") or tx_item.get("chain") or "").lower()
         if chain_name in ("sol", "solana"):
             return True
-        # Check for serializedTx (Solana-specific field)
+        # Check for serializedTx (Solana-specific field) in data or source
         data = tx_item.get("data", {})
         if isinstance(data, dict) and data.get("serializedTx"):
+            return True
+        source = tx_item.get("source") or (tx_item.get("deriveTransaction") or {}).get("source")
+        if isinstance(source, dict) and source.get("serializedTransaction"):
             return True
     return False
 
