@@ -6,6 +6,25 @@ Format: date-based versioning (`YYYY.M.DD`). Each release includes a sequential 
 
 ---
 
+## [2026.3.13-1] - 2026-03-13
+
+### Added
+- **Solana gasless fully supported** — same-chain and cross-chain (Sol↔EVM) gasless transactions now work
+  - Solana gasPayMaster mode: partial-sign on `source.serializedTransaction`
+  - EVM gasPayMaster mode: `msgs[]` with `eth_sign` hash signing, returns full msgs JSON struct
+  - Detection: `chain="sol"` field + `source.serializedTransaction` in deriveTransaction
+- **Cross-chain minimum:** $10 USD for cross-chain swaps
+- `order_make_sign_send.py` now supports `--private-key-sol` for Solana orders
+
+### Tested
+- Sol same-chain gasless: 5.5 USDT → 5.38 USDC ✅ (order `bf6aafd0`)
+- Sol→BNB cross-chain gasless: 18 USDC → 17.93 USDT ✅ (order `4483c8ea`)
+- BNB→Sol cross-chain user_gas: 10 USDT → 9.96 USDC ✅ (order `7c84e5dc`)
+- BNB same-chain gasless: 6 USDC → 5.96 USDT ✅ (order `b20d32fb`)
+- Base→BNB cross-chain gasless: 5 USDC → 4.97 USDT ✅ (order `bab6c9be`)
+
+---
+
 ## [2026.3.12-1] - 2026-03-12
 
 ### Breaking Changes

@@ -170,5 +170,7 @@ On EVM chains, tokens must be **approved** for the router before spending. Witho
 4. **Do not submit twice:** One confirmation, one sign+send; duplicate submit can double-spend.
 5. **makeOrder data expiry:** Unsigned txs from makeOrder are valid ~60s; use **order_make_sign_send.py** or sign and send immediately after makeOrder to avoid expiry.
 6. **Chain codes:** Use API chain codes (`bnb`, `sol`, `eth`), not aliases (`bsc`, `solana`).
+7. **Gasless signing:** EVM gasPayMaster returns `msgs[]` with `signType: "eth_sign"` — `order_sign.py` returns full msgs JSON struct (not raw tx). Solana gasPayMaster uses `source.serializedTransaction` for partial-sign. Both are auto-detected.
+8. **Cross-chain minimum:** Cross-chain swaps require minimum $10 USD value.
 
 For request/response details, see the script help: `python3 scripts/bitget_agent_api.py <command> --help`.

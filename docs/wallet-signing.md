@@ -145,7 +145,12 @@ The first N account keys in the message correspond to required signers (N = `hea
 | **Gasless** | Relayer (fee payer) | User wallet | Backend fills sig[0] after submission |
 | **User gas** | User wallet | — | User is the sole signer and fee payer |
 
-**Solana gasless status (2026-03-09 updated):** Solana gasless IS supported, but has a **minimum amount threshold (~$5-6 USD)**. Below this threshold, quote returns `features: []`. Above it, `features: ["no_gas"]` is returned and gasless works correctly — relayer signs `sig[0]`, user partial-signs `sig[1]`. Both same-chain swaps and cross-chain (Sol→EVM) gasless are verified working.
+**Solana gasless status (2026-03-13 updated):** Solana gasless is **fully supported** — both same-chain and cross-chain (Sol↔EVM).
+
+- **Gasless mode:** Quote returns `features: ["no_gas"]` when amount meets threshold (~$5 USD). Uses `gasPayMaster` with `source.serializedTransaction`.
+- **Cross-chain:** Sol→EVM (e.g. Sol USDC → BNB USDT) and EVM→Sol both work. Cross-chain minimum is $10 USD.
+- **Signing:** Solana gasPayMaster uses partial-sign on pre-serialized transaction (`signatureCnt: 2` — relayer signs slot 0, user signs slot 1).
+- **Verified:** Same-chain gasless (Sol USDT→USDC ✅), cross-chain gasless (Sol USDC→BNB USDT ✅), cross-chain user_gas (BNB USDT→Sol USDC ✅).
 
 ### Partial Signing Pattern
 
@@ -217,8 +222,9 @@ The script auto-detects the chain and signing mode:
 | Input | Detection | Handler |
 |-------|-----------|---------|
 | `data.signatures` present | EVM gasless (EIP-712) | `sign_order_signatures()` |
-| `data.txs` + chainId=501 or chainName=sol | Solana | `sign_order_txs_solana()` |
-| `data.txs` + other chain | EVM transaction | `sign_order_txs_evm()` |
+| `data.txs` + chainId=501 or chain=sol or source.serializedTransaction | Solana | `sign_order_txs_solana()` |
+| `data.txs` + EVM chain + `msgs[]` with `signType: "eth_sign"` | EVM gasPayMaster (gasless) | `sign_order_txs_evm()` → `_sign_msgs_eth_sign()` |
+| `data.txs` + other EVM chain | EVM transaction | `sign_order_txs_evm()` |
 
 ### Data Shape Flexibility
 
@@ -228,11 +234,14 @@ The Solana signer handles multiple API response shapes:
 // Shape 1: kind/data wrapper
 {"txs": [{"kind": "transaction", "data": {"serializedTx": "..."}}]}
 
-// Shape 2: nested data
+// Shape 2: nested data with chainId
 {"txs": [{"chainId": "501", "data": {"serializedTx": "..."}}]}
 
 // Shape 3: flat
 {"txs": [{"chainId": "501", "serializedTx": "..."}]}
+
+// Shape 4: gasPayMaster mode (chain field, source in deriveTransaction)
+{"txs": [{"chain": "sol", "txFunction": "swap_instant_gas_paymaster", "deriveTransaction": {"source": {"serializedTransaction": "...", "version": "0"}}}]}
 ```
 
 ### Dependencies
@@ -240,6 +249,6 @@ The Solana signer handles multiple API response shapes:
 | Chain | Required Libraries |
 |-------|-------------------|
 | EVM | `eth-account` (pre-installed) |
-| Solana | `solders`, `base58` (pip install) |
+| Solana | Pure Python Ed25519 + base58 (built-in, no pip install needed) |
 
 

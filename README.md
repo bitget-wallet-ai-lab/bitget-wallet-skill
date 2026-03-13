@@ -235,7 +235,7 @@ python3 scripts/bitget_agent_api.py quote \
 | Arbitrum | ✅ | ✅ | ✅ |
 | Polygon | ✅ | ✅ | ✅ |
 | Morph | ✅ | ✅ | ✅ |
-| Solana | ✅ | ⚠️ Pending | ❌ Not supported |
+| Solana | ✅ | ✅ | ✅ |
 
 > Market data commands support 32+ chains. See `docs/market-data.md` for the full list.
 
@@ -243,7 +243,7 @@ python3 scripts/bitget_agent_api.py quote \
 
 | Direction | Description |
 |-----------|-------------|
-| **Solana Gasless** | Pending backend support — client signing is ready, awaiting relayer implementation |
+| **Solana Advanced Swaps** | Solana gasless ✅ and cross-chain ✅ now fully supported (same-chain + Sol↔EVM) |
 | **On-chain Event Subscription** | WebSocket listeners for large transactions, new pool creation |
 | **Historical Data Cache** | Store K-line + price data in local SQLite to reduce API calls |
 | **Multi-wallet Management** | Support multi-address balance queries and batch quotes |

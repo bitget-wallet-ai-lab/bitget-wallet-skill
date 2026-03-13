@@ -103,7 +103,7 @@ python3 scripts/order_make_sign_send.py --private-key-sol "$SOL_KEY" --from-addr
 
 Sign order/makeOrder transaction data. Takes makeOrder response JSON, signs `data.txs`, outputs JSON array of signature hex strings.
 
-Supports: EVM raw tx signing, gasPayMaster (gasless) eth_sign on msgs hash, EIP-712 typed data, Solana Ed25519.
+Supports: EVM raw tx signing, EVM gasPayMaster (gasless msgs eth_sign), EIP-712 typed data, Solana Ed25519, Solana gasPayMaster (partial-sign on serializedTransaction).
 
 ```bash
 # EVM

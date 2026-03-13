@@ -198,7 +198,7 @@ Use empty string `""` for native token contract (ETH, SOL, BNB, etc.).
 |--------|---------|-------------|
 | `bitget_agent_api.py` | Unified API client | Balance, token search, market data (info/price/kline/tx/rankings/liquidity/security), swap flow (quote→confirm→make-order→send→get-order-details) |
 | `order_make_sign_send.py` | One-shot swap execution | makeOrder + sign + send in one run. `--private-key` (EVM) or `--private-key-sol` (Solana). Avoids 60s expiry. |
-| `order_sign.py` | Sign makeOrder data | Outputs JSON array of signatures. Supports raw tx, gasPayMaster (eth_sign), EIP-712, Solana Ed25519. |
+| `order_sign.py` | Sign makeOrder data | Outputs JSON array of signatures. Supports raw tx, EVM gasPayMaster (eth_sign), EIP-712, Solana Ed25519, Solana gasPayMaster. |
 | `x402_pay.py` | x402 payment | EIP-3009 signing, Solana partial-sign, HTTP 402 pay flow |
 
 ### Quick Reference
