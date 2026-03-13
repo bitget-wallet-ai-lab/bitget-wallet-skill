@@ -81,7 +81,8 @@ Or with JSON stdin: `echo '{"list":[{"chain":"...","contract":"...","symbol":"..
 
 ### 3–5. makeOrder, sign, send (combined — recommended)
 
-- **Script:** `python3 scripts/order_make_sign_send.py --private-key "$KEY" --from-address <addr> --to-address <addr> --order-id <from_confirm> --from-chain ... --from-contract ... --from-symbol ... --to-chain ... --to-contract ... --to-symbol ... --from-amount ... --slippage ... --market ... --protocol ...`
+- **Script (EVM):** `python3 scripts/order_make_sign_send.py --private-key "$EVM_KEY" --from-address <addr> --to-address <addr> --order-id <from_confirm> --from-chain ... --from-contract ... --from-symbol ... --to-chain ... --to-contract ... --to-symbol ... --from-amount ... --slippage ... --market ... --protocol ...`
+- **Script (Solana):** `python3 scripts/order_make_sign_send.py --private-key-sol "$SOL_KEY" --from-address <sol_addr> --to-address <sol_addr> --order-id <from_confirm> --from-chain sol ...`
 - **Behavior:** Reads mnemonic from file, derives keys in memory, calls makeOrder, signs `data.txs`, fills `txs[].sig`, then sends. Never outputs mnemonic or private keys. Use this so the ~60s makeOrder expiry does not run out.
 
 ### 3′–5′. makeOrder, sign, send (separate steps)
