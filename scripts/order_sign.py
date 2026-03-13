@@ -511,8 +511,8 @@ def sign_order_txs_evm(order_data: dict, private_key: str, chain_id: int = None)
             for j, sig in enumerate(msg_sigs):
                 if j < len(derive_msgs):
                     derive_msgs[j]["sig"] = sig
-            # Return the first msg sig as txs[].sig (API may use either)
-            signed_list.append(msg_sigs[0])
+            # Return the signed json struct
+            signed_list.append(json.dumps(msgs))
             continue
 
         tx_data, cid = _normalize_tx_item_for_signing(tx_item)
