@@ -46,7 +46,7 @@ python3 scripts/bitget_agent_api.py get-processed-balance --chain <fromChain> --
   | Arbitrum | ≥ $5 USD | 4U → `user_gas`, 5U → `no_gas` ✅ |
   | Polygon | ≥ $5 USD | 4U → `user_gas`, 5U → `no_gas` ✅ |
   | Solana | ≥ $5 USD | 4U → `user_gas`, 5U → `no_gas` ✅ |
-  | Morph | ❌ Not supported | All amounts return `user_gas` only |
+  | Morph | ≥ $5 USD | Check quote `features` to confirm |
 
   Always check the quote response `features` field to confirm gasless availability.
 - The API error `40001: Demo trading failed` from the confirm step is often caused by insufficient balance, not slippage — always check balance first.
