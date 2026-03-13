@@ -131,7 +131,6 @@ All BGW API amount fields use **human-readable values**, not smallest units (wei
 | BNB Chain (`bnb`) | `0x55d398326f99059fF775485246999027B3197955` | `0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d` |
 | Base (`base`) | `0xfde4C96c8593536E31F229EA8f37b2ADa2699bb2` | `0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913` |
 | Arbitrum (`arbitrum`) | `0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9` | `0xaf88d065e77c8cC2239327C5EDb3A432268e5831` |
-| Optimism (`optimism`) | `0x94b008aA00579c1307B0EF2c499aD98a8ce58e58` | `0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85` |
 | Polygon (`matic`) | `0xc2132D05D31c914a87C6611C10748AEb04B58e8F` | `0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359` |
 | Solana (`sol`) | `Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB` | `EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v` |
 | Morph (`morph`) | `0xe7cd86e13AC4309349F30B3435a9d337750fC82D` | - (not yet available) |
@@ -185,14 +184,7 @@ Load the following when the task requires it:
 | Polygon | 137 | matic |
 | Morph | 100283 | morph |
 
-**Query-only chains (market data, balance, token info — no swap):**
 
-| Chain | ID | Code |
-|-------|------|------|
-| Tron | 6 | trx |
-| Ton | 100280 | ton |
-| Sui | 100281 | suinet |
-| Optimism | 10 | optimism |
 
 Use empty string `""` for native token contract (ETH, SOL, BNB, etc.).
 
