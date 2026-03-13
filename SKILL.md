@@ -224,6 +224,5 @@ python3 scripts/bitget_agent_api.py get-order-details --order-id <id>
 ## Safety Rules
 
 - **Mnemonic and private keys must never appear in conversation, prompts, logs, or any output.** Only derived **addresses** may be stored in context or shown. Private keys are derived from mnemonic in secure storage, used for signing, and immediately discarded.
-- Built-in demo keys are public; if using custom keys via env vars, avoid exposing them in output.
 - For large trades, always show the quote first and ask for user confirmation.
 - Present security audit results before recommending any token action.
