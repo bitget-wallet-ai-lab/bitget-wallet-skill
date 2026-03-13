@@ -36,6 +36,11 @@ python3 scripts/bitget_agent_api.py get-processed-balance --chain <fromChain> --
 
 - If **fromToken balance < fromAmount**: inform the user of the shortfall (e.g., "You have 5.85 USDT but requested 6 USDT") and **do not proceed**.
 - If **native token balance ≈ 0**: warn the user about insufficient gas. Suggest reducing the swap amount or using gasless mode if available.
+- **Gasless minimum thresholds:** The API only returns `features: ["no_gas"]` when the swap amount meets a minimum USD value. Below this threshold, only `user_gas` is available and native token is required for gas. Known thresholds (tested 2026-03-13):
+  - **Base:** ~$5 USD (4 USDC → `user_gas` only, 5 USDC → `no_gas` available)
+  - **Solana:** ~$5 USD (1 USDC → `user_gas` only, 6 USDC → `no_gas` available)
+  - **BNB Chain:** ~$5 USD (similar behavior)
+  - Other EVM chains likely follow the same ~$5 threshold. Always check the quote response `features` field to confirm.
 - The API error `40001: Demo trading failed` from the confirm step is often caused by insufficient balance, not slippage — always check balance first.
 
 **2. Token risk check (required before every new swap)**
