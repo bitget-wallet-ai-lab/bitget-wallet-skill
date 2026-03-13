@@ -42,6 +42,21 @@ python3 scripts/bitget_agent_api.py get-processed-balance --chain <fromChain> --
   - **BNB Chain:** ~$5 USD (similar behavior)
   - Other EVM chains likely follow the same ~$5 threshold. Always check the quote response `features` field to confirm.
 - The API error `40001: Demo trading failed` from the confirm step is often caused by insufficient balance, not slippage — always check balance first.
+- **Cross-chain amount limits:** Cross-chain swaps have per-chain minimum and maximum amount limits depending on the bridge protocol. Amounts outside these ranges will fail at quote or order stage.
+
+  | From Chain | liqBridge | CCTP |
+  |------------|-----------|------|
+  | Ethereum | 1U – 200,000U | 0.1U – 500,000U |
+  | Solana | 10U – 200,000U | — |
+  | BSC | 1U – 200,000U | — |
+  | Base | 1U – 200,000U | 0.1U – 500,000U |
+  | Arbitrum | 1U – 200,000U | 0.1U – 500,000U |
+  | Polygon | 1U – 50,000U | 0.1U – 500,000U |
+  | Morph | 5U – 50,000U | 0.1U – 500,000U |
+
+  - **liqBridge:** Default cross-chain bridge, wider chain coverage.
+  - **CCTP (Circle):** USDC-native bridge, higher max limit but only on supported chains (ETH/Base/Arbitrum/Polygon/Morph).
+  - The bridge protocol is auto-selected by the API based on the token pair and route. Agent should validate the swap amount falls within the range before proceeding.
 
 **2. Token risk check (required before every new swap)**
 
