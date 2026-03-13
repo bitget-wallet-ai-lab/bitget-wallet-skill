@@ -8,25 +8,6 @@ Format: date-based versioning (`YYYY.M.DD`). Each release includes a sequential 
 
 ## [2026.3.13-1] - 2026-03-13
 
-### Added
-- **Solana gasless fully supported** — same-chain and cross-chain (Sol↔EVM) gasless transactions now work
-  - Solana gasPayMaster mode: partial-sign on `source.serializedTransaction`
-  - EVM gasPayMaster mode: `msgs[]` with `eth_sign` hash signing, returns full msgs JSON struct
-  - Detection: `chain="sol"` field + `source.serializedTransaction` in deriveTransaction
-- **Cross-chain minimum:** $10 USD for cross-chain swaps
-- `order_make_sign_send.py` now supports `--private-key-sol` for Solana orders
-
-### Tested
-- Sol same-chain gasless: 5.5 USDT → 5.38 USDC ✅ (order `bf6aafd0`)
-- Sol→BNB cross-chain gasless: 18 USDC → 17.93 USDT ✅ (order `4483c8ea`)
-- BNB→Sol cross-chain user_gas: 10 USDT → 9.96 USDC ✅ (order `7c84e5dc`)
-- BNB same-chain gasless: 6 USDC → 5.96 USDT ✅ (order `b20d32fb`)
-- Base→BNB cross-chain gasless: 5 USDC → 4.97 USDT ✅ (order `bab6c9be`)
-
----
-
-## [2026.3.12-1] - 2026-03-12
-
 ### Breaking Changes
 - **New API endpoint**: Migrated from `bopenapi.bgwapi.io` (HMAC auth) to `copenapi.bgwapi.io` (token auth, no API key needed)
 - **New swap flow**: `quote → confirm → makeOrder → sign+send → getOrderDetails` replaces old `order-quote → order-create → sign → order-submit → order-status`
@@ -35,6 +16,7 @@ Format: date-based versioning (`YYYY.M.DD`). Each release includes a sequential 
 
 ### Added — New Scripts
 - `scripts/bitget_agent_api.py` — Unified API client: swap flow + balance + token search + market data (no API key required)
+- `scripts/order_make_sign_send.py` — One-shot makeOrder + sign + send (EVM `--private-key` + Solana `--private-key-sol`)
 
 ### Added — New API Commands
 - `check-swap-token` — Pre-swap token risk check (forbidden-buy detection)
@@ -46,26 +28,49 @@ Format: date-based versioning (`YYYY.M.DD`). Each release includes a sequential 
 
 ### Added — New Documentation
 - `docs/swap.md` — Complete new swap flow with pre-trade checks, multi-market quote display, and confirmation rules
+- `docs/commands.md` — Full subcommand reference (moved from SKILL.md to reduce token cost)
 - `COMPATIBILITY.md` — Platform compatibility guide (tested: OpenClaw, Manus, Bolt.new, Devin, Replit Agent)
+
+### Added — Gasless + Cross-chain
+- **Solana gasless fully supported** — same-chain and cross-chain (Sol↔EVM) gasless transactions
+  - Solana gasPayMaster mode: partial-sign on `source.serializedTransaction`
+  - EVM gasPayMaster mode: `msgs[]` with `eth_sign` hash signing, returns full msgs JSON struct
+  - Detection: `chain="sol"` field + `source.serializedTransaction` in deriveTransaction
+- **Cross-chain minimum:** $10 USD for cross-chain swaps
 
 ### Changed — Swap Flow
 - Quote now returns **multiple market results** (`data.quoteResults`); agent must display all and recommend the first
 - Confirm step locks one market and returns `orderId` + final `quoteResult`
 - `recommendFeatures` in confirm response indicates gas payment mode (`user_gas` / `no_gas` for gasless)
 - **Balance check required before swap** — `get-processed-balance` must run before quote to prevent misleading `40001` errors
+- **features selection clarified**: `user_gas` when native balance sufficient, `no_gas` when near zero
 
 ### Changed — Wallet Management
-- Mnemonic file-based key management: user provides file path, keys derived in memory
+- Private key from secure storage, used in memory only, discarded after signing
 - Mnemonic and private keys never appear in conversation, logs, or output
+
+### Changed — SKILL.md Optimization
+- Slimmed from 25KB → 14.5KB (42% reduction); detailed params moved to `docs/commands.md`
 
 ### Fixed
 - Python 3.9 compatibility: added `from __future__ import annotations` for `str | None` type hints
+- Solana chain detection: support `chain="sol"` field and `source.serializedTransaction` when chainId is absent
+- EVM gasPayMaster signing: return full msgs JSON struct instead of single sig string
+
+### Tested
+- BNB same-chain user_gas: 5 USDT → 4.996 USDC ✅
+- BNB same-chain gasless: 6 USDC → 5.96 USDT ✅ (order `b20d32fb`)
+- BNB→Base cross-chain user_gas: 5 USDT → 4.983 USDC ✅
+- Base→BNB cross-chain gasless: 5 USDC → 4.97 USDT ✅ (order `bab6c9be`)
+- BNB→Sol cross-chain user_gas: 10 USDT → 9.96 USDC ✅ (order `7c84e5dc`)
+- Sol same-chain gasless: 5.5 USDT → 5.38 USDC ✅ (order `bf6aafd0`)
+- Sol→BNB cross-chain gasless: 18 USDC → 17.93 USDT ✅ (order `4483c8ea`)
 
 ### Audit
 - ✅ New API base `copenapi.bgwapi.io` uses token-based auth (no API key/secret needed)
 - ✅ Market data endpoints (`/market/v3/*`) work on new API after whitelist
-- ✅ `order_sign.py` updated to support new makeOrder `deriveTransaction` format
-- ✅ Full swap flow verified: quote → confirm → makeOrder → sign → send → getOrderDetails (BNB USDT→USDC, success)
+- ✅ `order_sign.py` supports: raw tx, EVM gasPayMaster (eth_sign), EIP-712, Solana Ed25519, Solana gasPayMaster
+- ✅ Full swap flow verified across EVM and Solana, same-chain and cross-chain, user_gas and gasless
 - ✅ No new external dependencies beyond existing `eth_account` + `requests`
 
 ---
