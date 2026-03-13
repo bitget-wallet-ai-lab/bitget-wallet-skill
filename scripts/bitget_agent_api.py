@@ -9,6 +9,7 @@ Signing via order_sign.py with private key derived from mnemonic in secure stora
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import sys
@@ -20,17 +21,31 @@ import requests
 BASE_URL = "https://copenapi.bgwapi.io"
 
 
+def _make_sign(method: str, path: str, body_str: str, ts: str) -> str:
+    """
+    BKHmacAuth signature: SHA256(Method + Path + Body + Timestamp).
+    Returns '0x' + lowercase hex digest.
+    """
+    message = method + path + body_str + ts
+    digest = hashlib.sha256(message.encode("utf-8")).hexdigest()
+    return "0x" + digest
+
+
 def _request(path: str, body: dict) -> dict:
-    """Send POST request; new API does not require apiKey."""
+    """Send POST request with BKHmacAuth signing."""
     url = BASE_URL.rstrip("/") + path
+    ts = str(int(time.time() * 1000))
+    body_str = json.dumps(body, separators=(",", ":"), ensure_ascii=False)
+    sign = _make_sign("POST", path, body_str, ts)
     headers = {
         "Content-Type": "application/json",
         "brand": "IOS",
         "clientversion": "9.36.0",
         "language": "en",
         "token": "toc_agent",
+        "X-SIGN": sign,
+        "X-TIMESTAMP": ts,
     }
-    body_str = json.dumps(body, separators=(",", ":"), ensure_ascii=False)
     try:
         resp = requests.post(url, data=body_str, headers=headers, timeout=30)
         if resp.status_code != 200:
