@@ -169,18 +169,19 @@ On EVM chains, tokens must be **approved** for the router before spending. Witho
 
 - **getOrderDetails:** `data.details.status === "success"` means success; show `fromTxId` / `toTxId` and block explorer links. When status is success, ignore the response `tips` field. When status is not success, use the `tips` field to prompt the user and suggest retry or adjusting amount/slippage if appropriate.
 
-## Block explorer URLs
+## Supported swap chains
 
-| Chain | Explorer URL |
-|-------|---------------|
-| eth | `https://etherscan.io/tx/{txId}` |
-| bnb | `https://bscscan.com/tx/{txId}` |
-| base | `https://basescan.org/tx/{txId}` |
-| arbitrum | `https://arbiscan.io/tx/{txId}` |
-| matic | `https://polygonscan.com/tx/{txId}` |
-| optimism | `https://optimistic.etherscan.io/tx/{txId}` |
-| sol | `https://solscan.io/tx/{txId}` |
-| trx | `https://tronscan.org/#/transaction/{txId}` |
+The swap API supports 7 chains. Use these chain codes in all swap commands:
+
+| Chain | Code | Explorer URL |
+|-------|------|--------------|
+| Ethereum | eth | `https://etherscan.io/tx/{txId}` |
+| BNB Chain | bnb | `https://bscscan.com/tx/{txId}` |
+| Base | base | `https://basescan.org/tx/{txId}` |
+| Arbitrum | arbitrum | `https://arbiscan.io/tx/{txId}` |
+| Polygon | matic | `https://polygonscan.com/tx/{txId}` |
+| Morph | morph | `https://explorer.morphl2.io/tx/{txId}` |
+| Solana | sol | `https://solscan.io/tx/{txId}` |
 
 ## Common pitfalls
 

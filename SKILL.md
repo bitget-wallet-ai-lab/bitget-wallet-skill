@@ -173,6 +173,8 @@ Load the following when the task requires it:
 
 ### Chain Identifiers
 
+**Swap-supported chains (7):**
+
 | Chain | ID | Code |
 |-------|------|------|
 | Ethereum | 1 | eth |
@@ -180,11 +182,17 @@ Load the following when the task requires it:
 | BNB Chain | 56 | bnb |
 | Base | 8453 | base |
 | Arbitrum | 42161 | arbitrum |
+| Polygon | 137 | matic |
+| Morph | 100283 | morph |
+
+**Query-only chains (market data, balance, token info — no swap):**
+
+| Chain | ID | Code |
+|-------|------|------|
 | Tron | 6 | trx |
 | Ton | 100280 | ton |
 | Sui | 100281 | suinet |
 | Optimism | 10 | optimism |
-| Polygon | 137 | matic |
 
 Use empty string `""` for native token contract (ETH, SOL, BNB, etc.).
 
