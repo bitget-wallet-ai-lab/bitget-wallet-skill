@@ -17,6 +17,10 @@ An AI Agent skill that wraps the [Bitget Wallet API](https://web3.bitget.com/en/
 
 | Capability | Description | Example |
 |------------|-------------|---------|
+| **Balance Query** | On-chain balance per chain/address/token (native + ERC-20/SPL) | "What's my BNB balance?" |
+| **Balance + Price** | Batch balance with USD price in one call | "What's my portfolio worth?" |
+| **Token Search** | Search tokens by name, symbol, or contract address | "Find USDC on BNB chain" |
+| **Token List** | Available tokens per chain for swap | "What tokens can I swap on Base?" |
 | **Token Info** | Price, market cap, holders, social links | "What's the price of SOL?" |
 | **Batch Price Query** | Multi-token price lookup in one call | Portfolio valuation |
 | **K-line Data** | 1m/5m/1h/4h/1d candlestick data | Trend analysis, charting |
@@ -26,7 +30,7 @@ An AI Agent skill that wraps the [Bitget Wallet API](https://web3.bitget.com/en/
 | **Security Audit** | Contract safety checks (honeypot, permissions, blacklist) | Pre-trade risk control |
 | **Batch Tx Info** | Batch transaction statistics for multiple tokens | "Compare volume for SOL and ETH" |
 | **Historical Coins** | Discover new tokens by timestamp | "What tokens launched today?" |
-| **Swap Send** | Broadcast signed transactions with MEV protection | "Broadcast my signed swap" |
+| **Token Risk Check** | Pre-swap safety check for from/to tokens (forbidden-buy detection) | "Is this token safe to buy?" |
 | **Swap Quote** | Multi-market quotes for same-chain/cross-chain swaps | "How much USDC for 1 SOL?" |
 | **Swap Confirm** | Final quote from selected market with orderId | Lock in price and route |
 | **Swap MakeOrder** | Generate unsigned transaction data for signing | Execute trades via wallet signing |
