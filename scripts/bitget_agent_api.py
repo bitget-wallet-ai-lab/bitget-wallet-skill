@@ -107,7 +107,11 @@ def confirm(
     """
     Second quote; get final quote and orderId for one market.
     market/protocol from quote response data.quoteResults[].market.id / .protocol.
-    features: single-element array, ["user_gas"] when user pays gas in native token, else gasless.
+    features: single-element array. Selection logic:
+      - ["user_gas"] — user pays gas in native token. Use when native balance is sufficient for gas.
+      - ["no_gas"] — gasless mode, gas deducted from fromToken. Use when native balance is insufficient.
+      Agent must check native token balance (via get-processed-balance) and choose accordingly.
+      Default: ["user_gas"] if not specified.
     """
     body = {
         "fromChain": from_chain,

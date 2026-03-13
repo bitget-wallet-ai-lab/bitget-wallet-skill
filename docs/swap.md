@@ -71,7 +71,10 @@ Or with JSON stdin: `echo '{"list":[{"chain":"...","contract":"...","symbol":"..
 ### 2. Second quote (confirm)
 
 - **Script:** `python3 scripts/bitget_agent_api.py confirm ...`
-- **Request:** `market` and `protocol` from the **chosen** quote result (default: `data.quoteResults[0].market.id` and `.protocol`; if the user picked another, use that item's `market.id` and `market.protocol`). `slippage` from the same chosen result's `slippageInfo.recommendSlippage`. `features` a single-element array: `["user_gas"]` when user pays gas in native token, else `["no_gas"]` for gasless (prefer user_gas when balance is enough).
+- **Request:** `market` and `protocol` from the **chosen** quote result (default: `data.quoteResults[0].market.id` and `.protocol`; if the user picked another, use that item's `market.id` and `market.protocol`). `slippage` from the same chosen result's `slippageInfo.recommendSlippage`. `features` a single-element array — **agent must choose based on native token balance from step 1:**
+    - `["user_gas"]` — native token balance is sufficient for gas fees → user pays gas normally (**preferred**)
+    - `["no_gas"]` — native token balance is insufficient (near zero) → gasless mode, gas deducted from `fromToken`
+    - The API defaults to `["user_gas"]` if not specified, which will fail if native balance is too low.
 - **Response:** If `error_code != 0`, show `msg` and stop. Show `data.quoteResult.outAmount`, `data.quoteResult.minAmount`, `data.quoteResult.gasFees.gasTotalAmount`. Store `data.orderId` for makeOrder, send, getOrderDetails.
 - **Agent — must show in Second quote stage:** In the confirm step, the agent **must** present to the user the following from the confirm response: **`data.quoteResult.outAmount`** (expected output amount), **`data.quoteResult.minAmount`** (minimum output amount), and **`data.quoteResult.gasFees.gasTotalAmount`** (gas cost). Do not skip displaying these three fields before asking for user confirmation.
 - **Agent: handle `data.quoteResult.recommendFeatures` (gas payment):**
@@ -83,7 +86,7 @@ Or with JSON stdin: `echo '{"list":[{"chain":"...","contract":"...","symbol":"..
 
 - **Script (EVM):** `python3 scripts/order_make_sign_send.py --private-key "$EVM_KEY" --from-address <addr> --to-address <addr> --order-id <from_confirm> --from-chain ... --from-contract ... --from-symbol ... --to-chain ... --to-contract ... --to-symbol ... --from-amount ... --slippage ... --market ... --protocol ...`
 - **Script (Solana):** `python3 scripts/order_make_sign_send.py --private-key-sol "$SOL_KEY" --from-address <sol_addr> --to-address <sol_addr> --order-id <from_confirm> --from-chain sol ...`
-- **Behavior:** Reads mnemonic from file, derives keys in memory, calls makeOrder, signs `data.txs`, fills `txs[].sig`, then sends. Never outputs mnemonic or private keys. Use this so the ~60s makeOrder expiry does not run out.
+- **Behavior:** Takes private key from secure storage, calls makeOrder, signs `data.txs`, fills `txs[].sig`, then sends. Auto-detects EVM vs Solana from makeOrder response. Never outputs private keys. Use this so the ~60s makeOrder expiry does not run out.
 
 ### 3′–5′. makeOrder, sign, send (separate steps)
 
