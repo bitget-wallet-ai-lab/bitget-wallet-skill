@@ -681,8 +681,8 @@ def sign_order_txs_tron(order_data: dict, private_key_tron: str) -> list[str]:
         raw_bytes = bytes.fromhex(raw_data_hex.replace("0x", "").strip())
         msg_hash = hashlib.sha256(raw_bytes).digest()
         signed = acct.unsafe_sign_hash(msg_hash)
-        # Tron: high-S form (match SDK/API), then recovery id 0/1 (eth_account gives 27/28)
-        sig_bytes = bytearray(_tron_signature_to_high_s(signed.signature))
+        # Tron uses standard low-S form; recovery id 0/1 (eth_account gives 27/28)
+        sig_bytes = bytearray(signed.signature)
         if len(sig_bytes) == 65 and sig_bytes[64] in (27, 28):
             sig_bytes[64] -= 27
         sig_hex = sig_bytes.hex()
