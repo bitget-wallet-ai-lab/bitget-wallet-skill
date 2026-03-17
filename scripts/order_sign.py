@@ -447,8 +447,13 @@ def _normalize_tx_item_for_signing(tx_item: dict) -> tuple[dict, int]:
     if derive and isinstance(data_raw, str):
         # New swap flow makeOrder format: data is hex string, deriveTransaction has chain params
         d = derive
+        to_addr = tx_item.get("to") or d.get("to") or ""
+        # Normalize to checksum address (eth_account rejects non-checksum)
+        if to_addr and to_addr.startswith("0x"):
+            from eth_utils import to_checksum_address
+            to_addr = to_checksum_address(to_addr)
         tx_data = {
-            "to": tx_item["to"],
+            "to": to_addr,
             "calldata": data_raw,
             "gasLimit": str(d.get("gasLimit", tx_item.get("gasLimit", 0))),
             "nonce": int(d.get("nonce", tx_item.get("nonce", 0))),
