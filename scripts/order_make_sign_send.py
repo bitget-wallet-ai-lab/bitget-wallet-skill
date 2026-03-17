@@ -47,6 +47,17 @@ def _is_solana_order(order_data: dict) -> bool:
     return False
 
 
+def _is_tron_order(order_data: dict) -> bool:
+    """Detect if order data contains Tron transactions."""
+    for tx_item in order_data.get("txs", []):
+        chain = (tx_item.get("chain") or "").lower()
+        if chain in ("trx", "tron"):
+            return True
+        if tx_item.get("transaction") and isinstance(tx_item["transaction"].get("raw_data_hex"), str):
+            return True
+    return False
+
+
 def main():
     import argparse
     parser = argparse.ArgumentParser(
@@ -54,6 +65,7 @@ def main():
     )
     parser.add_argument("--private-key", default=None, help="EVM private key (hex, from secure storage)")
     parser.add_argument("--private-key-sol", default=None, help="Solana private key (base58 or hex, from secure storage)")
+    parser.add_argument("--private-key-tron", default=None, help="Tron private key (hex, from secure storage)")
     parser.add_argument("--from-address", required=True, help="Sender address")
     parser.add_argument("--to-address", required=True, help="Receiver address (usually same as from-address)")
     parser.add_argument("--order-id", required=True, help="From confirm response data.orderId")
@@ -69,8 +81,8 @@ def main():
     parser.add_argument("--protocol", required=True)
     args = parser.parse_args()
 
-    if not args.private_key and not args.private_key_sol:
-        print("Error: must provide --private-key (EVM) or --private-key-sol (Solana)", file=sys.stderr)
+    if not args.private_key and not args.private_key_sol and not args.private_key_tron:
+        print("Error: must provide --private-key (EVM), --private-key-sol (Solana), or --private-key-tron (Tron)", file=sys.stderr)
         sys.exit(1)
 
     from bitget_agent_api import make_order, send
@@ -108,6 +120,12 @@ def main():
             sys.exit(1)
         from order_sign import sign_order_txs_solana
         signed = sign_order_txs_solana(data, args.private_key_sol)
+    elif _is_tron_order(data):
+        if not args.private_key_tron:
+            print("Error: Tron order detected but --private-key-tron not provided", file=sys.stderr)
+            sys.exit(1)
+        from order_sign import sign_order_txs_tron
+        signed = sign_order_txs_tron(data, args.private_key_tron)
     else:
         if not args.private_key:
             print("Error: EVM order detected but --private-key not provided", file=sys.stderr)
@@ -122,6 +140,7 @@ def main():
     # Clear keys from memory
     args.private_key = None
     args.private_key_sol = None
+    args.private_key_tron = None
 
     send_resp = send(order_id=order_id, txs=txs)
     print(json.dumps(send_resp, indent=2))

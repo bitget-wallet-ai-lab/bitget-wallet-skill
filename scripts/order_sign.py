@@ -5,11 +5,18 @@ Order Mode signing helper for Bitget Wallet Skill.
 Signs order-create response for both EVM and Solana chains.
 - EVM signatures mode: signs API-provided EIP-712 hashes directly
 - EVM txs mode: builds and signs raw transactions
+- EVM RWA swap: when txs[].function is "signTypeData", signs EIP-712 typed data (1inch Order);
+  signTypeData.domain.chainId may be hex string (e.g. "0x38") and is normalized to int for signing
+- Tron (TRX) txs mode: SHA256(transaction.raw_data_hex) then ECDSA secp256k1; output sig is JSON
+  { signature: [hex], txID, raw_data }. Recovery id 0/1; high-S form to match Tron SDK/API.
 - Solana txs mode: partial-sign VersionedTransaction (or Legacy fallback)
 
 Usage:
     # EVM
     python3 scripts/order_sign.py --order-json '<json>' --private-key <hex>
+
+    # Tron (TRX)
+    python3 scripts/order_sign.py --order-json '<json>' --private-key-tron <hex>
 
     # Solana
     python3 scripts/order_sign.py --order-json '<json>' --private-key-sol <base58|hex>
@@ -458,6 +465,36 @@ def _normalize_tx_item_for_signing(tx_item: dict) -> tuple[dict, int]:
     return tx_data, cid
 
 
+def _normalize_eip712_domain(domain: dict) -> dict:
+    """Normalize EIP-712 domain for eth_account: chainId must be int."""
+    out = dict(domain)
+    cid = domain.get("chainId")
+    if cid is not None:
+        if isinstance(cid, str):
+            out["chainId"] = int(cid, 16) if cid.startswith("0x") else int(cid)
+        else:
+            out["chainId"] = int(cid)
+    return out
+
+
+def _sign_eip712_sign_type_data(sign_type_data: dict, acct) -> str:
+    """
+    Sign EIP-712 typed data (RWA swap / 1inch Order style).
+    sign_type_data: { domain, message, primaryType, types } from makeOrder txs[].signTypeData.
+    Returns 0x-prefixed signature hex (r + s + v, 65 bytes).
+    """
+    domain = _normalize_eip712_domain(sign_type_data.get("domain", {}))
+    full_message = {
+        "types": sign_type_data.get("types", {}),
+        "primaryType": sign_type_data.get("primaryType", "Order"),
+        "domain": domain,
+        "message": sign_type_data.get("message", {}),
+    }
+    signed = acct.sign_typed_data(full_message=full_message)
+    sig_hex = signed.signature.hex()
+    return sig_hex if sig_hex.startswith("0x") else "0x" + sig_hex
+
+
 def _sign_msgs_eth_sign(msgs: list, acct) -> list[str]:
     """
     Sign gasPayMaster msgs using eth_sign.
@@ -502,6 +539,15 @@ def sign_order_txs_evm(order_data: dict, private_key: str, chain_id: int = None)
             raise ValueError(
                 "One or more tx items are Solana (chainId 501). Use --private-key-sol for Solana orders."
             )
+
+        # RWA swap: EIP-712 signTypeData (1inch Order style)
+        if tx_item.get("function") == "signTypeData":
+            sign_type_data = tx_item.get("signTypeData")
+            if not sign_type_data:
+                raise ValueError("Tx has function signTypeData but missing signTypeData")
+            sig_hex = _sign_eip712_sign_type_data(sign_type_data, acct)
+            signed_list.append(sig_hex)
+            continue
 
         # Check for gasPayMaster mode: msgs[] with eth_sign
         derive = tx_item.get("deriveTransaction") or {}
@@ -561,8 +607,108 @@ def sign_order_txs_evm(order_data: dict, private_key: str, chain_id: int = None)
 
 
 # ---------------------------------------------------------------------------
+# Tron (TRX) signing
+# ---------------------------------------------------------------------------
+
+# SECP256k1 curve order (same as Ethereum/Bitcoin); for Tron low-S canonical form
+_TRON_SECP256K1_ORDER = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141
+
+
+def _tron_signature_to_high_s(sig_bytes: bytes) -> bytes:
+    """Convert signature to high-S form if currently low-S (some Tron SDKs/APIs expect high-S)."""
+    if len(sig_bytes) != 65:
+        return sig_bytes
+    r = sig_bytes[:32]
+    s = int.from_bytes(sig_bytes[32:64], "big")
+    v = sig_bytes[64]
+    half_n = _TRON_SECP256K1_ORDER // 2
+    if s <= half_n:
+        s = _TRON_SECP256K1_ORDER - s
+        if v in (27, 28):
+            v = 28 if v == 27 else 27
+    s_bytes = s.to_bytes(32, "big")
+    return r + s_bytes + bytes([v])
+
+
+def _normalize_tron_private_key(private_key: str) -> str:
+    """Ensure Tron private key has 0x prefix for eth_account (same secp256k1 curve)."""
+    pk = (private_key or "").strip()
+    if pk.startswith("0x"):
+        return pk
+    return "0x" + pk
+
+
+def sign_order_txs_tron(order_data: dict, private_key_tron: str) -> list[str]:
+    """
+    Sign all Tron transactions in an order txs response.
+    Each tx has transaction.raw_data_hex (serialized raw_data), transaction.raw_data, transaction.txID.
+    Signing: SHA256(raw_data_hex bytes) then ECDSA secp256k1 (same as EVM); output sig is a JSON string
+    with { signature: [hex], txID, raw_data } for the send API.
+    """
+    from eth_account import Account
+    pk = _normalize_tron_private_key(private_key_tron)
+    acct = Account.from_key(pk)
+    signed_list = []
+
+    txs = order_data.get("txs", [])
+    if not txs:
+        raise ValueError("No txs in order data")
+
+    for tx_item in txs:
+        chain = (tx_item.get("chain") or "").lower()
+        if chain not in ("trx", "tron"):
+            raise ValueError(
+                f"Tx chain is {chain!r}, not Tron. Use --private-key-tron only for chain trx/tron."
+            )
+        transaction = tx_item.get("transaction")
+        if not transaction:
+            raise ValueError("Tron tx missing 'transaction' (raw_data_hex, raw_data, txID)")
+        raw_data_hex = transaction.get("raw_data_hex")
+        raw_data = transaction.get("raw_data")
+        tx_id = transaction.get("txID")
+        if not raw_data_hex:
+            raise ValueError("Tron transaction missing raw_data_hex")
+        if raw_data is None:
+            raise ValueError("Tron transaction missing raw_data")
+        if not tx_id:
+            raise ValueError("Tron transaction missing txID")
+
+        raw_bytes = bytes.fromhex(raw_data_hex.replace("0x", "").strip())
+        msg_hash = hashlib.sha256(raw_bytes).digest()
+        signed = acct.unsafe_sign_hash(msg_hash)
+        # Tron: high-S form (match SDK/API), then recovery id 0/1 (eth_account gives 27/28)
+        sig_bytes = bytearray(_tron_signature_to_high_s(signed.signature))
+        if len(sig_bytes) == 65 and sig_bytes[64] in (27, 28):
+            sig_bytes[64] -= 27
+        sig_hex = sig_bytes.hex()
+        if sig_hex.startswith("0x"):
+            sig_hex = sig_hex[2:]
+
+        sig_obj = {
+            "signature": [sig_hex],
+            "txID": tx_id,
+            "raw_data": raw_data,
+        }
+        signed_list.append(json.dumps(sig_obj))
+
+    return signed_list
+
+
+# ---------------------------------------------------------------------------
 # Chain detection
 # ---------------------------------------------------------------------------
+
+def _is_tron_order(order_data: dict) -> bool:
+    """Detect if order data is for Tron chain (chain trx or tron)."""
+    txs = order_data.get("txs", [])
+    for tx_item in txs:
+        chain = (tx_item.get("chain") or "").lower()
+        if chain in ("trx", "tron"):
+            return True
+        if tx_item.get("transaction") and isinstance(tx_item["transaction"].get("raw_data_hex"), str):
+            return True
+    return False
+
 
 def _is_solana_order(order_data: dict) -> bool:
     """Detect if order data is for Solana chain."""
@@ -594,6 +740,7 @@ def main():
     parser.add_argument("--order-json", help="Order-create response JSON string")
     parser.add_argument("--private-key", help="EVM hex private key")
     parser.add_argument("--private-key-sol", help="Solana private key (base58 or hex)")
+    parser.add_argument("--private-key-tron", help="Tron hex private key (secp256k1, same curve as EVM)")
     args = parser.parse_args()
 
     if args.order_json:
@@ -601,7 +748,11 @@ def main():
     else:
         response = json.loads(sys.stdin.read())
 
-    data = response.get("data", response)
+    # Support raw txs array as input (e.g. api/tron_sign_1.json)
+    if isinstance(response, list):
+        data = {"txs": response}
+    else:
+        data = response.get("data", response)
 
     # EVM signatures mode (gasless EIP-7702)
     if "signatures" in data and data["signatures"]:
@@ -620,6 +771,12 @@ def main():
                 print("ERROR: --private-key-sol required for Solana txs mode", file=sys.stderr)
                 sys.exit(1)
             signed = sign_order_txs_solana(data, pk_sol)
+        elif _is_tron_order(data):
+            pk_tron = args.private_key_tron
+            if not pk_tron:
+                print("ERROR: --private-key-tron required for Tron txs mode", file=sys.stderr)
+                sys.exit(1)
+            signed = sign_order_txs_tron(data, pk_tron)
         else:
             if not args.private_key:
                 print("ERROR: --private-key required for EVM txs mode", file=sys.stderr)

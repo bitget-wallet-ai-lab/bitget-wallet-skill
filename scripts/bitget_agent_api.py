@@ -39,8 +39,9 @@ def _request(path: str, body: dict) -> dict:
     sign = _make_sign("POST", path, body_str, ts)
     headers = {
         "Content-Type": "application/json",
-        "brand": "IOS",
-        "clientversion": "9.36.0",
+        "channel": "toc_agent",
+        "brand": "toc_agent",
+        "clientversion": "0.0.1",
         "language": "en",
         "token": "toc_agent",
         "X-SIGN": sign,
@@ -48,6 +49,31 @@ def _request(path: str, body: dict) -> dict:
     }
     try:
         resp = requests.post(url, data=body_str, headers=headers, timeout=30)
+        if resp.status_code != 200:
+            return {"status": -1, "error_code": resp.status_code, "msg": resp.text[:500]}
+        return resp.json()
+    except Exception as e:
+        return {"status": -1, "error_code": -1, "msg": str(e)}
+
+
+def _request_get(path_with_query: str) -> dict:
+    """Send GET request with BKHmacAuth signing. path_with_query includes query string (e.g. /path?ticker=NVDAon)."""
+    url = BASE_URL.rstrip("/") + path_with_query
+    ts = str(int(time.time() * 1000))
+    body_str = ""
+    sign = _make_sign("GET", path_with_query, body_str, ts)
+    headers = {
+        "Content-Type": "application/json",
+        "channel": "toc_agent",
+        "brand": "toc_agent",
+        "clientversion": "0.0.1",
+        "language": "en",
+        "token": "toc_agent",
+        "X-SIGN": sign,
+        "X-TIMESTAMP": ts,
+    }
+    try:
+        resp = requests.get(url, headers=headers, timeout=30)
         if resp.status_code != 200:
             return {"status": -1, "error_code": resp.status_code, "msg": resp.text[:500]}
         return resp.json()
@@ -385,6 +411,90 @@ def security(chain: str, contract: str, source: str = "bg") -> dict:
 
 
 # ---------------------------------------------------------------------------
+# RWA (Real World Asset) stock trading APIs
+# ---------------------------------------------------------------------------
+
+def rwa_get_user_ticker_selector(
+    chain: str,
+    user_address: Optional[str] = None,
+    key_word: Optional[str] = None,
+) -> dict:
+    """
+    Query or search RWA stock tickers supported by the market; optionally with user address to include balance.
+    chain: required, currently only bnb and eth supported.
+    user_address: optional; if provided, response includes balance and balance_usd per ticker.
+    key_word: optional search keyword (name or stock contract address).
+    Returns data.list with ticker, name, icon, chain, contract, latest_price, balance, etc.
+    """
+    body = {"chain": chain}
+    if user_address:
+        body["user_address"] = user_address
+    if key_word:
+        body["key_word"] = key_word
+    return _request("/market/v2/rwa/GetUserTickerSelector", body)
+
+
+def rwa_get_config(address_list: List[dict]) -> dict:
+    """
+    Get RWA trading config: stablecoins (fromTokenList / toTokenList) for buying/selling RWA stocks,
+    slippage, amount limits, gasInfoList, etc.
+    address_list: list of { chain, address } for bnb, eth, sol.
+    """
+    body = {"addressList": address_list}
+    return _request("/swap-go/rwa/getConfig", body)
+
+
+def rwa_stock_info(ticker: str) -> dict:
+    """
+    Get RWA stock info by ticker (GET). Returns market status, trading amount limits (tx_minimum_usd,
+    tx_maximum_usd, tx_minimum_sell_usd, tx_maximum_sell_usd), chain_assets, description, etc.
+    """
+    path = f"/market/v2/rwa/StockInfo?ticker={requests.utils.quote(ticker)}"
+    return _request_get(path)
+
+
+def rwa_stock_order_price(
+    ticker: str,
+    chain: str,
+    side: str,
+    tx_coin_contract: str,
+    user_address: str,
+) -> dict:
+    """
+    Get display buy/sell price for an RWA stock (for pre-trade display, not actual quote).
+    side: "buy" or "sell". tx_coin_contract: stablecoin contract from rwaGetConfig (fromTokenList/toTokenList).
+    Returns data.order_price, data.price_source.
+    """
+    body = {
+        "ticker": ticker,
+        "chain": chain,
+        "side": side,
+        "tx_coin_contract": tx_coin_contract,
+        "user_address": user_address,
+    }
+    return _request("/market/v2/rwa/StockOrderPrice", body)
+
+
+def rwa_kline(chain: str, contract: str, period: str = "1d", size: Optional[int] = None) -> dict:
+    """
+    Get K-line data for an RWA stock. chain should be "rwa"; contract is the ticker (e.g. NVDAon).
+    period: e.g. 1d, 1h. size: optional limit.
+    """
+    body = {"chain": chain, "contract": contract, "period": period}
+    if size is not None:
+        body["size"] = size
+    return _request("/market/v2/coin/Kline", body)
+
+
+def rwa_get_my_holdings(user_address: str) -> dict:
+    """
+    Get user's RWA stock holdings. Returns data.balance_list with ticker, balance, chain_asset, etc.
+    """
+    body = {"user_address": user_address}
+    return _request("/market/v2/rwa/GetMyHoldings", body)
+
+
+# ---------------------------------------------------------------------------
 # Quote response simplification (for Agent; see api/quote.md "simplified response example")
 # ---------------------------------------------------------------------------
 
@@ -689,6 +799,70 @@ def _cmd_security(args):
     print(json.dumps(out, indent=2, ensure_ascii=False))
 
 
+# ---- RWA CLI ----
+
+def _cmd_rwa_get_user_ticker_selector(args):
+    out = rwa_get_user_ticker_selector(
+        chain=args.chain,
+        user_address=getattr(args, "user_address", None),
+        key_word=getattr(args, "key_word", None),
+    )
+    print(json.dumps(out, indent=2, ensure_ascii=False))
+
+
+def _cmd_rwa_get_config(args):
+    if args.json_stdin:
+        payload = json.load(sys.stdin)
+        address_list = payload.get("addressList", payload.get("address_list", payload))
+        if isinstance(address_list, dict):
+            address_list = [address_list]
+    else:
+        address_list = []
+        for item in (args.address_list or "").split(";"):
+            item = item.strip()
+            if not item:
+                continue
+            parts = item.split(",")
+            if len(parts) >= 2:
+                address_list.append({"chain": parts[0].strip(), "address": parts[1].strip()})
+    if not address_list:
+        print("Error: --address-list or --json-stdin with addressList required", file=sys.stderr)
+        sys.exit(1)
+    out = rwa_get_config(address_list)
+    print(json.dumps(out, indent=2, ensure_ascii=False))
+
+
+def _cmd_rwa_stock_info(args):
+    out = rwa_stock_info(ticker=args.ticker)
+    print(json.dumps(out, indent=2, ensure_ascii=False))
+
+
+def _cmd_rwa_stock_order_price(args):
+    out = rwa_stock_order_price(
+        ticker=args.ticker,
+        chain=args.chain,
+        side=args.side,
+        tx_coin_contract=args.tx_coin_contract,
+        user_address=args.user_address,
+    )
+    print(json.dumps(out, indent=2, ensure_ascii=False))
+
+
+def _cmd_rwa_kline(args):
+    out = rwa_kline(
+        chain=args.chain,
+        contract=args.contract,
+        period=getattr(args, "period", "1d"),
+        size=getattr(args, "size", None),
+    )
+    print(json.dumps(out, indent=2, ensure_ascii=False))
+
+
+def _cmd_rwa_get_my_holdings(args):
+    out = rwa_get_my_holdings(user_address=args.user_address)
+    print(json.dumps(out, indent=2, ensure_ascii=False))
+
+
 def main():
     parser = argparse.ArgumentParser(description="Bitget Wallet Agent API (new swap flow, no apiKey)")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -847,6 +1021,41 @@ def main():
     p.add_argument("--chain", required=True)
     p.add_argument("--contract", required=True)
     p.set_defaults(func=_cmd_security)
+
+    # ---- RWA ----
+    p = sub.add_parser("rwa-get-user-ticker-selector", help="[RWA] Query/search RWA stock tickers; optional user_address for balance")
+    p.add_argument("--chain", default="bnb", help="Chain (bnb or eth)")
+    p.add_argument("--user-address", dest="user_address", default=None, help="Optional wallet address to include balance")
+    p.add_argument("--key-word", dest="key_word", default=None, help="Optional search keyword (name or contract)")
+    p.set_defaults(func=_cmd_rwa_get_user_ticker_selector)
+
+    p = sub.add_parser("rwa-get-config", help="[RWA] Get RWA config (stablecoins, limits). addressList: chain,addr;chain,addr")
+    p.add_argument("--address-list", dest="address_list", default="", help="Semicolon-separated chain,address (e.g. bnb,0x...;eth,0x...)")
+    p.add_argument("--json-stdin", action="store_true", help="Read {addressList: [...]} from stdin")
+    p.set_defaults(func=_cmd_rwa_get_config)
+
+    p = sub.add_parser("rwa-stock-info", help="[RWA] Get RWA stock info by ticker (market status, limits)")
+    p.add_argument("--ticker", required=True, help="RWA stock ticker (e.g. NVDAon)")
+    p.set_defaults(func=_cmd_rwa_stock_info)
+
+    p = sub.add_parser("rwa-stock-order-price", help="[RWA] Get display buy/sell price for RWA stock")
+    p.add_argument("--ticker", required=True)
+    p.add_argument("--chain", required=True)
+    p.add_argument("--side", required=True, choices=["buy", "sell"])
+    p.add_argument("--tx-coin-contract", dest="tx_coin_contract", required=True, help="Stablecoin contract from rwaGetConfig")
+    p.add_argument("--user-address", dest="user_address", required=True)
+    p.set_defaults(func=_cmd_rwa_stock_order_price)
+
+    p = sub.add_parser("rwa-kline", help="[RWA] Get K-line for RWA stock (chain=rwa, contract=ticker)")
+    p.add_argument("--chain", default="rwa", help="Use rwa for RWA kline")
+    p.add_argument("--contract", required=True, help="RWA ticker e.g. NVDAon")
+    p.add_argument("--period", default="1d", help="e.g. 1d, 1h")
+    p.add_argument("--size", type=int, default=None, help="Optional limit")
+    p.set_defaults(func=_cmd_rwa_kline)
+
+    p = sub.add_parser("rwa-get-my-holdings", help="[RWA] Get user RWA stock holdings")
+    p.add_argument("--user-address", dest="user_address", required=True)
+    p.set_defaults(func=_cmd_rwa_get_my_holdings)
 
     args = parser.parse_args()
     args.func(args)

@@ -2,7 +2,7 @@
 name: bitget-wallet
 version: "2026.3.12-1"
 updated: "2026-03-12"
-description: "Wallet Manage, Interact with Bitget Wallet API for crypto market data, token info, swap quotes, and security audits. Use when the user asks about wallet, token prices, market data, swap/trading quotes, token security checks, K-line charts, or token rankings on supported chains (ETH, SOL, BSC, Base, etc.)."
+description: "Interact with Bitget Wallet API for crypto market data, token info, swap quotes, RWA (real-world asset) stock trading, and security audits. Use when the user asks about wallet, token prices, market data, swap/trading quotes, RWA stock discovery and trading, token security checks, K-line charts, or token rankings on supported chains (ETH, SOL, BSC, Base, etc.)."
 ---
 
 # Bitget Wallet Skill
@@ -31,8 +31,8 @@ See Scripts for full command details and `docs/swap.md` for the complete flow.
 **Technical reference (no need to read .py files):**
 
 - **Base URL:** `https://copenapi.bgwapi.io` (token auth, no API key needed).
-- **Agent API:** Invoked via `scripts/bitget_agent_api.py`. Covers token risk check (`check-swap-token`), balance (`get-processed-balance`), balance+price (`batch-v2`), token search (`search-tokens`), token list (`get-token-list`); **market data:** token-info, token-price, batch-token-info, kline, tx-info, batch-tx-info, historical-coins, rankings, liquidity, security; swap flow (quote, confirm, make-order, send, get-order-details). Request/response details are in `docs/`.
-- **Requests:** POST with JSON body.
+- **Agent API:** Invoked via `scripts/bitget_agent_api.py`. Covers token risk check (`check-swap-token`), balance (`get-processed-balance`), balance+price (`batch-v2`), token search (`search-tokens`), token list (`get-token-list`); **market data:** token-info, token-price, batch-token-info, kline, tx-info, batch-tx-info, historical-coins, rankings, liquidity, security; **RWA:** rwa-get-user-ticker-selector, rwa-get-config, rwa-stock-info (GET), rwa-stock-order-price, rwa-kline, rwa-get-my-holdings; swap flow (quote, confirm, make-order, send, get-order-details). Request/response details are in `docs/`.
+- **Requests:** POST with JSON body; RWA stock info uses GET with query params.
 
 ## Domain Knowledge
 
@@ -134,6 +134,7 @@ All BGW API amount fields use **human-readable values**, not smallest units (wei
 | Polygon (`matic`) | `0xc2132D05D31c914a87C6611C10748AEb04B58e8F` | `0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359` |
 | Solana (`sol`) | `Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB` | `EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v` |
 | Morph (`morph`) | `0xe7cd86e13AC4309349F30B3435a9d337750fC82D` | `0xCfb1186F4e93D60E60a8bDd997427D1F33bc372B` |
+| Tron (`trx`) | `TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t` | - |
 
 **BGB (Bitget Token):** Ethereum `0x54D2252757e1672EEaD234D27B1270728fF90581`; Morph `0x389C08Bc23A7317000a1FD76c7c5B0cb0b4640b5`.
 
@@ -151,6 +152,7 @@ Load the following when the task requires it:
 | Wallet & Signing | [`docs/wallet-signing.md`](docs/wallet-signing.md) | Key management, BIP-39/44, signing, multi-chain |
 | Market Data | [`docs/market-data.md`](docs/market-data.md) | Token info, price, K-line, tx info, rankings, liquidity, security |
 | Swap | [`docs/swap.md`](docs/swap.md) | Swap flow, quote/confirm/makeOrder/send, slippage, gas, approvals |
+| RWA Stock Trading | [`docs/rwa.md`](docs/rwa.md) | RWA stock discovery, config, market status, order price, holdings; reuse swap flow for execution |
 | x402 Payments | [`docs/x402-payments.md`](docs/x402-payments.md) | HTTP 402, EIP-3009, Permit2, Solana partial-sign |
 
 ---
@@ -183,7 +185,7 @@ Load the following when the task requires it:
 | Arbitrum | 42161 | arbitrum |
 | Polygon | 137 | matic |
 | Morph | 100283 | morph |
-
+| Tron | 728126428 | trx |
 
 
 Use empty string `""` for native token contract (ETH, SOL, BNB, etc.).

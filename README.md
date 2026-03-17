@@ -240,6 +240,7 @@ python3 scripts/bitget_agent_api.py quote \
 | Polygon | ✅ | ✅ | ✅ |
 | Morph | ✅ | ✅ | ✅ |
 | Solana | ✅ | ✅ | ✅ |
+| Tron | ✅ | ✅ | ✅ |
 
 > Market data commands support 32+ chains. See `docs/market-data.md` for the full list.
 
