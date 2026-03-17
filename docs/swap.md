@@ -47,6 +47,7 @@ python3 scripts/bitget_agent_api.py get-processed-balance --chain <fromChain> --
   | Polygon | ≥ $5 USD | 4U → `user_gas`, 5U → `no_gas` ✅ |
   | Solana | ≥ $5 USD | 4U → `user_gas`, 5U → `no_gas` ✅ |
   | Morph | ≥ $1 USD | Gasless availability depends on token contract; check quote `features` |
+  | Tron | ≥ $10,000 USD | Extremely high threshold; practically requires `user_gas` (TRX for Energy) |
 
   Always check the quote response `features` field to confirm gasless availability.
 - The API error `40001: Demo trading failed` from the confirm step is often caused by insufficient balance, not slippage — always check balance first.
