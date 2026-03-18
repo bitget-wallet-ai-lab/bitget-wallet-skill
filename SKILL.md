@@ -26,6 +26,16 @@ description: "Interact with Bitget Wallet API for crypto market data, token info
    python3 scripts/bitget_agent_api.py check-swap-token --from-chain ... --from-contract ... --from-symbol ... --to-chain ... --to-contract ... --to-symbol ...
    ```
 
+**Swap execution must strictly follow `docs/swap.md` Flow Overview — no shortcuts:**
+
+1. **Balance check** — verify fromToken + native token balance before anything else
+2. **Token risk check** — check-swap-token for both fromToken and toToken
+3. **Quote** — display **all** market results to user, recommend the first, let user choose
+4. **Confirm** — must display three fields to user: `outAmount` (expected), `minAmount` (minimum), `gasTotalAmount` (gas cost); check `recommendFeatures` for gas sufficiency
+5. **User confirmation** — **do not** sign or send until user explicitly confirms ("confirm", "execute", "yes")
+6. **makeOrder + sign + send** — execute as one atomic operation (use `order_make_sign_send.py`)
+7. **Query status** — check order result; ignore `tips` when status=success
+
 See Scripts for full command details and `docs/swap.md` for the complete flow.
 
 **Technical reference (no need to read .py files):**
