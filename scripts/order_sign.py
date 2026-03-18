@@ -753,22 +753,14 @@ def main():
     args = parser.parse_args()
 
     # Read keys from files (preferred) — delete file immediately after reading
-    def _read_key_file(fpath):
-        from pathlib import Path
-        p = Path(fpath)
-        if not p.exists():
-            print(f"ERROR: key file not found: {fpath}", file=sys.stderr)
-            sys.exit(1)
-        key = p.read_text().strip()
-        p.unlink()
-        return key
+    from key_utils import read_key_file
 
     if args.private_key_file:
-        args.private_key = _read_key_file(args.private_key_file)
+        args.private_key = read_key_file(args.private_key_file)
     if args.private_key_file_sol:
-        args.private_key_sol = _read_key_file(args.private_key_file_sol)
+        args.private_key_sol = read_key_file(args.private_key_file_sol)
     if args.private_key_file_tron:
-        args.private_key_tron = _read_key_file(args.private_key_file_tron)
+        args.private_key_tron = read_key_file(args.private_key_file_tron)
 
     if args.order_json:
         response = json.loads(args.order_json)

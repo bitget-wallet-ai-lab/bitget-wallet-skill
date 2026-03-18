@@ -4,7 +4,7 @@ This document describes the **Swap flow**: use `scripts/bitget_agent_api.py` for
 
 **Wallet before swap:** The agent must have a configured wallet (mnemonic in secure storage, derived addresses in context). If not, guide the user through First-Time Wallet Setup (see SKILL.md). **Mnemonic and private keys must never appear in context.**
 
-**Signing flow:** After makeOrder, derive the private key from mnemonic in secure storage, write it to a temporary file (chmod 600), pass `--private-key-file <path>` to the signing script (which reads and deletes the file), fill `txs[].sig`, then send. MakeOrder unsigned data expires in ~60 seconds — sign and send must follow immediately. **Never pass private keys as command-line arguments** (they are visible in `ps` and shell history).
+**Signing flow:** After makeOrder, derive the private key from mnemonic in secure storage, write it to a **unique** temporary file programmatically (`tempfile.mkstemp`, never shell `echo`), pass `--private-key-file <path>` to the signing script (which reads and deletes the file), fill `txs[].sig`, then send. MakeOrder unsigned data expires in ~60 seconds — sign and send must follow immediately. **Never pass private keys as command-line arguments** (they are visible in `ps` and shell history).
 
 ## Flow Overview
 
@@ -122,7 +122,7 @@ Or with JSON stdin: `echo '{"list":[{"chain":"...","contract":"...","symbol":"..
 Use only when not using the combined script (e.g. external signer, or key from secure storage like 1Password).
 
 - **makeOrder:** `bitget_agent_api.py make-order` with orderId, market, protocol, slippage from confirm. Response `data.txs` expires in ~60s.
-- **Sign:** Derive private key from mnemonic in secure storage. Write to temp file (`echo -n "$KEY" > /tmp/.pk && chmod 600 /tmp/.pk`). Pass full makeOrder response to `order_sign.py` (stdin or `--order-json`) with `--private-key-file /tmp/.pk`. The script reads the key, deletes the file, signs, and outputs an array of signature hex strings.
+- **Sign:** Derive private key from mnemonic in secure storage. Write to a unique temp file programmatically (`tempfile.mkstemp`). Pass full makeOrder response to `order_sign.py` (stdin or `--order-json`) with `--private-key-file <path>`. The script reads the key, deletes the file, signs, and outputs an array of signature hex strings.
 - **Fill & send:** Set `data.txs[i].sig` from that array, then `bitget_agent_api.py send --json-stdin` or `--json-file` with body `{ "orderId": data.orderId, "txs": data.txs }`.
 
 ### 6. Query order (getOrderDetails)

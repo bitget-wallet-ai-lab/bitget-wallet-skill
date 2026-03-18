@@ -197,7 +197,7 @@ All keys are derived on-the-fly from the mnemonic in secure storage. The agent s
 
 1. Retrieve the mnemonic from its configured secure storage
 2. Derive the chain-specific private key using the correct BIP-44 path
-3. Write the key to a temp file (`echo -n "$KEY" > /tmp/.pk && chmod 600 /tmp/.pk`), pass `--private-key-file /tmp/.pk` (EVM), `--private-key-file-sol` (Solana), or `--private-key-file-tron` (Tron) to `order_sign.py`. The script reads and deletes the file automatically. **Never pass keys as CLI arguments.**
+3. Write the key to a unique temp file **programmatically** (use `tempfile.mkstemp`, never shell `echo`), pass `--private-key-file <path>` (EVM), `--private-key-file-sol` (Solana), or `--private-key-file-tron` (Tron) to `order_sign.py`. The script reads and deletes the file automatically. **Never pass keys as CLI arguments** (visible in `ps` and shell history).
 4. Discard both mnemonic and key from memory after signing
 
 **Secure storage holds only:**

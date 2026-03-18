@@ -8,22 +8,24 @@ or --private-key-file-tron for Tron. The script reads the key from the file, use
 The script auto-detects chain from makeOrder response (chainId 501 = Solana, Tron chains, otherwise EVM).
 
 Security: Private keys are NEVER passed as command-line arguments (visible in ps/history).
-Instead, write the key to a temporary file, pass the file path, and the script reads + deletes it.
-Keys are used in memory only, never printed or logged.
+Instead, write the key to a unique temporary file programmatically, pass the file path,
+and the script reads + deletes it. Keys are used in memory only, never printed or logged.
 
-Example (EVM):
-  # Write key to temp file (agent does this programmatically)
-  echo -n "$EVM_KEY" > /tmp/.pk_evm && chmod 600 /tmp/.pk_evm
+Example (EVM — agent writes key file programmatically, never via shell echo):
+  # Python: write key to unique temp file
+  import tempfile, os
+  fd, pk_file = tempfile.mkstemp(prefix='.pk_', dir='/tmp')
+  os.write(fd, key.encode()); os.close(fd); os.chmod(pk_file, 0o600)
+
   python3 scripts/order_make_sign_send.py \\
-    --private-key-file /tmp/.pk_evm --from-address 0x... --to-address 0x... \\
+    --private-key-file "$pk_file" --from-address 0x... --to-address 0x... \\
     --order-id <from confirm> --from-chain bnb --from-contract 0x55d3... \\
     --from-symbol USDT --to-chain bnb --to-contract "" --to-symbol BNB \\
     --from-amount 1 --slippage 1.00 --market bgwevmaggregator --protocol bgwevmaggregator_v000
 
 Example (Solana):
-  echo -n "$SOL_KEY" > /tmp/.pk_sol && chmod 600 /tmp/.pk_sol
   python3 scripts/order_make_sign_send.py \\
-    --private-key-file-sol /tmp/.pk_sol --from-address <sol_addr> --to-address <sol_addr> \\
+    --private-key-file-sol "$pk_file" --from-address <sol_addr> --to-address <sol_addr> \\
     --order-id <from confirm> --from-chain sol --from-contract <mint> \\
     --from-symbol USDC --to-chain sol --to-contract <mint> --to-symbol USDT \\
     --from-amount 5 --slippage 0.01 --market ... --protocol ...
@@ -91,22 +93,14 @@ def main():
     args = parser.parse_args()
 
     # Read keys from files (preferred) or legacy args
-    def _read_key_file(fpath):
-        """Read key from file, delete the file, return key string."""
-        p = Path(fpath)
-        if not p.exists():
-            print(f"Error: key file not found: {fpath}", file=sys.stderr)
-            sys.exit(1)
-        key = p.read_text().strip()
-        p.unlink()  # Delete file immediately after reading
-        return key
+    from key_utils import read_key_file
 
     if args.private_key_file:
-        args.private_key = _read_key_file(args.private_key_file)
+        args.private_key = read_key_file(args.private_key_file)
     if args.private_key_file_sol:
-        args.private_key_sol = _read_key_file(args.private_key_file_sol)
+        args.private_key_sol = read_key_file(args.private_key_file_sol)
     if args.private_key_file_tron:
-        args.private_key_tron = _read_key_file(args.private_key_file_tron)
+        args.private_key_tron = read_key_file(args.private_key_file_tron)
 
     if not args.private_key and not args.private_key_sol and not args.private_key_tron:
         print("Error: must provide --private-key-file (EVM), --private-key-file-sol (Solana), or --private-key-file-tron (Tron)", file=sys.stderr)
