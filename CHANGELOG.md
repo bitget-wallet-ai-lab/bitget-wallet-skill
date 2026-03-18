@@ -6,6 +6,43 @@ Format: date-based versioning (`YYYY.M.DD`). Each release includes a sequential 
 
 ---
 
+## [2026.3.17-1] - 2026-03-17
+
+### Added — RWA Stock Trading
+- 6 new API commands for Real World Assets (tokenized stocks): `rwa-get-user-ticker-selector`, `rwa-get-config`, `rwa-stock-info` (GET), `rwa-stock-order-price`, `rwa-kline`, `rwa-get-my-holdings`
+- `docs/rwa.md` — Complete RWA stock trading guide: ticker discovery, buy/sell flow, market hours, agent rules
+- 262 tokenized stocks available (NVDA, TSLA, AAPL, SPY, QQQ, etc.) on BNB and ETH chains
+- RWA buy/sell minimum: $20 USD; routed via 1inch Fusion (signTypeData EIP-712)
+
+### Added — Tron Chain Support
+- Tron (TRX) transaction signing: `sign_order_txs_tron()` in `order_sign.py`
+- `--private-key-tron` CLI argument in `order_make_sign_send.py`
+- EIP-712 `signTypeData` support: `_sign_eip712_sign_type_data()` for RWA orders
+- Tron chain added to SKILL.md Chain Identifiers (code `trx`, ID `728126428`)
+- Tron USDT (`TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t`) added to contract table
+
+### Added — New API Method
+- `_request_get()` in `bitget_agent_api.py` — GET requests with BKHmacAuth signing (used by `rwa-stock-info`)
+
+### Changed
+- Request headers updated: `brand` → `toc_agent`, `channel` → `0.0.1` (was `IOS` / `9.36.0`)
+- `get-processed-balance` description updated: balance query supports EVM and Solana only
+
+### Fixed
+- Checksum `to` address in approve tx signing — `eth_account` rejects non-checksum addresses
+- Tron signature: use standard low-S form (removed incorrect high-S conversion)
+
+### Documentation
+- Tron gasless threshold documented: ≥ $10,000 USD (practically requires `user_gas` with TRX for Energy)
+- Tron compatibility added to README.md
+
+### Security Audit
+- No new API keys or secrets introduced
+- Tron signing uses same secp256k1 curve as EVM; private key handled identically (in-memory only)
+- RWA commands use existing BKHmacAuth; no additional authentication required
+
+---
+
 ## [2026.3.13-1] - 2026-03-13
 
 ### Breaking Changes
