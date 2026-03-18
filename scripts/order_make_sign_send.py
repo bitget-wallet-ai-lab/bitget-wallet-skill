@@ -3,22 +3,27 @@
 One-shot: makeOrder (new swap flow) → sign → send.
 Use this to avoid the ~60s expiry of makeOrder unsigned data. Run immediately after user confirms.
 
-Supports EVM and Solana chains. Pass --private-key for EVM or --private-key-sol for Solana.
-The script auto-detects chain from makeOrder response (chainId 501 = Solana, otherwise EVM).
+Supports EVM, Solana, and Tron chains. Pass --private-key-file for EVM, --private-key-file-sol for Solana,
+or --private-key-file-tron for Tron. The script reads the key from the file, uses it in memory only, then discards it.
+The script auto-detects chain from makeOrder response (chainId 501 = Solana, Tron chains, otherwise EVM).
 
-Security: Private keys are used in memory only, never printed or logged.
-The agent retrieves keys from secure storage (e.g. 1Password) and passes them here.
+Security: Private keys are NEVER passed as command-line arguments (visible in ps/history).
+Instead, write the key to a temporary file, pass the file path, and the script reads + deletes it.
+Keys are used in memory only, never printed or logged.
 
 Example (EVM):
+  # Write key to temp file (agent does this programmatically)
+  echo -n "$EVM_KEY" > /tmp/.pk_evm && chmod 600 /tmp/.pk_evm
   python3 scripts/order_make_sign_send.py \\
-    --private-key "$EVM_KEY" --from-address 0x... --to-address 0x... \\
+    --private-key-file /tmp/.pk_evm --from-address 0x... --to-address 0x... \\
     --order-id <from confirm> --from-chain bnb --from-contract 0x55d3... \\
     --from-symbol USDT --to-chain bnb --to-contract "" --to-symbol BNB \\
     --from-amount 1 --slippage 1.00 --market bgwevmaggregator --protocol bgwevmaggregator_v000
 
 Example (Solana):
+  echo -n "$SOL_KEY" > /tmp/.pk_sol && chmod 600 /tmp/.pk_sol
   python3 scripts/order_make_sign_send.py \\
-    --private-key-sol "$SOL_KEY" --from-address <sol_addr> --to-address <sol_addr> \\
+    --private-key-file-sol /tmp/.pk_sol --from-address <sol_addr> --to-address <sol_addr> \\
     --order-id <from confirm> --from-chain sol --from-contract <mint> \\
     --from-symbol USDC --to-chain sol --to-contract <mint> --to-symbol USDT \\
     --from-amount 5 --slippage 0.01 --market ... --protocol ...
@@ -63,9 +68,13 @@ def main():
     parser = argparse.ArgumentParser(
         description="makeOrder + sign + send. Supports EVM and Solana. Keys used in memory only, never output."
     )
-    parser.add_argument("--private-key", default=None, help="EVM private key (hex, from secure storage)")
-    parser.add_argument("--private-key-sol", default=None, help="Solana private key (base58 or hex, from secure storage)")
-    parser.add_argument("--private-key-tron", default=None, help="Tron private key (hex, from secure storage)")
+    parser.add_argument("--private-key-file", default=None, help="Path to file containing EVM private key (hex). File is read and deleted.")
+    parser.add_argument("--private-key-file-sol", default=None, help="Path to file containing Solana private key (base58 or hex). File is read and deleted.")
+    parser.add_argument("--private-key-file-tron", default=None, help="Path to file containing Tron private key (hex). File is read and deleted.")
+    # Legacy support (deprecated, will be removed)
+    parser.add_argument("--private-key", default=None, help=argparse.SUPPRESS)
+    parser.add_argument("--private-key-sol", default=None, help=argparse.SUPPRESS)
+    parser.add_argument("--private-key-tron", default=None, help=argparse.SUPPRESS)
     parser.add_argument("--from-address", required=True, help="Sender address")
     parser.add_argument("--to-address", required=True, help="Receiver address (usually same as from-address)")
     parser.add_argument("--order-id", required=True, help="From confirm response data.orderId")
@@ -81,8 +90,26 @@ def main():
     parser.add_argument("--protocol", required=True)
     args = parser.parse_args()
 
+    # Read keys from files (preferred) or legacy args
+    def _read_key_file(fpath):
+        """Read key from file, delete the file, return key string."""
+        p = Path(fpath)
+        if not p.exists():
+            print(f"Error: key file not found: {fpath}", file=sys.stderr)
+            sys.exit(1)
+        key = p.read_text().strip()
+        p.unlink()  # Delete file immediately after reading
+        return key
+
+    if args.private_key_file:
+        args.private_key = _read_key_file(args.private_key_file)
+    if args.private_key_file_sol:
+        args.private_key_sol = _read_key_file(args.private_key_file_sol)
+    if args.private_key_file_tron:
+        args.private_key_tron = _read_key_file(args.private_key_file_tron)
+
     if not args.private_key and not args.private_key_sol and not args.private_key_tron:
-        print("Error: must provide --private-key (EVM), --private-key-sol (Solana), or --private-key-tron (Tron)", file=sys.stderr)
+        print("Error: must provide --private-key-file (EVM), --private-key-file-sol (Solana), or --private-key-file-tron (Tron)", file=sys.stderr)
         sys.exit(1)
 
     from bitget_agent_api import make_order, send

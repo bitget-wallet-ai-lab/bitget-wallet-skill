@@ -74,7 +74,7 @@ python3 scripts/bitget_agent_api.py confirm --from-chain bnb --from-symbol USDT 
 # 3. makeOrder (separate)
 python3 scripts/bitget_agent_api.py make-order --order-id <orderId> --from-chain bnb --from-contract <addr> --from-symbol USDT --to-chain bnb --to-contract "" --to-symbol BNB --from-address <wallet> --to-address <wallet> --from-amount 0.01 --slippage 1.00 --market bgwevmaggregator --protocol bgwevmaggregator_v000 > /tmp/makeorder.json
 # 4. Sign
-python3 scripts/order_sign.py --order-json "$(cat /tmp/makeorder.json)" --private-key <hex> > /tmp/sigs.json
+python3 scripts/order_sign.py --order-json "$(cat /tmp/makeorder.json)" --private-key-file <key_file> > /tmp/sigs.json
 # 5. Send (fill txs[i].sig from sigs, then send)
 # 6. Order status
 python3 scripts/bitget_agent_api.py get-order-details --order-id <orderId>
@@ -92,9 +92,9 @@ One-shot makeOrder + sign + send. Supports EVM and Solana. Auto-detects chain fr
 
 ```bash
 # EVM
-python3 scripts/order_make_sign_send.py --private-key "$EVM_KEY" --from-address <addr> --to-address <addr> --order-id <from_confirm> --from-chain bnb --from-contract <addr> --from-symbol USDT --to-chain bnb --to-contract "" --to-symbol BNB --from-amount 0.01 --slippage 1.00 --market bgwevmaggregator --protocol bgwevmaggregator_v000
+python3 scripts/order_make_sign_send.py --private-key-file /tmp/.pk_evm --from-address <addr> --to-address <addr> --order-id <from_confirm> --from-chain bnb --from-contract <addr> --from-symbol USDT --to-chain bnb --to-contract "" --to-symbol BNB --from-amount 0.01 --slippage 1.00 --market bgwevmaggregator --protocol bgwevmaggregator_v000
 # Solana
-python3 scripts/order_make_sign_send.py --private-key-sol "$SOL_KEY" --from-address <sol_addr> --to-address <sol_addr> --order-id <from_confirm> --from-chain sol --from-contract <mint> --from-symbol USDC --to-chain sol --to-contract <mint> --to-symbol USDT --from-amount 5 --slippage 0.01 --market ... --protocol ...
+python3 scripts/order_make_sign_send.py --private-key-file-sol /tmp/.pk_sol --from-address <sol_addr> --to-address <sol_addr> --order-id <from_confirm> --from-chain sol --from-contract <mint> --from-symbol USDC --to-chain sol --to-contract <mint> --to-symbol USDT --from-amount 5 --slippage 0.01 --market ... --protocol ...
 ```
 
 ---
@@ -107,8 +107,8 @@ Supports: EVM raw tx signing, EVM gasPayMaster (gasless msgs eth_sign), EIP-712 
 
 ```bash
 # EVM
-echo '<makeOrder_json>' | python3 scripts/order_sign.py --private-key <hex>
-python3 scripts/order_sign.py --order-json "$(cat /tmp/makeorder.json)" --private-key <hex>
+echo '<makeOrder_json>' | python3 scripts/order_sign.py --private-key-file <key_file>
+python3 scripts/order_sign.py --order-json "$(cat /tmp/makeorder.json)" --private-key-file <key_file>
 # Solana
 echo '<makeOrder_json>' | python3 scripts/order_sign.py --private-key-sol <base58>
 ```
@@ -126,7 +126,7 @@ x402 payment signing and pay flow (EIP-3009 USDC payments, Solana partial-sign).
 | `pay` | Auto-detects 402 response, signs, pays, fetches resource |
 
 ```bash
-python3 scripts/x402_pay.py sign-eip3009 --private-key <hex> --token <usdc> --chain-id 8453 --to <payTo> --amount 10000
-python3 scripts/x402_pay.py sign-solana --private-key <hex> --transaction <base64_tx>
-python3 scripts/x402_pay.py pay --url https://api.example.com/data --private-key <hex>
+python3 scripts/x402_pay.py sign-eip3009 --private-key-file <key_file> --token <usdc> --chain-id 8453 --to <payTo> --amount 10000
+python3 scripts/x402_pay.py sign-solana --private-key-file <key_file> --transaction <base64_tx>
+python3 scripts/x402_pay.py pay --url https://api.example.com/data --private-key-file <key_file>
 ```

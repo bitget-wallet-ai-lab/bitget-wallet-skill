@@ -228,7 +228,7 @@ python3 scripts/bitget_agent_api.py security --chain bnb --contract <addr>
 # Swap flow
 python3 scripts/bitget_agent_api.py quote --from-chain bnb --from-contract <addr> --from-symbol USDT --from-amount 5 --to-chain bnb --to-contract "" --to-symbol BNB --from-address <wallet> --to-address <wallet>
 python3 scripts/bitget_agent_api.py confirm ... --market <id> --protocol <proto> --slippage <val> --feature user_gas
-python3 scripts/order_make_sign_send.py --private-key "$KEY" --order-id <id> --from-chain bnb ... --market ... --protocol ...
+python3 scripts/order_make_sign_send.py --private-key-file /tmp/.pk_evm --order-id <id> --from-chain bnb ... --market ... --protocol ...
 python3 scripts/bitget_agent_api.py get-order-details --order-id <id>
 ```
 

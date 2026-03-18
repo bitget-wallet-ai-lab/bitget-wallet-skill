@@ -197,7 +197,7 @@ All keys are derived on-the-fly from the mnemonic in secure storage. The agent s
 
 1. Retrieve the mnemonic from its configured secure storage
 2. Derive the chain-specific private key using the correct BIP-44 path
-3. Pass the key to `order_sign.py` via `--private-key` (EVM) or `--private-key-sol` (Solana)
+3. Write the key to a temp file (`echo -n "$KEY" > /tmp/.pk && chmod 600 /tmp/.pk`), pass `--private-key-file /tmp/.pk` (EVM), `--private-key-file-sol` (Solana), or `--private-key-file-tron` (Tron) to `order_sign.py`. The script reads and deletes the file automatically. **Never pass keys as CLI arguments.**
 4. Discard both mnemonic and key from memory after signing
 
 **Secure storage holds only:**
@@ -211,11 +211,11 @@ All keys are derived on-the-fly from the mnemonic in secure storage. The agent s
 
 ```bash
 # EVM: pipe or pass JSON
-python3 scripts/bitget_agent_api.py make-order ... | python3 scripts/order_sign.py --private-key <hex>
-python3 scripts/order_sign.py --order-json '<json>' --private-key <hex>
+python3 scripts/bitget_agent_api.py make-order ... | python3 scripts/order_sign.py --private-key-file <key_file>
+python3 scripts/order_sign.py --order-json '<json>' --private-key-file <key_file>
 
-# Solana: use --private-key-sol
-python3 scripts/order_sign.py --order-json '<json>' --private-key-sol <base58|hex>
+# Solana: use --private-key-file-sol
+python3 scripts/order_sign.py --order-json '<json>' --private-key-file-sol /tmp/.pk_sol
 ```
 
 ### Auto-Detection

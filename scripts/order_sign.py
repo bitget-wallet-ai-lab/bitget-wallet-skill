@@ -743,10 +743,32 @@ def _is_solana_order(order_data: dict) -> bool:
 def main():
     parser = argparse.ArgumentParser(description="Sign order-create response")
     parser.add_argument("--order-json", help="Order-create response JSON string")
-    parser.add_argument("--private-key", help="EVM hex private key")
-    parser.add_argument("--private-key-sol", help="Solana private key (base58 or hex)")
-    parser.add_argument("--private-key-tron", help="Tron hex private key (secp256k1, same curve as EVM)")
+    parser.add_argument("--private-key-file", help="Path to file containing EVM private key (hex). File is read and deleted.")
+    parser.add_argument("--private-key-file-sol", help="Path to file containing Solana private key. File is read and deleted.")
+    parser.add_argument("--private-key-file-tron", help="Path to file containing Tron private key. File is read and deleted.")
+    # Legacy support (deprecated, will be removed)
+    parser.add_argument("--private-key", help=argparse.SUPPRESS)
+    parser.add_argument("--private-key-sol", help=argparse.SUPPRESS)
+    parser.add_argument("--private-key-tron", help=argparse.SUPPRESS)
     args = parser.parse_args()
+
+    # Read keys from files (preferred) — delete file immediately after reading
+    def _read_key_file(fpath):
+        from pathlib import Path
+        p = Path(fpath)
+        if not p.exists():
+            print(f"ERROR: key file not found: {fpath}", file=sys.stderr)
+            sys.exit(1)
+        key = p.read_text().strip()
+        p.unlink()
+        return key
+
+    if args.private_key_file:
+        args.private_key = _read_key_file(args.private_key_file)
+    if args.private_key_file_sol:
+        args.private_key_sol = _read_key_file(args.private_key_file_sol)
+    if args.private_key_file_tron:
+        args.private_key_tron = _read_key_file(args.private_key_file_tron)
 
     if args.order_json:
         response = json.loads(args.order_json)
