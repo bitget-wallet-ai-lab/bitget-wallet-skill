@@ -77,6 +77,7 @@ If the user only wants price queries, token info, and security checks - no walle
 - **Private keys are derived on-the-fly** each time signing is needed, used, then immediately discarded (variable cleanup, scope exit, etc.)
 - **Mnemonic is never sent to chat channels** - not during setup, not after. The agent retrieves it programmatically for derivation only.
 - **The agent must use secure storage** appropriate to its environment. The storage mechanism must: (1) encrypt at rest, (2) require authentication to read, (3) not expose secrets in logs, shell history, or environment dumps.
+- **Private keys must never be transmitted externally** — not through APIs, chat messages, HTTP requests, webhooks, file uploads, clipboard, or any other channel. Private keys exist only in local memory during signing and are never sent beyond the signing process. No exceptions.
 
 **Signing pipeline (how keys flow):**
 ```

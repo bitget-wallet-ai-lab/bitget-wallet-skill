@@ -43,6 +43,9 @@ The mnemonic must be stored in a mechanism that:
 
 Examples: password managers (1Password, Bitwarden), OS keychains, encrypted vaults, hardware security modules.
 
+**Private keys must never leave the local process:**
+Private keys must not be transmitted through APIs, chat messages, HTTP requests, webhooks, file uploads, clipboard, or any other external channel. They exist only in local memory during signing and are discarded immediately after. No exceptions.
+
 **Signing pipeline:**
 ```
 Secure storage → mnemonic → derive private key (in memory) → order_sign.py → signed tx → discard key
