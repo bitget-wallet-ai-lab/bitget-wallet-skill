@@ -26,6 +26,16 @@ description: "Interact with Bitget Wallet API for crypto market data, token info
    python3 scripts/bitget_agent_api.py check-swap-token --from-chain ... --from-contract ... --from-symbol ... --to-chain ... --to-contract ... --to-symbol ...
    ```
 
+**Swap execution must strictly follow `docs/swap.md` Flow Overview — no shortcuts:**
+
+1. **Balance check** — verify fromToken + native token balance before anything else
+2. **Token risk check** — check-swap-token for both fromToken and toToken
+3. **Quote** — display **all** market results to user, recommend the first, let user choose
+4. **Confirm** — must display three fields to user: `outAmount` (expected), `minAmount` (minimum), `gasTotalAmount` (gas cost); check `recommendFeatures` for gas sufficiency
+5. **User confirmation** — **do not** sign or send until user explicitly confirms ("confirm", "execute", "yes")
+6. **makeOrder + sign + send** — execute as one atomic operation (use `order_make_sign_send.py`)
+7. **Query status** — check order result; ignore `tips` when status=success
+
 See Scripts for full command details and `docs/swap.md` for the complete flow.
 
 **Technical reference (no need to read .py files):**
@@ -77,6 +87,7 @@ If the user only wants price queries, token info, and security checks - no walle
 - **Private keys are derived on-the-fly** each time signing is needed, used, then immediately discarded (variable cleanup, scope exit, etc.)
 - **Mnemonic is never sent to chat channels** - not during setup, not after. The agent retrieves it programmatically for derivation only.
 - **The agent must use secure storage** appropriate to its environment. The storage mechanism must: (1) encrypt at rest, (2) require authentication to read, (3) not expose secrets in logs, shell history, or environment dumps.
+- **Private keys must never be transmitted externally** — not through APIs, chat messages, HTTP requests, webhooks, file uploads, clipboard, or any other channel. Private keys exist only in local memory during signing and are never sent beyond the signing process. No exceptions.
 
 **Signing pipeline (how keys flow):**
 ```
@@ -217,7 +228,7 @@ python3 scripts/bitget_agent_api.py security --chain bnb --contract <addr>
 # Swap flow
 python3 scripts/bitget_agent_api.py quote --from-chain bnb --from-contract <addr> --from-symbol USDT --from-amount 5 --to-chain bnb --to-contract "" --to-symbol BNB --from-address <wallet> --to-address <wallet>
 python3 scripts/bitget_agent_api.py confirm ... --market <id> --protocol <proto> --slippage <val> --feature user_gas
-python3 scripts/order_make_sign_send.py --private-key "$KEY" --order-id <id> --from-chain bnb ... --market ... --protocol ...
+python3 scripts/order_make_sign_send.py --private-key-file /tmp/.pk_evm --order-id <id> --from-chain bnb ... --market ... --protocol ...
 python3 scripts/bitget_agent_api.py get-order-details --order-id <id>
 ```
 

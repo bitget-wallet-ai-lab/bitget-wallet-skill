@@ -4,7 +4,7 @@ This document describes the **Swap flow**: use `scripts/bitget_agent_api.py` for
 
 **Wallet before swap:** The agent must have a configured wallet (mnemonic in secure storage, derived addresses in context). If not, guide the user through First-Time Wallet Setup (see SKILL.md). **Mnemonic and private keys must never appear in context.**
 
-**Signing flow:** After makeOrder, derive the private key from mnemonic in secure storage, pass to `order_sign.py --private-key <key>`, fill `txs[].sig`, then send. MakeOrder unsigned data expires in ~60 seconds — sign and send must follow immediately.
+**Signing flow:** After makeOrder, derive the private key from mnemonic in secure storage, write it to a **unique** temporary file programmatically (`tempfile.mkstemp`, never shell `echo`), pass `--private-key-file <path>` to the signing script (which reads and deletes the file), fill `txs[].sig`, then send. MakeOrder unsigned data expires in ~60 seconds — sign and send must follow immediately. **Never pass private keys as command-line arguments** (they are visible in `ps` and shell history).
 
 ## Flow Overview
 
@@ -113,8 +113,8 @@ Or with JSON stdin: `echo '{"list":[{"chain":"...","contract":"...","symbol":"..
 
 ### 3–5. makeOrder, sign, send (combined — recommended)
 
-- **Script (EVM):** `python3 scripts/order_make_sign_send.py --private-key "$EVM_KEY" --from-address <addr> --to-address <addr> --order-id <from_confirm> --from-chain ... --from-contract ... --from-symbol ... --to-chain ... --to-contract ... --to-symbol ... --from-amount ... --slippage ... --market ... --protocol ...`
-- **Script (Solana):** `python3 scripts/order_make_sign_send.py --private-key-sol "$SOL_KEY" --from-address <sol_addr> --to-address <sol_addr> --order-id <from_confirm> --from-chain sol ...`
+- **Script (EVM):** `python3 scripts/order_make_sign_send.py --private-key-file /tmp/.pk_evm --from-address <addr> --to-address <addr> --order-id <from_confirm> --from-chain ... --from-contract ... --from-symbol ... --to-chain ... --to-contract ... --to-symbol ... --from-amount ... --slippage ... --market ... --protocol ...`
+- **Script (Solana):** `python3 scripts/order_make_sign_send.py --private-key-file-sol /tmp/.pk_sol --from-address <sol_addr> --to-address <sol_addr> --order-id <from_confirm> --from-chain sol ...`
 - **Behavior:** Takes private key from secure storage, calls makeOrder, signs `data.txs`, fills `txs[].sig`, then sends. Auto-detects EVM vs Solana from makeOrder response. Never outputs private keys. Use this so the ~60s makeOrder expiry does not run out.
 
 ### 3′–5′. makeOrder, sign, send (separate steps)
@@ -122,7 +122,7 @@ Or with JSON stdin: `echo '{"list":[{"chain":"...","contract":"...","symbol":"..
 Use only when not using the combined script (e.g. external signer, or key from secure storage like 1Password).
 
 - **makeOrder:** `bitget_agent_api.py make-order` with orderId, market, protocol, slippage from confirm. Response `data.txs` expires in ~60s.
-- **Sign:** Derive private key from mnemonic in secure storage. Pass full makeOrder response to `order_sign.py` (stdin or `--order-json`) with `--private-key <hex>`. Output is an array of signature hex strings. **Discard the private key immediately after signing.**
+- **Sign:** Derive private key from mnemonic in secure storage. Write to a unique temp file programmatically (`tempfile.mkstemp`). Pass full makeOrder response to `order_sign.py` (stdin or `--order-json`) with `--private-key-file <path>`. The script reads the key, deletes the file, signs, and outputs an array of signature hex strings.
 - **Fill & send:** Set `data.txs[i].sig` from that array, then `bitget_agent_api.py send --json-stdin` or `--json-file` with body `{ "orderId": data.orderId, "txs": data.txs }`.
 
 ### 6. Query order (getOrderDetails)

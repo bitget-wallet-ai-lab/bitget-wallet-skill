@@ -43,6 +43,9 @@ The mnemonic must be stored in a mechanism that:
 
 Examples: password managers (1Password, Bitwarden), OS keychains, encrypted vaults, hardware security modules.
 
+**Private keys must never leave the local process:**
+Private keys must not be transmitted through APIs, chat messages, HTTP requests, webhooks, file uploads, clipboard, or any other external channel. They exist only in local memory during signing and are discarded immediately after. No exceptions.
+
 **Signing pipeline:**
 ```
 Secure storage → mnemonic → derive private key (in memory) → order_sign.py → signed tx → discard key
@@ -194,7 +197,7 @@ All keys are derived on-the-fly from the mnemonic in secure storage. The agent s
 
 1. Retrieve the mnemonic from its configured secure storage
 2. Derive the chain-specific private key using the correct BIP-44 path
-3. Pass the key to `order_sign.py` via `--private-key` (EVM) or `--private-key-sol` (Solana)
+3. Write the key to a unique temp file **programmatically** (use `tempfile.mkstemp`, never shell `echo`), pass `--private-key-file <path>` (EVM), `--private-key-file-sol` (Solana), or `--private-key-file-tron` (Tron) to `order_sign.py`. The script reads and deletes the file automatically. **Never pass keys as CLI arguments** (visible in `ps` and shell history).
 4. Discard both mnemonic and key from memory after signing
 
 **Secure storage holds only:**
@@ -208,11 +211,11 @@ All keys are derived on-the-fly from the mnemonic in secure storage. The agent s
 
 ```bash
 # EVM: pipe or pass JSON
-python3 scripts/bitget_agent_api.py make-order ... | python3 scripts/order_sign.py --private-key <hex>
-python3 scripts/order_sign.py --order-json '<json>' --private-key <hex>
+python3 scripts/bitget_agent_api.py make-order ... | python3 scripts/order_sign.py --private-key-file <key_file>
+python3 scripts/order_sign.py --order-json '<json>' --private-key-file <key_file>
 
-# Solana: use --private-key-sol
-python3 scripts/order_sign.py --order-json '<json>' --private-key-sol <base58|hex>
+# Solana: use --private-key-file-sol
+python3 scripts/order_sign.py --order-json '<json>' --private-key-file-sol /tmp/.pk_sol
 ```
 
 ### Auto-Detection

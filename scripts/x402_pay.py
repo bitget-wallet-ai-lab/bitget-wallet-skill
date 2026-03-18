@@ -327,8 +327,10 @@ def main():
 
     # sign-eip3009
     p = sub.add_parser("sign-eip3009", help="Sign EIP-3009 transferWithAuthorization")
+    p.add_argument("--private-key-file", default=None,
+                   help="Path to file containing hex private key (read and deleted)")
     p.add_argument("--private-key", default=os.environ.get("X402_PRIVATE_KEY"),
-                   help="Hex private key (or set X402_PRIVATE_KEY env var)")
+                   help=argparse.SUPPRESS)  # deprecated
     p.add_argument("--token", required=True, help="Token contract address")
     p.add_argument("--chain-id", type=int, required=True, help="EVM chain ID")
     p.add_argument("--to", required=True, help="Payment recipient (payTo)")
@@ -340,16 +342,20 @@ def main():
 
     # sign-solana
     p = sub.add_parser("sign-solana", help="Partially sign Solana x402 transaction")
+    p.add_argument("--private-key-file", default=None,
+                   help="Path to file containing hex private key (read and deleted)")
     p.add_argument("--private-key", default=os.environ.get("X402_PRIVATE_KEY"),
-                   help="Hex private key, 32-byte seed (or set X402_PRIVATE_KEY env var)")
+                   help=argparse.SUPPRESS)  # deprecated
     p.add_argument("--transaction", required=True, help="Base64-encoded serialized transaction")
     p.set_defaults(func=cmd_sign_solana)
 
     # pay
     p = sub.add_parser("pay", help="Full HTTP 402 payment flow")
     p.add_argument("--url", required=True, help="URL to access")
+    p.add_argument("--private-key-file", default=None,
+                   help="Path to file containing hex private key (read and deleted)")
     p.add_argument("--private-key", default=os.environ.get("X402_PRIVATE_KEY"),
-                   help="Hex private key (or set X402_PRIVATE_KEY env var)")
+                   help=argparse.SUPPRESS)  # deprecated
     p.add_argument("--chain-id", type=int, help="Preferred chain ID")
     p.add_argument("--method", default="GET", help="HTTP method (default: GET)")
     p.add_argument("--data", help="Request body (JSON string)")
@@ -362,8 +368,12 @@ def main():
     if not args.command:
         parser.print_help()
         sys.exit(1)
+    # Read key from file if provided
+    if hasattr(args, "private_key_file") and args.private_key_file:
+        from key_utils import read_key_file
+        args.private_key = read_key_file(args.private_key_file)
     if hasattr(args, "private_key") and not args.private_key:
-        print("Error: --private-key required (or set X402_PRIVATE_KEY env var)")
+        print("Error: --private-key-file required (or set X402_PRIVATE_KEY env var)")
         sys.exit(1)
     args.func(args)
 
