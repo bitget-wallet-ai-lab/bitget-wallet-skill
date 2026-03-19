@@ -38,11 +38,7 @@ description: "Interact with Bitget Wallet API for crypto market data, token info
 
 See Scripts for full command details and `docs/swap.md` for the complete flow.
 
-**Technical reference (no need to read .py files):**
-
-- **Base URL:** `https://copenapi.bgwapi.io` (token auth, no API key needed).
-- **Agent API:** Invoked via `scripts/bitget_agent_api.py`. Covers token risk check (`check-swap-token`), balance (`get-processed-balance`), balance+price (`batch-v2`), token search (`search-tokens`), token list (`get-token-list`); **market data:** token-info, token-price, batch-token-info, kline, tx-info, batch-tx-info, historical-coins, rankings, liquidity, security; **RWA:** rwa-get-user-ticker-selector, rwa-get-config, rwa-stock-info (GET), rwa-stock-order-price, rwa-kline, rwa-get-my-holdings; swap flow (quote, confirm, make-order, send, get-order-details). Request/response details are in `docs/`.
-- **Requests:** POST with JSON body; RWA stock info uses GET with query params.
+**Technical reference:** Base URL `https://copenapi.bgwapi.io` (token auth, no API key). All commands via `scripts/bitget_agent_api.py` — run `python3 scripts/bitget_agent_api.py --help` for subcommand list, or see [`docs/commands.md`](docs/commands.md) for details.
 
 ## Domain Knowledge
 
@@ -66,61 +62,12 @@ This skill uses date-based versioning (`YYYY.M.DD`). Each release includes a seq
 
 ### Wallet Domain Knowledge
 
-#### First-Time Wallet Setup
+> **First-time wallet setup and swap configuration:** See [`docs/first-time-setup.md`](docs/first-time-setup.md) — covers wallet creation, key management rules, derivation paths, signing pipeline, and first-swap preferences.
 
-When a user first requests a swap or any signing operation, check if a wallet is already configured. If not, guide them through setup:
-
-**Path 1: Create a new wallet**
-
-1. **Generate a BIP-39 mnemonic** (24 words / 256 bits recommended). Use any available BIP-39 library in the agent's runtime (e.g., `mnemonic`, `bip_utils`, or equivalent).
-2. **Store the mnemonic in secure storage** immediately after generation. The agent must never output the mnemonic to chat, logs, or any messaging channel.
-3. **Inform the user** that the wallet has been created and where the mnemonic is stored. The user should retrieve and back up the mnemonic through secure means (e.g., directly accessing the password manager or vault) - not through the agent conversation.
-4. **Derive and show addresses** for EVM and Solana so the user can verify and fund the wallet.
-5. **Done.** The agent now has a wallet.
-
-**Path 2: Query only (no wallet)**
-
-If the user only wants price queries, token info, and security checks - no wallet setup needed. Skip this flow entirely. Signing operations will be unavailable.
-
-**Key management rules:**
-- **Only the mnemonic is persisted.** Never store derived private keys - they are ephemeral.
-- **Private keys are derived on-the-fly** each time signing is needed, used, then immediately discarded (variable cleanup, scope exit, etc.)
-- **Mnemonic is never sent to chat channels** - not during setup, not after. The agent retrieves it programmatically for derivation only.
-- **The agent must use secure storage** appropriate to its environment. The storage mechanism must: (1) encrypt at rest, (2) require authentication to read, (3) not expose secrets in logs, shell history, or environment dumps.
-- **Private keys must never be transmitted externally** — not through APIs, chat messages, HTTP requests, webhooks, file uploads, clipboard, or any other channel. Private keys exist only in local memory during signing and are never sent beyond the signing process. No exceptions.
-
-**Signing pipeline (how keys flow):**
-```
-Secure storage (mnemonic) → derive private key (in memory) → sign transaction → discard key
-```
-
-#### First-Time Swap Configuration
-
-The first time a user initiates a swap, **before executing**, guide them through these one-time preferences:
-
-1. **Transaction deadline** - how long the on-chain transaction remains valid:
-   - Conservative: `120` seconds (better protection against sandwich attacks in volatile markets)
-   - Standard: `300` seconds (balanced - suitable for most users)
-   - Relaxed: `600` seconds (for slow signing workflows, e.g., hardware wallets or multi-sig)
-   - Explain: _"A shorter deadline protects you from price manipulation, but if signing takes too long (e.g., you're away from your wallet), the transaction will fail on-chain and waste gas."_
-
-2. **Automatic security check** - whether to audit unfamiliar tokens before swaps:
-   - Recommended: Always check (default) - runs `security` automatically before swap
-   - Ask each time: Prompt before each swap involving unfamiliar tokens
-   - Skip: Never check (not recommended - risk of honeypot tokens)
-
-3. **Save preferences** - store in the agent's memory/config for future swaps
-4. **Remind user** they can update anytime (e.g., "update my swap settings" or "change my default deadline")
-
-If the user declines configuration, use sensible defaults: `deadline=300`, `security=always`.
-
-**Derivation paths:**
-
-| Chain | Path | Curve |
-|-------|------|-------|
-| EVM (ETH/BNB/Base/...) | `m/44'/60'/0'/0/0` | secp256k1 |
-| Solana | `m/44'/501'/0'/0'` | Ed25519 (SLIP-0010) |
-| Tron | `m/44'/195'/0'/0/0` | secp256k1 |
+**Key rules (always apply):**
+- Only mnemonic is persisted. Private keys derived on-the-fly, used, discarded.
+- Private keys must never be transmitted externally (APIs, chat, HTTP, etc.) — local signing only.
+- Use `--private-key-file` (temp file via `mktemp`), never pass keys as CLI arguments.
 
 #### Amounts: human-readable only
 
@@ -132,24 +79,16 @@ All BGW API amount fields use **human-readable values**, not smallest units (wei
 
 #### Common Stablecoin Addresses
 
-**Always use these verified addresses for USDT/USDC.** Do not guess or generate contract addresses from memory - incorrect addresses cause API errors (`error_code: 80000`, "get token info failed").
+**Always use these verified addresses.** Do not guess contract addresses — incorrect ones cause API errors (`error_code: 80000`). USDT0 (omnichain) uses the same addresses as USDT.
 
-> **USDT vs USDT0:** On some chains Tether has migrated to USDT0 (omnichain). The same contract addresses work; use the address below for "USDT" regardless.
-
-| Chain (code) | USDT (USDT0) | USDC |
-|--------------|--------------|------|
+| Chain | USDT | USDC |
+|-------|------|------|
 | Ethereum (`eth`) | `0xdAC17F958D2ee523a2206206994597C13D831ec7` | `0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48` |
 | BNB Chain (`bnb`) | `0x55d398326f99059fF775485246999027B3197955` | `0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d` |
-| Base (`base`) | `0xfde4C96c8593536E31F229EA8f37b2ADa2699bb2` | `0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913` |
-| Arbitrum (`arbitrum`) | `0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9` | `0xaf88d065e77c8cC2239327C5EDb3A432268e5831` |
-| Polygon (`matic`) | `0xc2132D05D31c914a87C6611C10748AEb04B58e8F` | `0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359` |
 | Solana (`sol`) | `Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB` | `EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v` |
-| Morph (`morph`) | `0xe7cd86e13AC4309349F30B3435a9d337750fC82D` | `0xCfb1186F4e93D60E60a8bDd997427D1F33bc372B` |
-| Tron (`trx`) | `TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t` | - |
+| Tron (`trx`) | `TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t` | — |
 
-**BGB (Bitget Token):** Ethereum `0x54D2252757e1672EEaD234D27B1270728fF90581`; Morph `0x389C08Bc23A7317000a1FD76c7c5B0cb0b4640b5`.
-
-For other tokens, use token-info or a block explorer to verify the contract address before calling swap endpoints.
+For other chains (Base, Arbitrum, Polygon, Morph) or tokens: use `search-tokens` or `token-info` to verify addresses.
 
 ---
 
