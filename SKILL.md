@@ -38,89 +38,26 @@ description: "Interact with Bitget Wallet API for crypto market data, token info
 
 See Scripts for full command details and `docs/swap.md` for the complete flow.
 
-**Technical reference (no need to read .py files):**
-
-- **Base URL:** `https://copenapi.bgwapi.io` (token auth, no API key needed).
-- **Agent API:** Invoked via `scripts/bitget_agent_api.py`. Covers token risk check (`check-swap-token`), balance (`get-processed-balance`), balance+price (`batch-v2`), token search (`search-tokens`), token list (`get-token-list`); **market data:** token-info, token-price, batch-token-info, kline, tx-info, batch-tx-info, historical-coins, rankings, liquidity, security; **RWA:** rwa-get-user-ticker-selector, rwa-get-config, rwa-stock-info (GET), rwa-stock-order-price, rwa-kline, rwa-get-my-holdings; swap flow (quote, confirm, make-order, send, get-order-details). Request/response details are in `docs/`.
-- **Requests:** POST with JSON body; RWA stock info uses GET with query params.
+**Technical reference:** Base URL `https://copenapi.bgwapi.io` (token auth, no API key). All commands via `scripts/bitget_agent_api.py` — run with `--help` for full subcommand list, or see [`docs/commands.md`](docs/commands.md).
 
 ## Domain Knowledge
 
 ### Skill Domain Knowledge
 
-#### Version Awareness
+#### Version
 
-This skill uses date-based versioning (`YYYY.M.DD`). Each release includes a sequential suffix: `YYYY.M.DD-1`, `YYYY.M.DD-2`, etc. The current version is in the frontmatter above. See `CHANGELOG.md` for full history.
-
-**First-use version check (at most once every 7 days):**
-
-1. Check the installed `version` from frontmatter above.
-2. Fetch the latest CHANGELOG from `https://raw.githubusercontent.com/bitget-wallet-ai-lab/bitget-wallet-skill/main/CHANGELOG.md`.
-3. Compare with the installed version.
-
-**If a new version is available**, inform the user (installed vs latest, one-line changes, security-related yes/no) and ask "Upgrade? [yes/no]". If the user confirms, re-install the skill from the `main` branch and replace all local skill files; then re-read SKILL.md. Post-upgrade: diff old/new `bitget_agentapi.py`, flag new endpoints/deps/credentials, and run platform security audit if applicable.
-
-**If versions match:** Proceed normally. Check frequency: at most once every 7 days.
+Date-based versioning (`YYYY.M.DD-N`). Current version in frontmatter. **Check at most once per 7 days:** compare frontmatter version against `https://raw.githubusercontent.com/bitget-wallet-ai-lab/bitget-wallet-skill/main/CHANGELOG.md`. If newer, inform user and ask to upgrade.
 
 ---
 
 ### Wallet Domain Knowledge
 
-#### First-Time Wallet Setup
+> **First-time wallet setup & swap configuration:** See [`docs/first-time-setup.md`](docs/first-time-setup.md).
 
-When a user first requests a swap or any signing operation, check if a wallet is already configured. If not, guide them through setup:
-
-**Path 1: Create a new wallet**
-
-1. **Generate a BIP-39 mnemonic** (24 words / 256 bits recommended). Use any available BIP-39 library in the agent's runtime (e.g., `mnemonic`, `bip_utils`, or equivalent).
-2. **Store the mnemonic in secure storage** immediately after generation. The agent must never output the mnemonic to chat, logs, or any messaging channel.
-3. **Inform the user** that the wallet has been created and where the mnemonic is stored. The user should retrieve and back up the mnemonic through secure means (e.g., directly accessing the password manager or vault) - not through the agent conversation.
-4. **Derive and show addresses** for EVM and Solana so the user can verify and fund the wallet.
-5. **Done.** The agent now has a wallet.
-
-**Path 2: Query only (no wallet)**
-
-If the user only wants price queries, token info, and security checks - no wallet setup needed. Skip this flow entirely. Signing operations will be unavailable.
-
-**Key management rules:**
-- **Only the mnemonic is persisted.** Never store derived private keys - they are ephemeral.
-- **Private keys are derived on-the-fly** each time signing is needed, used, then immediately discarded (variable cleanup, scope exit, etc.)
-- **Mnemonic is never sent to chat channels** - not during setup, not after. The agent retrieves it programmatically for derivation only.
-- **The agent must use secure storage** appropriate to its environment. The storage mechanism must: (1) encrypt at rest, (2) require authentication to read, (3) not expose secrets in logs, shell history, or environment dumps.
-- **Private keys must never be transmitted externally** — not through APIs, chat messages, HTTP requests, webhooks, file uploads, clipboard, or any other channel. Private keys exist only in local memory during signing and are never sent beyond the signing process. No exceptions.
-
-**Signing pipeline (how keys flow):**
-```
-Secure storage (mnemonic) → derive private key (in memory) → sign transaction → discard key
-```
-
-#### First-Time Swap Configuration
-
-The first time a user initiates a swap, **before executing**, guide them through these one-time preferences:
-
-1. **Transaction deadline** - how long the on-chain transaction remains valid:
-   - Conservative: `120` seconds (better protection against sandwich attacks in volatile markets)
-   - Standard: `300` seconds (balanced - suitable for most users)
-   - Relaxed: `600` seconds (for slow signing workflows, e.g., hardware wallets or multi-sig)
-   - Explain: _"A shorter deadline protects you from price manipulation, but if signing takes too long (e.g., you're away from your wallet), the transaction will fail on-chain and waste gas."_
-
-2. **Automatic security check** - whether to audit unfamiliar tokens before swaps:
-   - Recommended: Always check (default) - runs `security` automatically before swap
-   - Ask each time: Prompt before each swap involving unfamiliar tokens
-   - Skip: Never check (not recommended - risk of honeypot tokens)
-
-3. **Save preferences** - store in the agent's memory/config for future swaps
-4. **Remind user** they can update anytime (e.g., "update my swap settings" or "change my default deadline")
-
-If the user declines configuration, use sensible defaults: `deadline=300`, `security=always`.
-
-**Derivation paths:**
-
-| Chain | Path | Curve |
-|-------|------|-------|
-| EVM (ETH/BNB/Base/...) | `m/44'/60'/0'/0/0` | secp256k1 |
-| Solana | `m/44'/501'/0'/0'` | Ed25519 (SLIP-0010) |
-| Tron | `m/44'/195'/0'/0/0` | secp256k1 |
+**Key rules (always apply):**
+- Only mnemonic is persisted. Private keys derived on-the-fly, used, discarded immediately.
+- Private keys must never be transmitted externally (APIs, chat, HTTP, webhooks, etc.) — local signing only.
+- Use `--private-key-file` with temp file (`mktemp`). Never pass keys as CLI arguments.
 
 #### Amounts: human-readable only
 
@@ -159,11 +96,12 @@ Load the following when the task requires it:
 
 | Module | File | When to Load |
 |--------|------|--------------|
+| First-Time Setup | [`docs/first-time-setup.md`](docs/first-time-setup.md) | New wallet creation, first swap config, derivation paths |
 | Commands | [`docs/commands.md`](docs/commands.md) | Full subcommand parameters, usage examples for all scripts |
 | Wallet & Signing | [`docs/wallet-signing.md`](docs/wallet-signing.md) | Key management, BIP-39/44, signing, multi-chain |
 | Market Data | [`docs/market-data.md`](docs/market-data.md) | Token info, price, K-line, tx info, rankings, liquidity, security |
 | Swap | [`docs/swap.md`](docs/swap.md) | Swap flow, quote/confirm/makeOrder/send, slippage, gas, approvals |
-| RWA Stock Trading | [`docs/rwa.md`](docs/rwa.md) | RWA stock discovery, config, market status, order price, holdings; reuse swap flow for execution |
+| RWA Stock Trading | [`docs/rwa.md`](docs/rwa.md) | RWA stock discovery, config, market status, order price, holdings |
 | x402 Payments | [`docs/x402-payments.md`](docs/x402-payments.md) | HTTP 402, EIP-3009, Permit2, Solana partial-sign |
 
 ---
