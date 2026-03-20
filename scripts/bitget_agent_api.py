@@ -410,6 +410,80 @@ def security(chain: str, contract: str, source: str = "bg") -> dict:
     return _request("/market/v3/coin/security/audits", body)
 
 
+def launchpad_tokens(
+    chain: str = "sol",
+    platforms: Optional[List[str]] = None,
+    stage: Optional[int] = None,
+    age_min: Optional[int] = None,
+    age_max: Optional[int] = None,
+    mc_min: Optional[int] = None,
+    mc_max: Optional[int] = None,
+    lp_min: Optional[int] = None,
+    lp_max: Optional[int] = None,
+    vol_min: Optional[int] = None,
+    vol_max: Optional[int] = None,
+    holder_min: Optional[int] = None,
+    holder_max: Optional[int] = None,
+    progress_min: Optional[float] = None,
+    progress_max: Optional[float] = None,
+    sniper_percent_max: Optional[float] = None,
+    keywords: Optional[str] = None,
+    limit: int = 100,
+) -> dict:
+    """
+    Scan launchpad new pools. Filters by chain, platform, stage, age, market cap, liquidity, volume, holders, progress, etc.
+
+    stage: 0=new (progress<0.5), 1=launching (0.5~1.0), 2=launched (progress>=1.0)
+    age_min/age_max: token age range in seconds
+    mc_min/mc_max: market cap range (USD)
+    lp_min/lp_max: liquidity range (USD)
+    vol_min/vol_max: volume range (USD)
+    holder_min/holder_max: holder count range
+    progress_min/progress_max: bonding curve progress (0~1)
+    sniper_percent_max: max sniper holder percentage (0~1)
+    platforms: e.g. ["pump.fun"]
+    keywords: search keyword (e.g. "pepe")
+
+    Response fields per token: chain, contract, symbol, name, icon, issue_date, holders,
+    liquidity, top10/insider/sniper/dev holder percents, dev_rug_percent, lock_lp_percent,
+    price, socials (twitter/website/telegram/discord), platform, progress, market_cap, turnover, txns.
+    """
+    body: dict = {"chain": chain, "limit": limit}
+    if platforms is not None:
+        body["platforms"] = platforms
+    if stage is not None:
+        body["stage"] = stage
+    if age_min is not None:
+        body["age_min"] = age_min
+    if age_max is not None:
+        body["age_max"] = age_max
+    if mc_min is not None:
+        body["mc_min"] = mc_min
+    if mc_max is not None:
+        body["mc_max"] = mc_max
+    if lp_min is not None:
+        body["lp_min"] = lp_min
+    if lp_max is not None:
+        body["lp_max"] = lp_max
+    if vol_min is not None:
+        body["vol_min"] = vol_min
+    if vol_max is not None:
+        body["vol_max"] = vol_max
+    if holder_min is not None:
+        body["holder_min"] = holder_min
+    if holder_max is not None:
+        body["holder_max"] = holder_max
+    if progress_min is not None:
+        body["progress_min"] = progress_min
+    if progress_max is not None:
+        body["progress_max"] = progress_max
+    if sniper_percent_max is not None:
+        body["sniper_percent_max"] = sniper_percent_max
+    if keywords is not None:
+        body["keywords"] = keywords
+    return _request("/market/v3/launchpad/tokens", body)
+
+
 # ---------------------------------------------------------------------------
 # RWA (Real World Asset) stock trading APIs
 # ---------------------------------------------------------------------------
@@ -799,6 +873,30 @@ def _cmd_security(args):
     print(json.dumps(out, indent=2, ensure_ascii=False))
 
 
+def _cmd_launchpad_tokens(args):
+    out = launchpad_tokens(
+        chain=args.chain,
+        platforms=args.platforms.split(",") if args.platforms else None,
+        stage=args.stage,
+        age_min=args.age_min,
+        age_max=args.age_max,
+        mc_min=args.mc_min,
+        mc_max=args.mc_max,
+        lp_min=args.lp_min,
+        lp_max=args.lp_max,
+        vol_min=args.vol_min,
+        vol_max=args.vol_max,
+        holder_min=args.holder_min,
+        holder_max=args.holder_max,
+        progress_min=args.progress_min,
+        progress_max=args.progress_max,
+        sniper_percent_max=args.sniper_percent_max,
+        keywords=args.keywords,
+        limit=args.limit,
+    )
+    print(json.dumps(out, indent=2, ensure_ascii=False))
+
+
 # ---- RWA CLI ----
 
 def _cmd_rwa_get_user_ticker_selector(args):
@@ -1021,6 +1119,27 @@ def main():
     p.add_argument("--chain", required=True)
     p.add_argument("--contract", required=True)
     p.set_defaults(func=_cmd_security)
+
+    p = sub.add_parser("launchpad-tokens", help="[Market] Scan launchpad new pools (pump.fun etc.)")
+    p.add_argument("--chain", default="sol", help="Chain code (default: sol)")
+    p.add_argument("--platforms", default=None, help="Comma-separated platforms (e.g. pump.fun)")
+    p.add_argument("--stage", type=int, default=None, help="0=new, 1=launching, 2=launched")
+    p.add_argument("--age-min", dest="age_min", type=int, default=None, help="Min token age in seconds")
+    p.add_argument("--age-max", dest="age_max", type=int, default=None, help="Max token age in seconds")
+    p.add_argument("--mc-min", dest="mc_min", type=int, default=None, help="Min market cap (USD)")
+    p.add_argument("--mc-max", dest="mc_max", type=int, default=None, help="Max market cap (USD)")
+    p.add_argument("--lp-min", dest="lp_min", type=int, default=None, help="Min liquidity (USD)")
+    p.add_argument("--lp-max", dest="lp_max", type=int, default=None, help="Max liquidity (USD)")
+    p.add_argument("--vol-min", dest="vol_min", type=int, default=None, help="Min volume (USD)")
+    p.add_argument("--vol-max", dest="vol_max", type=int, default=None, help="Max volume (USD)")
+    p.add_argument("--holder-min", dest="holder_min", type=int, default=None, help="Min holder count")
+    p.add_argument("--holder-max", dest="holder_max", type=int, default=None, help="Max holder count")
+    p.add_argument("--progress-min", dest="progress_min", type=float, default=None, help="Min bonding curve progress (0~1)")
+    p.add_argument("--progress-max", dest="progress_max", type=float, default=None, help="Max bonding curve progress (0~1)")
+    p.add_argument("--sniper-percent-max", dest="sniper_percent_max", type=float, default=None, help="Max sniper holder percent (0~1)")
+    p.add_argument("--keywords", default=None, help="Search keyword (e.g. pepe)")
+    p.add_argument("--limit", type=int, default=100, help="Max results (default: 100)")
+    p.set_defaults(func=_cmd_launchpad_tokens)
 
     # ---- RWA ----
     p = sub.add_parser("rwa-get-user-ticker-selector", help="[RWA] Query/search RWA stock tickers; optional user_address for balance")
