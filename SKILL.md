@@ -40,36 +40,36 @@ See Scripts for full command details and `docs/swap.md` for the complete flow.
 
 **Technical reference:** Base URL `https://copenapi.bgwapi.io` (token auth, no API key). All commands via `scripts/bitget_agent_api.py` — run with `--help` for full subcommand list, or see [`docs/commands.md`](docs/commands.md).
 
-## Market Tools — 行情侧架构
+## Market Tools Architecture
 
-行情侧只管**"选币"和"选地址"**，不管交易/钱包/链上执行。一个 Tool 覆盖一个"域"，用参数控制深度。
+Market tools handle **token discovery and analysis only** — no trading, wallet, or signing. One tool per domain, depth controlled by parameters.
 
-### bgw_token_find — 找币
+### bgw_token_find — Token Discovery
 
-| 场景 | 命令 | 说明 |
-|------|------|------|
-| 扫新池子 | `launchpad-tokens` | 按平台/阶段/市值/流动性/持有人等过滤 |
-| 搜索代币 | `search-tokens-v3` | 关键词/合约搜索，支持 order_by |
-| 榜单 | `rankings` | topGainers / topLosers / Hotpicks |
-| 新上线 | `historical-coins` | 按时间扫描新币，支持分页 |
+| Use Case | Command | Description |
+|----------|---------|-------------|
+| Scan new pools | `launchpad-tokens` | Filter by platform/stage/MC/LP/holders/progress |
+| Search tokens | `search-tokens-v3` | Keyword or contract search with ordering |
+| Rankings | `rankings` | topGainers / topLosers / Hotpicks |
+| New launches | `historical-coins` | Discover tokens by timestamp, paginated |
 
-### bgw_token_check — 查币
+### bgw_token_check — Token Analysis
 
-| 场景 | 命令 | 说明 |
-|------|------|------|
-| 安全审计 | `security` | 貔貅/mint/proxy + 买卖税 + 风险等级 |
-| Dev 分析 | `coin-dev` | Dev 地址 + rug 历史 + LP 锁定 + 持仓 |
-| 行情概览 | `coin-market-info` | 价格/MC/池子列表/涨跌幅/叙事标签 |
-| 代币信息 | `token-info` | 基础信息/社交链接 |
-| K 线 | `kline` | OHLC + 买卖量 |
-| 交易统计 | `tx-info` | 买卖量/人数 |
-| 流动性 | `liquidity` | 池子详情 |
+| Use Case | Command | Description |
+|----------|---------|-------------|
+| Security audit | `security` | Honeypot/mint/proxy + buy/sell tax + risk level |
+| Dev analysis | `coin-dev` | Dev address + rug history + LP lock + holdings |
+| Market overview | `coin-market-info` | Price/MC/FDV/pool list/price changes/narratives |
+| Token info | `token-info` | Basic info + social links |
+| K-line | `kline` | OHLC + buy/sell volume |
+| Tx stats | `tx-info` | Buy/sell volume and trader count |
+| Liquidity | `liquidity` | Pool details |
 
-**查币推荐顺序：** coin-market-info → security → coin-dev → (kline + tx-info)
+**Recommended check order:** coin-market-info → security → coin-dev → (kline + tx-info)
 
-**交易前必查：** check-swap-token → security
+**Pre-trade mandatory:** check-swap-token → security
 
-详细领域知识和 Skills 层计算规则见 [`docs/market-data.md`](docs/market-data.md)。
+Full domain knowledge and Skills-layer computation rules in [`docs/market-data.md`](docs/market-data.md).
 
 ## Domain Knowledge
 

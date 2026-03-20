@@ -15,19 +15,19 @@ An AI Agent skill that wraps the [Bitget Wallet API](https://web3.bitget.com/en/
 
 ### Market Tools Architecture
 
-行情侧只管"选币"和"选地址"，不管交易/钱包/链上执行。Skills 层负责计算和规则，后端只提供原始数据。
+Market side handles **token discovery and analysis only** — no trading, wallet, or signing. Skills layer computes scores and rules; backend provides raw data.
 
 ```
-原子 Tools（Agent 自己编排）
-├── bgw_token_find   找币（扫链/搜索/榜单/板块，一个入口）
-├── bgw_token_check  查币（安全/Dev/反做局/信号/行情，一个入口）
-├── bgw_token_analyze 分析币（单币深度：时间线/交易/持币/聪明钱）
-├── bgw_address_find  找地址（按 Pool/角色/条件筛选）
-└── bgw_address_analyze 分析地址（评分/PnL/风格/操作/对比）
+Atomic Tools (Agent orchestrates)
+├── bgw_token_find      Find tokens (chain scan / search / rankings / sectors)
+├── bgw_token_check     Check tokens (security / dev / anti-manipulation / signals / market)
+├── bgw_token_analyze   Analyze tokens (deep: timeline / trades / holdings / smart money)
+├── bgw_address_find    Find addresses (by pool / role / criteria)
+└── bgw_address_analyze Analyze addresses (scoring / PnL / style / operations / comparison)
 
-智能 Tools（我们编排）
-├── bgw_combo    智能组合（选币+选地址的排列组合）
-└── bgw_monitor  持续监控（代币信号/地址动向/价格预警）
+Smart Tools (We orchestrate)
+├── bgw_combo    Smart combos (token + address permutation recipes)
+└── bgw_monitor  Continuous monitoring (token signals / address activity / price alerts)
 ```
 
 ### Core Capabilities
