@@ -160,13 +160,14 @@ data[]:
 | Honeypot | `RiskTitle2` | — | `LowTitle2` ✅ |
 | Trade tax | `RiskTitle1` (≥50%) | `WarnTitle1` (≥10%) | `LowTitle1` (<10%) ✅ |
 | Tax modifiable | `RiskTitle8` | `WarnTitle8` | `LowTitle8` ✅ |
-| Trading pause | `RiskTitle4` | `WarnTitle4` | `LowTitle4` ✅ |
-| Blacklist | `RiskTitle15` | `WarnTitle15` | `LowTitle15` ✅ |
-| Contract upgradeable | — | `WarnTitle6` | `LowTitle6` ✅ |
-| Mintable | — | `WarnTitle10` | `LowTitle10` ✅ |
-| Balance modifiable | — | — | `LowTitle7` ✅ |
-| Top 10 holder % | `RiskTitle23` (high) | `WarnTitle23` | `LowTitle23` ✅ |
-| LP lock | — | `WarnTitle24` | `LowTitle24` ✅ |
+| Timelock | — | `WarnTitle9` (has timelock) | `LowTitle9` (none ✅) |
+| Trading pause | `RiskTitle4` (pausable) | `WarnTitle4` | `LowTitle4` (not pausable ✅) |
+| Blacklist | `RiskTitle15` (has blacklist) | `WarnTitle15` | `LowTitle15` (none ✅) |
+| Contract upgradeable | — | `WarnTitle6` (upgradeable) | `LowTitle6` (not upgradeable ✅) |
+| Mintable | — | `WarnTitle10` (mintable) | `LowTitle10` (not mintable ✅) |
+| Balance modifiable | — | — | `LowTitle7` (not modifiable ✅) |
+| Top 10 holder % | `RiskTitle23` (high) | `WarnTitle23` (elevated) | `LowTitle23` (normal ✅) |
+| LP lock ratio | — | `WarnTitle24` (below threshold) | `LowTitle24` (meets threshold ✅) |
 | Sniper % | `RiskTitle25` | `WarnTitle25` | `LowTitle25` ✅ |
 | Insider % | `RiskTitle26` | `WarnTitle26` | `LowTitle26` ✅ |
 | Dev rug rate | `RiskTitle27` (≥50%) | `WarnTitle27` (≥25%) | `LowTitle27` ✅ |
@@ -178,10 +179,10 @@ data[]:
 
 | Check | Risk | Warn | Low (Safe) |
 |-------|------|------|------------|
-| Freeze authority | `SolanaRiskTitle1` | — | `SolanaLowTitle1` ✅ |
-| LP burn ratio | — | `SolanaWarnTitle2` | `SolanaLowTitle2` ✅ |
-| Top 10 holder % | `SolanaRiskTitle3` (>60%) | `SolanaWarnTitle3` | `SolanaLowTitle3` ✅ |
-| Mint authority | — | `SolanaWarnTitle6` | `SolanaLowTitle6` ✅ |
+| Freeze authority | `SolanaRiskTitle1` (not discarded) | — | `SolanaLowTitle1` (discarded ✅) |
+| LP burn ratio | — | `SolanaWarnTitle2` (below threshold) | `SolanaLowTitle2` (meets threshold ✅) |
+| Top 10 holder % | `SolanaRiskTitle3` (>60%) | `SolanaWarnTitle3` (elevated) | `SolanaLowTitle3` (normal ✅) |
+| Mint authority | — | `SolanaWarnTitle6` (not discarded) | `SolanaLowTitle6` (discarded ✅) |
 | Trade tax | `SolanaRiskTitle10` (≥50%) | `SolanaWarnTitle10` (≥10%) | `SolanaLowTitle10` ✅ |
 | Tax modifiable | `SolanaRiskTitle11` | — | `SolanaLowTitle11` ✅ |
 | Sniper % | `SolanaRiskTitle12` | `SolanaWarnTitle12` | `SolanaLowTitle12` ✅ |
@@ -344,18 +345,42 @@ The data commands (`token-info`, `kline`, `tx-info`, `liquidity`) are most usefu
 
 ---
 
-## K-line Parameters
+## K-line: Valid Parameters
 
 - **Periods**: `1s`, `1m`, `5m`, `15m`, `30m`, `1h`, `4h`, `1d`, `1w`
 - **Max entries**: 1440 per request
-- **Buy/sell fields**: Each candle includes `buyTurnover`/`sellTurnover` (USD volume) and `buyAmount`/`sellAmount`. Use to detect buying vs selling pressure.
+- Other period values will return an error or empty data.
+- **Buy/Sell breakdown fields**: Each K-line entry includes `buyTurnover`/`sellTurnover` (buy/sell volume in USD) and `buyAmount`/`sellAmount` (buy/sell quantity). Use these to detect buying vs selling pressure within each candle.
 
-## Transaction Info Parameters
+## Transaction Info: Valid Intervals
 
 - **Intervals**: `5m`, `1h`, `4h`, `24h` only
-- Returns: buy/sell volume, buyer/seller count
+- These return buy/sell volume, buyer/seller count for the given time window.
+- Other interval values are not supported.
 
-## Historical Coins Pagination
+## Historical Coins: Pagination
 
-- `createTime` format: `"YYYY-MM-DD HH:MM:SS"` (string, not Unix timestamp)
-- Response `lastTime` used for next page pagination
+- `createTime` is a **datetime string** in format `"YYYY-MM-DD HH:MM:SS"` (NOT a Unix timestamp).
+- `limit` is a number (max results per page).
+- Response contains `lastTime` field (also a datetime string) — pass it as `createTime` in the next request to paginate.
+- Example: `--create-time "2026-02-27 00:00:00" --limit 20`
+- Useful for discovering newly launched tokens.
+
+## Identifying Risky Tokens
+
+Combine multiple signals to assess token risk. No single indicator is definitive:
+
+| Signal | Source | Red Flag |
+|--------|--------|----------|
+| `highRisk = true` | `security` | **Critical — do not trade** |
+| `cannotSellAll = true` | `security` | Honeypot-like behavior |
+| `buyTax` or `sellTax` > 5% | `security` | Hidden cost, likely scam |
+| `isProxy = true` | `security` | Owner can change rules anytime |
+| Holder count < 100 | `token-info` | Extremely early or abandoned |
+| Single holder > 50% supply | `token-info` | Rug pull risk |
+| LP lock = 0% | `liquidity` | Creator can pull all liquidity |
+| Pool liquidity < $10K | `liquidity` | Any trade will cause massive slippage |
+| Very high 5m volume, near-zero 24h volume | `tx-info` | Likely wash trading |
+| Token age < 24h | `token-info` | Unproven, higher risk |
+
+**When multiple red flags appear together, strongly advise the user against trading.**
