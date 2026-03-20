@@ -426,6 +426,16 @@ def liquidity(chain: str, contract: str) -> dict:
     return _request("/market/v3/poolList", body)
 
 
+def coin_market_info(chain: str, contract: str) -> dict:
+    """
+    Get token market info + pool list: price, market_cap, fdv, liquidity, turnover, holders, age,
+    price changes (5m/1h/4h/24h), all trading pairs (pool_address, protocol, token0/1, liquidity),
+    narratives description, narrative_tags.
+    """
+    body = {"chain": chain, "contract": contract}
+    return _request("/market/v3/coin/getMarketInfo", body)
+
+
 def coin_dev(chain: str, contract: str) -> dict:
     """
     Get token dev address analysis: dev address, rug history, LP lock, dev buy/sell volume, dev holdings, historical projects.
@@ -917,6 +927,11 @@ def _cmd_liquidity(args):
     print(json.dumps(out, indent=2, ensure_ascii=False))
 
 
+def _cmd_coin_market_info(args):
+    out = coin_market_info(chain=args.chain, contract=args.contract)
+    print(json.dumps(out, indent=2, ensure_ascii=False))
+
+
 def _cmd_coin_dev(args):
     out = coin_dev(chain=args.chain, contract=args.contract)
     print(json.dumps(out, indent=2, ensure_ascii=False))
@@ -1175,6 +1190,11 @@ def main():
     p.add_argument("--chain", required=True)
     p.add_argument("--contract", required=True)
     p.set_defaults(func=_cmd_liquidity)
+
+    p = sub.add_parser("coin-market-info", help="[Market] Token market info + pool list (price, MC, FDV, pairs, narratives)")
+    p.add_argument("--chain", required=True)
+    p.add_argument("--contract", required=True)
+    p.set_defaults(func=_cmd_coin_market_info)
 
     p = sub.add_parser("coin-dev", help="[Market] Dev address analysis (rug history, LP lock, dev holdings)")
     p.add_argument("--chain", required=True)
