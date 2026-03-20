@@ -441,7 +441,11 @@ def launchpad_tokens(
     holder_min/holder_max: holder count range
     progress_min/progress_max: bonding curve progress (0~1)
     sniper_percent_max: max sniper holder percentage (0~1)
-    platforms: e.g. ["pump.fun"]
+    platforms: list of platform identifiers. Supported values:
+      Solana: pump.fun, pump.fun.mayhem, raydium.Launchlab, believe, bonk.fun,
+              jup.studio, bags.fm, trends.fun, MeteoraBC, muffun.fun
+      BNB:    four.meme, four.meme.bn, four.meme.agent, flap
+      Base:   zoraContent, zoraCreator, virtuals, clanker, bankr
     keywords: search keyword (e.g. "pepe")
 
     Response fields per token: chain, contract, symbol, name, icon, issue_date, holders,
@@ -1122,7 +1126,7 @@ def main():
 
     p = sub.add_parser("launchpad-tokens", help="[Market] Scan launchpad new pools (pump.fun etc.)")
     p.add_argument("--chain", default="sol", help="Chain code (default: sol)")
-    p.add_argument("--platforms", default=None, help="Comma-separated platforms (e.g. pump.fun)")
+    p.add_argument("--platforms", default=None, help="Comma-separated platforms (e.g. pump.fun,raydium.Launchlab,four.meme,virtuals)")
     p.add_argument("--stage", type=int, default=None, help="0=new, 1=launching, 2=launched")
     p.add_argument("--age-min", dest="age_min", type=int, default=None, help="Min token age in seconds")
     p.add_argument("--age-max", dest="age_max", type=int, default=None, help="Max token age in seconds")
