@@ -333,6 +333,28 @@ def search_tokens(keyword: str, chain: Optional[str] = None) -> dict:
     return _request("/market/v2/search/tokens", body)
 
 
+def search_tokens_v3(
+    keyword: str,
+    chain: Optional[str] = None,
+    limit: int = 20,
+    order_by: Optional[str] = None,
+) -> dict:
+    """
+    Search tokens (v3). Supports ordering by market_cap etc.
+
+    keyword: search term (name, symbol, or contract address)
+    chain: optional chain filter (e.g. eth, sol, bnb)
+    limit: max results (default 20)
+    order_by: sort field (e.g. "market_cap")
+    """
+    body: dict = {"keyword": keyword, "limit": limit}
+    if chain:
+        body["chain"] = chain
+    if order_by:
+        body["order_by"] = order_by
+    return _request("/market/v3/coin/search", body)
+
+
 # ---------------------------------------------------------------------------
 # Market data — token info, price, kline, tx info, rankings, liquidity, security
 # Paths follow ToB market API; agent API uses same backend with token auth.
@@ -801,6 +823,16 @@ def _cmd_search_tokens(args):
     print(json.dumps(out, indent=2, ensure_ascii=False))
 
 
+def _cmd_search_tokens_v3(args):
+    out = search_tokens_v3(
+        keyword=args.keyword,
+        chain=getattr(args, "chain", None),
+        limit=args.limit,
+        order_by=getattr(args, "order_by", None),
+    )
+    print(json.dumps(out, indent=2, ensure_ascii=False))
+
+
 # ---- Market data CLI ----
 
 def _cmd_token_info(args):
@@ -1069,10 +1101,17 @@ def main():
     p.set_defaults(func=_cmd_batch_v2)
 
     # searchTokens: search by keyword or contract address; optional chain to restrict to one chain
-    p = sub.add_parser("search-tokens", help="Search tokens by keyword or contract /market/v2/search/tokens")
+    p = sub.add_parser("search-tokens", help="[Search] Search tokens by keyword or contract (v2)")
     p.add_argument("--keyword", required=True, help="Keyword or full contract address")
     p.add_argument("--chain", default=None, help="Optional: restrict search to this chain (e.g. bnb, eth)")
     p.set_defaults(func=_cmd_search_tokens)
+
+    p = sub.add_parser("search-tokens-v3", help="[Search] Search tokens with ordering support (v3)")
+    p.add_argument("--keyword", required=True, help="Search term (name, symbol, or contract)")
+    p.add_argument("--chain", default=None, help="Optional chain filter (e.g. eth, sol, bnb)")
+    p.add_argument("--limit", type=int, default=20, help="Max results (default: 20)")
+    p.add_argument("--order-by", dest="order_by", default=None, help="Sort field (e.g. market_cap)")
+    p.set_defaults(func=_cmd_search_tokens_v3)
 
     # ---- Market data ----
     p = sub.add_parser("token-info", help="[Market] Get single token base info")
