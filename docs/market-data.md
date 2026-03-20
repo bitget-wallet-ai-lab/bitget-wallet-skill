@@ -10,6 +10,12 @@ Market tools handle **token discovery and analysis only**. No trading, wallet, o
 
 **Design principle:** One tool covers the "find token" domain. Parameters control depth and scope. Skills layer handles computation and rules; backend provides raw data only.
 
+**⚠️ Mandatory output rule:** Every token discovery result presented to the user **must** include:
+1. **Chain** (e.g. `sol`, `bnb`, `base`)
+2. **Contract address (CA)** — the full address, never truncated
+
+This ensures the user can immediately proceed to check, analyze, or trade any discovered token. Never omit chain or CA from token discovery output.
+
 #### API Mapping
 
 | Use Case | Command | Endpoint |

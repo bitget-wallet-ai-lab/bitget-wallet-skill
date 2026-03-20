@@ -53,6 +53,8 @@ Market tools handle **token discovery and analysis only** — no trading, wallet
 | Rankings | `rankings` | topGainers / topLosers / Hotpicks |
 | New launches | `historical-coins` | Discover tokens by timestamp, paginated |
 
+**Mandatory output rule:** All token discovery results **must** include **chain** and **contract address (CA)** for every token. This enables the user to directly proceed to check, analyze, or trade. Never omit chain or CA from discovery output.
+
 ### bgw_token_check — Token Analysis
 
 | Use Case | Command | Description |
