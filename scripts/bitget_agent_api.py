@@ -426,6 +426,19 @@ def liquidity(chain: str, contract: str) -> dict:
     return _request("/market/v3/poolList", body)
 
 
+def coin_dev(chain: str, contract: str) -> dict:
+    """
+    Get token dev address analysis: dev address, rug history, LP lock, dev buy/sell volume, dev holdings, historical projects.
+
+    Returns: dev_address, dev_holder_percent, dev_holder_balance, dev_is_white_list,
+    dev_issue_coin_count, dev_rug_coin_count, dev_rug_percent, lock_lp_percent,
+    dev_buy_amount/value, dev_sell_amount/value, dev_migrated_count, dev_unmigrated_count,
+    dev_pump_migrated_count, dev_pump_unmigrated_count.
+    """
+    body = {"chain": chain, "contract": contract}
+    return _request("/market/v3/coin/dev", body)
+
+
 def security(chain: str, contract: str, source: str = "bg") -> dict:
     """Security audit for a token. Check highRisk, riskCount, buyTax/sellTax, etc. See docs/market-data.md."""
     body = {"list": [{"chain": chain, "contract": contract}], "source": source}
@@ -904,6 +917,11 @@ def _cmd_liquidity(args):
     print(json.dumps(out, indent=2, ensure_ascii=False))
 
 
+def _cmd_coin_dev(args):
+    out = coin_dev(chain=args.chain, contract=args.contract)
+    print(json.dumps(out, indent=2, ensure_ascii=False))
+
+
 def _cmd_security(args):
     out = security(chain=args.chain, contract=args.contract)
     print(json.dumps(out, indent=2, ensure_ascii=False))
@@ -1157,6 +1175,11 @@ def main():
     p.add_argument("--chain", required=True)
     p.add_argument("--contract", required=True)
     p.set_defaults(func=_cmd_liquidity)
+
+    p = sub.add_parser("coin-dev", help="[Market] Dev address analysis (rug history, LP lock, dev holdings)")
+    p.add_argument("--chain", required=True)
+    p.add_argument("--contract", required=True)
+    p.set_defaults(func=_cmd_coin_dev)
 
     p = sub.add_parser("security", help="[Market] Security audit for a token")
     p.add_argument("--chain", required=True)
