@@ -40,6 +40,37 @@ See Scripts for full command details and `docs/swap.md` for the complete flow.
 
 **Technical reference:** Base URL `https://copenapi.bgwapi.io` (token auth, no API key). All commands via `scripts/bitget_agent_api.py` — run with `--help` for full subcommand list, or see [`docs/commands.md`](docs/commands.md).
 
+## Market Tools — 行情侧架构
+
+行情侧只管**"选币"和"选地址"**，不管交易/钱包/链上执行。一个 Tool 覆盖一个"域"，用参数控制深度。
+
+### bgw_token_find — 找币
+
+| 场景 | 命令 | 说明 |
+|------|------|------|
+| 扫新池子 | `launchpad-tokens` | 按平台/阶段/市值/流动性/持有人等过滤 |
+| 搜索代币 | `search-tokens-v3` | 关键词/合约搜索，支持 order_by |
+| 榜单 | `rankings` | topGainers / topLosers / Hotpicks |
+| 新上线 | `historical-coins` | 按时间扫描新币，支持分页 |
+
+### bgw_token_check — 查币
+
+| 场景 | 命令 | 说明 |
+|------|------|------|
+| 安全审计 | `security` | 貔貅/mint/proxy + 买卖税 + 风险等级 |
+| Dev 分析 | `coin-dev` | Dev 地址 + rug 历史 + LP 锁定 + 持仓 |
+| 行情概览 | `coin-market-info` | 价格/MC/池子列表/涨跌幅/叙事标签 |
+| 代币信息 | `token-info` | 基础信息/社交链接 |
+| K 线 | `kline` | OHLC + 买卖量 |
+| 交易统计 | `tx-info` | 买卖量/人数 |
+| 流动性 | `liquidity` | 池子详情 |
+
+**查币推荐顺序：** coin-market-info → security → coin-dev → (kline + tx-info)
+
+**交易前必查：** check-swap-token → security
+
+详细领域知识和 Skills 层计算规则见 [`docs/market-data.md`](docs/market-data.md)。
+
 ## Domain Knowledge
 
 ### Skill Domain Knowledge
@@ -147,7 +178,7 @@ Use empty string `""` for native token contract (ETH, SOL, BNB, etc.).
 
 | Script | Purpose | Key commands |
 |--------|---------|-------------|
-| `bitget_agent_api.py` | Unified API client | Balance, token search, market data (info/price/kline/tx/rankings/liquidity/security), swap flow (quote→confirm→make-order→send→get-order-details) |
+| `bitget_agent_api.py` | Unified API client | Balance, token find (launchpad-tokens/search-tokens-v3/rankings), token check (security/coin-dev/coin-market-info/kline/tx-info), swap flow (quote→confirm→make-order→send→get-order-details) |
 | `order_make_sign_send.py` | One-shot swap execution | makeOrder + sign + send in one run. `--private-key` (EVM) or `--private-key-sol` (Solana). Avoids 60s expiry. |
 | `order_sign.py` | Sign makeOrder data | Outputs JSON array of signatures. Supports raw tx, EVM gasPayMaster (eth_sign), EIP-712, Solana Ed25519, Solana gasPayMaster. |
 | `x402_pay.py` | x402 payment | EIP-3009 signing, Solana partial-sign, HTTP 402 pay flow |
@@ -158,10 +189,15 @@ Use empty string `""` for native token contract (ETH, SOL, BNB, etc.).
 # Balance (include native token "" to check gas)
 python3 scripts/bitget_agent_api.py get-processed-balance --chain bnb --address <addr> --contract "" --contract <token>
 
-# Market data
-python3 scripts/bitget_agent_api.py token-price --chain bnb --contract <addr>
+# Token find (bgw_token_find)
+python3 scripts/bitget_agent_api.py launchpad-tokens --chain sol --platforms pump.fun --stage 1 --mc-min 10000 --holder-min 100
+python3 scripts/bitget_agent_api.py search-tokens-v3 --keyword pepe --chain sol --order-by market_cap
 python3 scripts/bitget_agent_api.py rankings --name Hotpicks  # or topGainers, topLosers
+
+# Token check (bgw_token_check)
+python3 scripts/bitget_agent_api.py coin-market-info --chain sol --contract <addr>
 python3 scripts/bitget_agent_api.py security --chain bnb --contract <addr>
+python3 scripts/bitget_agent_api.py coin-dev --chain sol --contract <addr>
 
 # Swap flow
 python3 scripts/bitget_agent_api.py quote --from-chain bnb --from-contract <addr> --from-symbol USDT --from-amount 5 --to-chain bnb --to-contract "" --to-symbol BNB --from-address <wallet> --to-address <wallet>
