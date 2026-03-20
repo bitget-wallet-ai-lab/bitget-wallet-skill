@@ -6,6 +6,36 @@ Format: date-based versioning (`YYYY.M.DD`). Each release includes a sequential 
 
 ---
 
+## [2026.3.20-1] - 2026-03-20
+
+### Added — Market Tools (bgw_token_find + bgw_token_check)
+- **`launchpad-tokens`** — Scan launchpad new pools (pump.fun, four.meme, virtuals, etc.) with 15+ filters: chain, platform, stage, age, MC, LP, volume, holders, bonding progress, sniper %, keywords. Supports 19 platforms across Solana/BNB/Base.
+- **`search-tokens-v3`** — Token search with `order_by` support (e.g. market_cap). Returns risk_level, holder stats, dev metrics per token. `POST /market/v3/coin/search`
+- **`coin-market-info`** — Full token market overview: price, MC, FDV, liquidity, turnover, holders, age, price changes (5m/1h/4h/24h), all trading pairs with protocol and liquidity, narrative description and tags. `POST /market/v3/coin/getMarketInfo`
+- **`coin-dev`** — Dev historical project analysis: returns full list of dev's tokens with rug_status (0=safe, 1=rugged), migration status, MC, LP per project. Supports `--limit` and `--is-migrated` filter. `POST /market/v3/coin/dev`
+
+### Added — Market Tools Architecture
+- Defined 7-tool architecture: 5 atomic tools (bgw_token_find, bgw_token_check, bgw_token_analyze, bgw_address_find, bgw_address_analyze) + 2 smart tools (bgw_combo, bgw_monitor)
+- bgw_token_find and bgw_token_check fully documented with API mappings, Skills-layer computation rules (Pool TIER rating, Dev trust scoring, liquidity health, risk signal matrix), and common strategies
+
+### Changed — Documentation
+- `docs/market-data.md` — Complete rewrite with bgw_token_find and bgw_token_check domain knowledge, labelName reference tables (EVM + Solana), risk signal matrix (12 signals), recommended check flow
+- `SKILL.md` — Added Market Tools Architecture section, updated Scripts table and Quick Reference with new commands
+- `README.md` — Added Market Tools Architecture diagram and new capabilities
+- All skill content converted to English (SKILL.md, docs/market-data.md, README.md)
+- Mandatory output rule: all token discovery results must include chain + full contract address
+
+### Fixed
+- SKILL.md: `--private-key` → `--private-key-file` in Scripts table and Common Pitfalls (stale after PR #33)
+- SKILL.md: Swap-supported chains count 7 → 8 (Tron was missing from count)
+
+### Security
+- No new dependencies added
+- No credential changes
+- 4 new read-only market data endpoints (no fund-moving operations)
+
+---
+
 ## [2026.3.17-1] - 2026-03-17
 
 ### Added — RWA Stock Trading
