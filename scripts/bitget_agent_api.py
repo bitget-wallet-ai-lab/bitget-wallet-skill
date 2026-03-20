@@ -436,16 +436,31 @@ def coin_market_info(chain: str, contract: str) -> dict:
     return _request("/market/v3/coin/getMarketInfo", body)
 
 
-def coin_dev(chain: str, contract: str) -> dict:
+def coin_dev(
+    chain: str,
+    contract: str,
+    limit: int = 30,
+    is_migrated: Optional[bool] = None,
+) -> dict:
     """
-    Get token dev address analysis: dev address, rug history, LP lock, dev buy/sell volume, dev holdings, historical projects.
+    Get token dev analysis: dev's historical projects with rug status, migration info.
 
-    Returns: dev_address, dev_holder_percent, dev_holder_balance, dev_is_white_list,
-    dev_issue_coin_count, dev_rug_coin_count, dev_rug_percent, lock_lp_percent,
-    dev_buy_amount/value, dev_sell_amount/value, dev_migrated_count, dev_unmigrated_count,
-    dev_pump_migrated_count, dev_pump_unmigrated_count.
+    chain: chain code (e.g. sol, bnb)
+    contract: token contract address
+    limit: max tokens to return (default 30)
+    is_migrated: null=all, true=migrated only, false=unmigrated only
+
+    Response data fields:
+      total_count, migrated_count, unmigrated_count,
+      chain_coin_symbol, chain_coin_icon, chain_coin_price,
+      tokens[]: list of dev's historical projects, each with:
+        icon, chain, name, symbol, contract, market_cap, market_cap_chain_coin,
+        liquidity, liquidity_chain_coin, rug_status (0=safe, 1=rugged),
+        issue_date (unix timestamp), is_migrated (bool)
     """
-    body = {"chain": chain, "contract": contract}
+    body: dict = {"chain": chain, "contract": contract, "limit": limit}
+    if is_migrated is not None:
+        body["is_migrated"] = is_migrated
     return _request("/market/v3/coin/dev", body)
 
 
@@ -933,7 +948,15 @@ def _cmd_coin_market_info(args):
 
 
 def _cmd_coin_dev(args):
-    out = coin_dev(chain=args.chain, contract=args.contract)
+    is_mig = None
+    if args.is_migrated is not None:
+        is_mig = args.is_migrated.lower() == "true"
+    out = coin_dev(
+        chain=args.chain,
+        contract=args.contract,
+        limit=args.limit,
+        is_migrated=is_mig,
+    )
     print(json.dumps(out, indent=2, ensure_ascii=False))
 
 
@@ -1196,9 +1219,11 @@ def main():
     p.add_argument("--contract", required=True)
     p.set_defaults(func=_cmd_coin_market_info)
 
-    p = sub.add_parser("coin-dev", help="[Market] Dev address analysis (rug history, LP lock, dev holdings)")
+    p = sub.add_parser("coin-dev", help="[Market] Dev historical projects (rug status, migration, MC, LP)")
     p.add_argument("--chain", required=True)
     p.add_argument("--contract", required=True)
+    p.add_argument("--limit", type=int, default=30, help="Max tokens to return (default: 30)")
+    p.add_argument("--is-migrated", dest="is_migrated", default=None, help="Filter: true=migrated, false=unmigrated, omit=all")
     p.set_defaults(func=_cmd_coin_dev)
 
     p = sub.add_parser("security", help="[Market] Security audit for a token")

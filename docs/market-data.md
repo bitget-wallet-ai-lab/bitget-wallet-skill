@@ -196,39 +196,55 @@ data[]:
 
 #### Dev Analysis (coin-dev)
 
-**Core scenario:** Dev address + rug history + LP lock + buy/sell volume + holdings + project history
+**Core scenario:** Dev's historical projects with rug status, migration info, market cap, and liquidity per project.
 
-**Response fields:**
+**Request parameters:**
+
+| Parameter | Description |
+|-----------|-------------|
+| `--chain` | Chain code (e.g. sol, bnb) |
+| `--contract` | Token contract address |
+| `--limit` | Max tokens to return (default 30) |
+| `--is-migrated` | Filter: `true`=migrated only, `false`=unmigrated only, omit=all |
+
+**Response fields (top level):**
 
 | Field | Description |
 |-------|-------------|
-| `dev_address` | Dev wallet address |
-| `dev_holder_percent` | Dev holdings as % of supply |
-| `dev_holder_balance` | Dev token balance |
-| `dev_is_white_list` | Whitelisted (known trustworthy dev) |
-| `dev_issue_coin_count` | Total tokens dev has launched |
-| `dev_rug_coin_count` | Tokens dev has rugged |
-| `dev_rug_percent` | Rug rate (rug_count / issue_count) |
-| `lock_lp_percent` | LP lock ratio (0~1) |
-| `dev_buy_amount` / `dev_sell_amount` | Dev buy/sell quantity |
-| `dev_buy_value` / `dev_sell_value` | Dev buy/sell value (USD) |
-| `dev_migrated_count` | Dev's migrated projects |
-| `dev_unmigrated_count` | Dev's unmigrated projects |
-| `dev_pump_migrated_count` | Dev's pump migrated count |
-| `dev_pump_unmigrated_count` | Dev's pump unmigrated count |
+| `total_count` | Total number of dev's projects |
+| `migrated_count` | Number of migrated projects |
+| `unmigrated_count` | Number of unmigrated projects |
+| `chain_coin_symbol` | Native coin symbol (e.g. SOL) |
+| `chain_coin_price` | Native coin price in USD |
+
+**Response fields (per token in `tokens[]`):**
+
+| Field | Description |
+|-------|-------------|
+| `icon` | Token icon URL |
+| `chain` | Chain code |
+| `name` / `symbol` | Token name and symbol |
+| `contract` | Token contract address |
+| `market_cap` | Market cap (USD) |
+| `market_cap_chain_coin` | Market cap in native coin |
+| `liquidity` | Liquidity (USD) |
+| `liquidity_chain_coin` | Liquidity in native coin |
+| `rug_status` | **0 = safe, 1 = rugged** |
+| `issue_date` | Launch date (Unix timestamp) |
+| `is_migrated` | Whether token has migrated (bool) |
 
 **Skills-layer computation rules:**
 
 - **Dev trust score (Skills layer computes):**
-  - dev_is_white_list = true → High trust
-  - dev_rug_percent = 0 and dev_issue_coin_count > 10 → Medium-high trust
-  - dev_rug_percent < 5% → Medium trust
-  - dev_rug_percent 5~20% → Low trust
-  - dev_rug_percent > 20% → 🔴 High risk, strong warning
+  - Count tokens with `rug_status=1` vs total → rug rate
+  - 0 rugs and total_count > 10 → Medium-high trust
+  - Rug rate < 5% → Medium trust
+  - Rug rate 5~20% → Low trust
+  - Rug rate > 20% → 🔴 High risk, strong warning
 - **Dev behavior analysis:**
-  - dev_sell_value >> dev_buy_value → Dev is dumping
-  - dev_holder_percent > 10% → Dev holds too much, potential dump
-  - lock_lp_percent < 50% → LP not sufficiently locked
+  - Many unmigrated projects → Dev may abandon projects frequently
+  - Check `market_cap` and `liquidity` of dev's other tokens → Are they alive or dead?
+  - Multiple rugged tokens → Serial rugger, avoid
 
 #### Market Overview (coin-market-info)
 
@@ -289,12 +305,12 @@ Complete token analysis — agent should combine calls in this order:
 |--------|--------|------|
 | `highRisk = true` | security | 🔴 **Do not trade** |
 | `buyTax/sellTax > 5%` | security | 🔴 Suspected honeypot |
-| `dev_rug_percent > 20%` | coin-dev | 🔴 Dev has rug history |
-| `dev_holder_percent > 30%` | coin-dev | 🟡 Dev holds too much |
+| Dev rug rate > 20% (rug_status=1 count / total) | coin-dev | 🔴 Dev has rug history |
+| Many dead tokens (low MC/LP) in dev history | coin-dev | 🟡 Dev abandons projects |
 | `top10_holder_percent > 50%` | search/launchpad | 🟡 Concentrated holdings |
 | `holders < 100` | coin-market-info | 🟡 Extremely early or abandoned |
 | `liquidity < $10K` | coin-market-info | 🟡 Very thin liquidity |
-| `lock_lp_percent < 50%` | coin-dev | 🟡 LP not locked |
+| `lock_lp_percent < 50%` | search/launchpad | 🟡 LP not locked |
 | `sniper_holder_percent > 10%` | search/launchpad | 🟡 Sniped |
 | `age < 3600` (1h) | coin-market-info | ⚠️ Extremely new, high risk |
 | `change_5m > 50%` | coin-market-info | ⚠️ Active pump |

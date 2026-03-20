@@ -60,7 +60,7 @@ Market tools handle **token discovery and analysis only** — no trading, wallet
 | Use Case | Command | Description |
 |----------|---------|-------------|
 | Security audit | `security` | Honeypot/mint/proxy + buy/sell tax + risk level |
-| Dev analysis | `coin-dev` | Dev address + rug history + LP lock + holdings |
+| Dev analysis | `coin-dev` | Dev's historical projects + rug status + migration info |
 | Market overview | `coin-market-info` | Price/MC/FDV/pool list/price changes/narratives |
 | Token info | `token-info` | Basic info + social links |
 | K-line | `kline` | OHLC + buy/sell volume |
