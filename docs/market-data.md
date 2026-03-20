@@ -297,6 +297,53 @@ Complete token analysis — agent should combine calls in this order:
 
 ---
 
+## Security Audit: Interpret Before Presenting
+
+The `security` command returns raw audit data. Key fields to check:
+
+| Field | Meaning | Action |
+|-------|---------|--------|
+| `highRisk = true` | Token has critical security issues | **Warn user strongly. Do not recommend trading.** |
+| `riskCount > 0` | Number of risk items found | List the specific risks to the user |
+| `warnCount > 0` | Number of warnings | Mention but less critical than risks |
+| `buyTax` / `sellTax` > 0 | Token charges tax on trades | Include in cost estimation |
+| `isProxy = true` | Contract is upgradeable | Mention — owner can change contract behavior |
+| `cannotSellAll = true` | Cannot sell 100% of holdings | Major red flag for meme coins |
+
+**Best practice:** Run `security` before any swap involving an unfamiliar token. This should follow the user's configured security preference (see "First-Time Swap Configuration"). If set to "Always check" (default), run automatically and silently — only surface results if risks are found. **Never skip security checks for tokens the user has not traded before, regardless of preference.**
+
+**Additional security response fields:**
+- `freezeAuth` / `mintAuth` — boolean flags for Solana token authorities
+- `token2022` — whether token uses Solana Token-2022 standard
+- `lpLock` — whether LP is locked
+- `top_10_holder_risk_level` — numeric risk level for top holders
+- `buyTax` / `sellTax` — exact tax percentages
+
+## Token Info: Available Fields
+
+The `token-info` command returns comprehensive data including:
+
+**Basic:** `symbol`, `name`, `decimals`, `price`, `total_supply`, `circulating_supply`, `icon`
+
+**Social/Links:** `twitter`, `website`, `telegram`, `whitepaper`, `about` — useful for "where to learn more" questions
+
+**On-chain Metrics:** `holders`, `liquidity`, `top10_holder_percent`, `insider_holder_percent`, `sniper_holder_percent`, `dev_holder_percent`, `dev_holder_balance`, `dev_issue_coin_count`, `dev_rug_coin_count`, `dev_rug_percent`, `lock_lp_percent`
+
+When presenting token info, include social links if the user is researching a token. The `dev_rug_percent` field is particularly valuable — if the developer has a history of rug pulls, warn strongly.
+
+## Using Market Data Effectively
+
+The data commands (`token-info`, `kline`, `tx-info`, `liquidity`) are most useful when **combined**, not in isolation:
+
+- **Quick token assessment**: `token-info` (price + market cap + holders) → `tx-info` (recent activity) → `security` (safety check). This gives a complete picture in 3 calls.
+- **Trend analysis**: Use `kline --period 1h --size 24` for daily trend, `--period 1d --size 30` for monthly. Compare with `tx-info` to see if volume supports the price movement.
+- **Liquidity depth check**: Before a large swap, run `liquidity` to check pool size. If your trade amount is >2% of pool liquidity, expect significant slippage.
+- **New token discovery**: `rankings --name topGainers` finds trending tokens. Always follow up with `security` before acting on any discovery.
+- **Hot picks**: `rankings --name Hotpicks` returns curated trending tokens across chains — useful for spotting market momentum beyond simple gainers/losers.
+- **Whale activity detection**: `tx-info` shows buyer/seller count and volume. A high volume with very few buyers suggests whale activity — proceed with caution.
+
+---
+
 ## K-line Parameters
 
 - **Periods**: `1s`, `1m`, `5m`, `15m`, `30m`, `1h`, `4h`, `1d`, `1w`
