@@ -148,7 +148,7 @@ Load the following when the task requires it:
 5. **Token approval (EVM):** ERC-20 must be approved for the router; see "EVM Token Approval" in `docs/swap.md`.
 6. **Wallet before balance/swap:** If no wallet is configured, guide the user through First-Time Wallet Setup (see Wallet Domain Knowledge above).
 7. **Script usage:** Use CLI commands from this SKILL (e.g. `bitget_agent_api.py`, `order_sign.py`).
-8. **Key security:** Derive private keys from mnemonic on-the-fly, pass to `order_sign.py --private-key`, discard immediately after signing. Never store keys or output mnemonic/keys to chat.
+8. **Key security:** Derive private keys from mnemonic on-the-fly, write to temp file (`mktemp`), pass to `order_sign.py --private-key-file` (script reads and auto-deletes). Never store keys or output mnemonic/keys to chat.
 9. **Human-readable amounts:** Pass fromAmount etc. as user-facing numbers (e.g. `0.01`), not wei/lamports/decimals.
 10. **Security:** Mnemonic and private keys must **never** appear in conversation, prompts, or any output. Only mnemonic **file path** and derived **addresses** may be in context.
 
@@ -156,7 +156,7 @@ Load the following when the task requires it:
 
 ### Chain Identifiers
 
-**Swap-supported chains (7):**
+**Swap-supported chains (8):**
 
 | Chain | ID | Code |
 |-------|------|------|
@@ -181,7 +181,7 @@ Use empty string `""` for native token contract (ETH, SOL, BNB, etc.).
 | Script | Purpose | Key commands |
 |--------|---------|-------------|
 | `bitget_agent_api.py` | Unified API client | Balance, token find (launchpad-tokens/search-tokens-v3/rankings), token check (security/coin-dev/coin-market-info/kline/tx-info), swap flow (quote→confirm→make-order→send→get-order-details) |
-| `order_make_sign_send.py` | One-shot swap execution | makeOrder + sign + send in one run. `--private-key` (EVM) or `--private-key-sol` (Solana). Avoids 60s expiry. |
+| `order_make_sign_send.py` | One-shot swap execution | makeOrder + sign + send in one run. `--private-key-file` (EVM) or `--private-key-file-sol` (Solana). Avoids 60s expiry. |
 | `order_sign.py` | Sign makeOrder data | Outputs JSON array of signatures. Supports raw tx, EVM gasPayMaster (eth_sign), EIP-712, Solana Ed25519, Solana gasPayMaster. |
 | `x402_pay.py` | x402 payment | EIP-3009 signing, Solana partial-sign, HTTP 402 pay flow |
 
