@@ -426,9 +426,16 @@ def liquidity(chain: str, contract: str) -> dict:
     return _request("/market/v3/poolList", body)
 
 
-def security(chain: str, contract: str, source: str = "bg") -> dict:
-    """Security audit for a token. Check highRisk, riskCount, buyTax/sellTax, etc. See docs/market-data.md."""
-    body = {"list": [{"chain": chain, "contract": contract}], "source": source}
+def security(chain: str, contract: str) -> dict:
+    """
+    Security audit for a token: contract risk detection (honeypot/mint/proxy) + risk level + buy/sell tax.
+
+    Returns per token: highRisk, riskCount, warnCount, buyTax, sellTax, freezeAuth, mintAuth, lpLock,
+    top_10_holder_risk_level, riskChecks[], warnChecks[], lowChecks[].
+    Each check has labelName, status (0=safe, 1=risk), priority, type, and optional values.
+    See docs/market-data.md for labelName reference.
+    """
+    body = {"list": [{"chain": chain, "contract": contract}]}
     return _request("/market/v3/coin/security/audits", body)
 
 
