@@ -73,10 +73,6 @@ def main():
     parser.add_argument("--private-key-file", default=None, help="Path to file containing EVM private key (hex). File is read and deleted.")
     parser.add_argument("--private-key-file-sol", default=None, help="Path to file containing Solana private key (base58 or hex). File is read and deleted.")
     parser.add_argument("--private-key-file-tron", default=None, help="Path to file containing Tron private key (hex). File is read and deleted.")
-    # Legacy support (deprecated, will be removed)
-    parser.add_argument("--private-key", default=None, help=argparse.SUPPRESS)
-    parser.add_argument("--private-key-sol", default=None, help=argparse.SUPPRESS)
-    parser.add_argument("--private-key-tron", default=None, help=argparse.SUPPRESS)
     parser.add_argument("--from-address", required=True, help="Sender address")
     parser.add_argument("--to-address", required=True, help="Receiver address (usually same as from-address)")
     parser.add_argument("--order-id", required=True, help="From confirm response data.orderId")
@@ -92,15 +88,12 @@ def main():
     parser.add_argument("--protocol", required=True)
     args = parser.parse_args()
 
-    # Read keys from files (preferred) or legacy args
+    # Read keys from files — delete file immediately after reading
     from key_utils import read_key_file
 
-    if args.private_key_file:
-        args.private_key = read_key_file(args.private_key_file)
-    if args.private_key_file_sol:
-        args.private_key_sol = read_key_file(args.private_key_file_sol)
-    if args.private_key_file_tron:
-        args.private_key_tron = read_key_file(args.private_key_file_tron)
+    args.private_key = read_key_file(args.private_key_file) if args.private_key_file else None
+    args.private_key_sol = read_key_file(args.private_key_file_sol) if args.private_key_file_sol else None
+    args.private_key_tron = read_key_file(args.private_key_file_tron) if args.private_key_file_tron else None
 
     if not args.private_key and not args.private_key_sol and not args.private_key_tron:
         print("Error: must provide --private-key-file (EVM), --private-key-file-sol (Solana), or --private-key-file-tron (Tron)", file=sys.stderr)

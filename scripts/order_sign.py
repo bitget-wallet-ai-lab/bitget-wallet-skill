@@ -12,17 +12,17 @@ Signs order-create response for both EVM and Solana chains.
 - Solana txs mode: partial-sign VersionedTransaction (or Legacy fallback)
 
 Usage:
-    # EVM
-    python3 scripts/order_sign.py --order-json '<json>' --private-key <hex>
+    # EVM (key from file, file auto-deleted after reading)
+    python3 scripts/order_sign.py --order-json '<json>' --private-key-file /tmp/.pk
 
     # Tron (TRX)
-    python3 scripts/order_sign.py --order-json '<json>' --private-key-tron <hex>
+    python3 scripts/order_sign.py --order-json '<json>' --private-key-file-tron /tmp/.pk
 
     # Solana
-    python3 scripts/order_sign.py --order-json '<json>' --private-key-sol <base58|hex>
+    python3 scripts/order_sign.py --order-json '<json>' --private-key-file-sol /tmp/.pk
 
     # Pipe from order-create
-    python3 scripts/bitget_agent_api.py order-create ... | python3 scripts/order_sign.py --private-key <hex>
+    python3 scripts/bitget_agent_api.py order-create ... | python3 scripts/order_sign.py --private-key-file /tmp/.pk
 
 Output: JSON array of signed strings, ready for order-submit --signed-txs
 
@@ -746,21 +746,23 @@ def main():
     parser.add_argument("--private-key-file", help="Path to file containing EVM private key (hex). File is read and deleted.")
     parser.add_argument("--private-key-file-sol", help="Path to file containing Solana private key. File is read and deleted.")
     parser.add_argument("--private-key-file-tron", help="Path to file containing Tron private key. File is read and deleted.")
-    # Legacy support (deprecated, will be removed)
-    parser.add_argument("--private-key", help=argparse.SUPPRESS)
-    parser.add_argument("--private-key-sol", help=argparse.SUPPRESS)
-    parser.add_argument("--private-key-tron", help=argparse.SUPPRESS)
     args = parser.parse_args()
 
-    # Read keys from files (preferred) — delete file immediately after reading
+    # Read keys from files — delete file immediately after reading
     from key_utils import read_key_file
 
     if args.private_key_file:
         args.private_key = read_key_file(args.private_key_file)
+    else:
+        args.private_key = None
     if args.private_key_file_sol:
         args.private_key_sol = read_key_file(args.private_key_file_sol)
+    else:
+        args.private_key_sol = None
     if args.private_key_file_tron:
         args.private_key_tron = read_key_file(args.private_key_file_tron)
+    else:
+        args.private_key_tron = None
 
     if args.order_json:
         response = json.loads(args.order_json)
