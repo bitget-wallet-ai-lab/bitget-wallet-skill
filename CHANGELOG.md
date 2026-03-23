@@ -9,8 +9,8 @@ Format: date-based versioning (`YYYY.M.DD`). Each release includes a sequential 
 ## [2026.3.23-1] - 2026-03-23
 
 ### Added — Social Login Wallet
-- **`scripts/social-wallet.py`** — 174-line Python CLI for signing transactions and messages via Bitget Wallet TEE (Trusted Execution Environment). Private keys never leave the TEE; agent authenticates with appid/appsecret.
-- **`docs/social-wallet.md`** — Complete integration guide: per-chain parameters (BTC/ETH/SOL/Tron/Sui/Stellar + 16 EVM chains), 3 signing modes for swap flow (gasPayMaster, regular EVM tx, Tron tx), common mistakes table.
+- `scripts/social-wallet.py` — 174-line Python CLI for signing transactions and messages via Bitget Wallet TEE (Trusted Execution Environment). Private keys never leave the TEE; agent authenticates with appid/appsecret.
+- `docs/social-wallet.md` — Complete integration guide: per-chain parameters (BTC/ETH/SOL/Tron/Sui/Stellar + 16 EVM chains), 3 signing modes for swap flow (gasPayMaster, regular EVM tx, Tron tx), common mistakes table.
 - Supports: BTC (Taproot/SegWit/Legacy/PSBT), ETH, SOL (native+SPL+versioned), Tron, Ton, Sui, Stellar, and all EVM chains via `evm_custom#` prefix.
 - Operations: `sign_transaction`, `sign_message`, `get_address`, `get_public_key`, `validate_address`, `batchGetAddressAndPubkey`.
 
@@ -20,27 +20,6 @@ Format: date-based versioning (`YYYY.M.DD`). Each release includes a sequential 
   - **Regular EVM tx:** `sign_transaction` → signed RLP hex
   - **Tron tx:** `sign_transaction` returns raw 65-byte sig hex → must be wrapped in `{"signature":[hex],"txID":...,"raw_data":...}`
 - Critical rule: always check `deriveTransaction.msgs` first to detect gasPayMaster mode, even for cross-chain txs
-
-### Added — Safety Rule
-- New global rule: API-returned values (market.id, protocol, contract, orderId, etc.) must be passed verbatim to subsequent calls. Never guess or substitute.
-
-### Changed
-- `social-wallet.py` optimized for AI agent use: removed ANSI colors, argparse, --list, --appid/--appsecret CLI args (274 → 174 lines, -37%). Credentials only from file.
-- Gateway integration: BASE_URL `https://copenapi.bgwapi.io`, BKHmacAuth signing, endpoints `/social-wallet/agent/*`
-
-### Security
-- 4 critical security rules for social wallet (never expose credentials/source/internals, user confirmation before signing)
-- `.social-wallet-secret` added to `.gitignore`
-- No `--appid`/`--appsecret` CLI args (credentials never in process list)
-- Dependency: `cryptography` package (for AES-GCM encrypt/decrypt)
-
-### Verified Transactions
-- BNB same-chain gasless: 5 USDT → 4.9455 USDC ✅
-- BNB→SOL cross-chain gasless: 20 USDT → 19.509 USDT ✅
-- SOL same-chain gasless: 19 USDT → 18.677 USDC ✅
-- SOL→BNB cross-chain gasless: 18 USDC → 17.934 USDC ✅
-- BNB→Tron cross-chain gasless: 25 USDT → 21.786 USDT ✅
-- Tron same-chain: 20 TRX → 6.141 USDT ✅
 
 ---
 
