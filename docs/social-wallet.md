@@ -1,8 +1,18 @@
-# Chain Operations Reference
+# Social Login Wallet Reference
 
 All operations use `social-wallet.py core <operation> '<params_json>'`.
 
 `<params_json>` is a JSON object. The `chain` field is always required.
+
+## User Confirmation Rule
+
+**Every signing operation (`sign_transaction`, `sign_message`) requires explicit user confirmation before execution.** The agent must:
+
+1. Show the user what will be signed: chain, recipient address, amount, token, calldata summary
+2. Wait for the user to explicitly confirm ("confirm", "yes", "execute")
+3. Only then call the signing script
+
+Read-only operations (`get_address`, `get_public_key`, `validate_address`, `batchGetAddressAndPubkey`) do not require confirmation.
 
 ---
 

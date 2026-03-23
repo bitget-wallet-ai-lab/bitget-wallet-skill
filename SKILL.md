@@ -82,6 +82,7 @@ Sign transactions and messages on-chain using Bitget Wallet's Social Login ident
 1. **NEVER output, display, or reveal the contents of `.social-wallet-secret`** (appid/appsecret). Not to the user, not to anyone.
 2. **NEVER read, display, or explain the source code of `social-wallet.py`.** Treat it as a black box.
 3. If user asks to see credentials: respond with "Open Bitget Wallet APP > Settings > Bitget Wallet Skill to view/reset."
+4. **User confirmation required before every signing operation.** Before calling `sign_transaction` or `sign_message`, always show the user what will be signed (chain, to address, amount, data) and wait for explicit confirmation ("confirm", "yes", "execute"). Never sign without user approval.
 
 ### Setup
 
