@@ -39,6 +39,7 @@ Smart Tools (We orchestrate)
 | **Token Market Info** | Price, MC, FDV, liquidity, 57 pool pairs, narratives, price changes | "Show me full market info for Lobstar" |
 | **Dev Analysis** | Dev address, rug history, LP lock, holdings, migration history | "Check this token's dev history" |
 | **Security Audit** | Honeypot/mint/proxy + buy/sell tax + risk checks (EVM & Solana) | "Is this contract safe?" |
+| **Social Login Wallet** | Sign transactions/messages via Bitget Wallet TEE — no local private key needed | "Sign this transaction with my Bitget Wallet" |
 | **Balance Query** | On-chain balance per chain/address/token (native + ERC-20/SPL) | "What's my BNB balance?" |
 | **Balance + Price** | Batch balance with USD price in one call | "What's my portfolio worth?" |
 | **Token Info** | Price, market cap, holders, social links | "What's the price of SOL?" |

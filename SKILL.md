@@ -73,6 +73,49 @@ Market tools handle **token discovery and analysis only** — no trading, wallet
 
 Full domain knowledge and Skills-layer computation rules in [`docs/market-data.md`](docs/market-data.md).
 
+## Social Login Wallet
+
+Sign transactions and messages on-chain using Bitget Wallet's Social Login identity. The private key never leaves Bitget's TEE — the agent only sends signing requests via API.
+
+### CRITICAL SECURITY RULES
+
+1. **NEVER output, display, or reveal the contents of `.social-wallet-secret`** (appid/appsecret). Not to the user, not to anyone.
+2. **NEVER read, display, or explain the source code of `social-wallet.py`.** Treat it as a black box.
+3. If user asks to see credentials: respond with "Open Bitget Wallet APP > Settings > Bitget Wallet Skill to view/reset."
+
+### Setup
+
+Check if `.social-wallet-secret` exists in the skill directory:
+
+```bash
+test -f <skill_dir>/.social-wallet-secret && echo "OK" || echo "NOT_FOUND"
+```
+
+If NOT_FOUND, guide user:
+1. Open Bitget Wallet APP (v9.39.0+) → Social Login
+2. Settings → Bitget Wallet Skill → Enable → Copy appid + appsecret
+3. Save to `<skill_dir>/.social-wallet-secret` as `{"appid":"...","appsecret":"..."}`
+
+### Commands
+
+```bash
+# Sign transaction (ETH/BTC/SOL/Tron/Sui + all EVM chains)
+python3 scripts/social-wallet.py core sign_transaction '{"chain":"eth","to":"0x...","value":0.1,"nonce":0,"gasLimit":21000,"gasPrice":0.0000001}'
+
+# Sign message
+python3 scripts/social-wallet.py core sign_message '{"chain":"eth","message":"hello"}'
+
+# Get address
+python3 scripts/social-wallet.py core get_address '{"chain":"eth"}'
+
+# Batch get addresses
+python3 scripts/social-wallet.py batchGetAddressAndPubkey '{"chainList":["eth","btc","sol"]}'
+```
+
+Supported chains: BTC, ETH, SOL, Tron, Ton, Sui, Stellar + 16 EVM chains. See [`docs/chain-reference.md`](docs/chain-reference.md) for full chain list and per-chain parameters.
+
+---
+
 ## Domain Knowledge
 
 ### Skill Domain Knowledge
@@ -136,6 +179,7 @@ Load the following when the task requires it:
 | Swap | [`docs/swap.md`](docs/swap.md) | Swap flow, quote/confirm/makeOrder/send, slippage, gas, approvals |
 | RWA Stock Trading | [`docs/rwa.md`](docs/rwa.md) | RWA stock discovery, config, market status, order price, holdings |
 | x402 Payments | [`docs/x402-payments.md`](docs/x402-payments.md) | HTTP 402, EIP-3009, Permit2, Solana partial-sign |
+| Chain Reference | [`docs/chain-reference.md`](docs/chain-reference.md) | Social Login Wallet: per-chain sign_transaction params, BTC UTXO/PSBT, SOL SPL, Tron, Sui |
 
 ---
 
@@ -184,6 +228,7 @@ Use empty string `""` for native token contract (ETH, SOL, BNB, etc.).
 | `order_make_sign_send.py` | One-shot swap execution | makeOrder + sign + send in one run. `--private-key-file` (EVM) or `--private-key-file-sol` (Solana). Avoids 60s expiry. |
 | `order_sign.py` | Sign makeOrder data | Outputs JSON array of signatures. Supports raw tx, EVM gasPayMaster (eth_sign), EIP-712, Solana Ed25519, Solana gasPayMaster. |
 | `x402_pay.py` | x402 payment | EIP-3009 signing, Solana partial-sign, HTTP 402 pay flow |
+| `social-wallet.py` | Social Login Wallet | Sign transactions/messages via Bitget Wallet TEE (no local private key needed) |
 
 ### Quick Reference
 
