@@ -2,7 +2,7 @@
 
 All operations use `social-wallet.py core <operation> '<params_json>'`.
 
-`<params_json>` is a JSON object. The `chain` field is always required.
+`<params_json>` is a JSON object. The `chain` field is always required. For EVM chains, `chainId` is also required (e.g. `"chainId": 56` for BNB, `"chainId": 1` for Ethereum).
 
 ## User Confirmation Rule
 
