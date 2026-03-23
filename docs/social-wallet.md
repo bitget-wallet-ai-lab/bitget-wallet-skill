@@ -78,6 +78,30 @@ result = social_wallet_sign_transaction(sign_params)
 tx["sig"] = result["result"]
 ```
 
+### Mode 3: Tron transaction signing
+
+Tron txs have a `transaction` object with `raw_data_hex`, `raw_data`, `txID`. Social wallet returns a raw signature hex (65 bytes / 130 chars). Must be wrapped in the format expected by send API.
+
+1. Get `transaction` from `deriveTransaction.transaction` or `tx.transaction`
+2. Call `social-wallet.py core sign_transaction '{"chain":"tron","transaction":{...}}'`
+3. Wrap the returned sig hex: `{"signature": [sig_hex], "txID": txID, "raw_data": raw_data}`
+4. Set `tx.sig = json.dumps(wrapped)`
+
+```python
+transaction = derive.get("transaction") or tx.get("transaction")
+sign_params = {"chain": "tron", "transaction": transaction}
+result = social_wallet_sign_transaction(sign_params)
+sig_hex = result["result"]  # raw 65-byte hex
+
+# Wrap in expected format
+sig_obj = {
+    "signature": [sig_hex],
+    "txID": transaction["txID"],
+    "raw_data": transaction["raw_data"],
+}
+tx["sig"] = json.dumps(sig_obj)
+```
+
 ### Common mistakes
 
 | Mistake | Error | Fix |
@@ -85,6 +109,8 @@ tx["sig"] = result["result"]
 | Using `"signature"` instead of `"sig"` in msgs | error_code 40009 | Use `m["sig"]` |
 | Using sign_transaction for gasPayMaster tx | Signature verification failed | Check `deriveTransaction.msgs` first, use sign_message with EthSign |
 | Missing `EthSign:` prefix for raw hash | Wrong signature (personal_sign adds prefix) | Always use `EthSign:{hash}` |
+| Tron: passing raw sig hex as tx.sig | On-chain tx failed | Wrap in `{"signature":[hex],"txID":...,"raw_data":...}` |
+| Using wrong market/protocol in confirm | error_code 30000 | Use exact values from quote response |
 
 ---
 
