@@ -14,6 +14,33 @@ All operations use `social-wallet.py core <operation> '<params_json>'`.
 
 Read-only operations (`get_address`, `get_public_key`, `validate_address`, `batchGetAddressAndPubkey`) do not require confirmation.
 
+## Integration with Swap Flow (gasPayMaster / gasless)
+
+When using the Social Login Wallet for gasless swaps (no_gas mode), the makeOrder response returns `txFunction: "swap_instant_gas_paymaster"` with `deriveTransaction.msgs[]`. Each msg has `signType: "eth_sign"` and a `hash` to sign.
+
+**Signing flow:**
+
+1. For each msg in `deriveTransaction.msgs[]`:
+   - Call `social-wallet.py core sign_message '{"chain":"evm_custom#bnb","message":"EthSign:<hash>"}'`
+   - The `EthSign:` prefix tells the social wallet to sign the raw hash (no EIP-191 prefix), equivalent to `unsafe_sign_hash`
+2. Put the signature in the msg's **`sig`** field (**not** `signature` — this is critical, backend rejects `signature`)
+3. Set `tx.sig = json.dumps(msgs)` (JSON string of the msgs array with `sig` fields)
+4. Call send with the signed txs
+
+**Example:**
+
+```python
+for m in msgs:
+    sign_params = {"chain": "evm_custom#bnb", "message": f"EthSign:{m['hash']}"}
+    result = social_wallet_sign_message(sign_params)
+    m["sig"] = result["result"]  # NOT "signature"!
+
+tx["sig"] = json.dumps(msgs)
+send(order_id=oid, txs=txs)
+```
+
+**⚠️ Key difference from mnemonic wallet:** The field name for the signature in msgs is `"sig"`, not `"signature"`. Using `"signature"` causes error_code 40009 (signature verification failed).
+
 ---
 
 ## Supported Chains
