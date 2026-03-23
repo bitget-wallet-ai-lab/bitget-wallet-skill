@@ -18,16 +18,33 @@ Read-only operations (`get_address`, `get_public_key`, `validate_address`, `batc
 
 When using the Social Login Wallet for gasless swaps (no_gas mode), the makeOrder response returns `txFunction: "swap_instant_gas_paymaster"` with `deriveTransaction.msgs[]`. Each msg has `signType: "eth_sign"` and a `hash` to sign.
 
-**Signing flow:**
+**Signing flow — detect mode first:**
+
+For each tx in makeOrder response, check which signing mode to use:
+
+```python
+derive = tx.get("deriveTransaction", {})
+msgs = derive.get("msgs", [])
+
+if msgs and any(m.get("signType") == "eth_sign" for m in msgs):
+    # gasPayMaster mode — sign msg hashes
+    ...
+else:
+    # regular tx mode — sign_transaction
+    ...
+```
+
+**⚠️ CRITICAL: Always check `deriveTransaction.msgs` first.** Even for cross-chain swaps, the tx may have `txFunction: "swap_instant_gas_paymaster"` with msgs. Do NOT fall through to regular tx signing based on the absence of top-level msgs — check `deriveTransaction.msgs`.
+
+### Mode 1: gasPayMaster (msgs with eth_sign)
+
+Used for gasless same-chain and cross-chain swaps. The tx contains `deriveTransaction.msgs[]` with `signType: "eth_sign"`.
 
 1. For each msg in `deriveTransaction.msgs[]`:
    - Call `social-wallet.py core sign_message '{"chain":"evm_custom#bnb","message":"EthSign:<hash>"}'`
    - The `EthSign:` prefix tells the social wallet to sign the raw hash (no EIP-191 prefix), equivalent to `unsafe_sign_hash`
-2. Put the signature in the msg's **`sig`** field (**not** `signature` — this is critical, backend rejects `signature`)
+2. Put the signature in the msg's **`sig`** field (**not** `signature` — backend rejects `signature`)
 3. Set `tx.sig = json.dumps(msgs)` (JSON string of the msgs array with `sig` fields)
-4. Call send with the signed txs
-
-**Example:**
 
 ```python
 for m in msgs:
@@ -36,10 +53,38 @@ for m in msgs:
     m["sig"] = result["result"]  # NOT "signature"!
 
 tx["sig"] = json.dumps(msgs)
-send(order_id=oid, txs=txs)
 ```
 
-**⚠️ Key difference from mnemonic wallet:** The field name for the signature in msgs is `"sig"`, not `"signature"`. Using `"signature"` causes error_code 40009 (signature verification failed).
+### Mode 2: Regular transaction signing
+
+Used for user_gas mode (non-gasless). The tx has no msgs, just standard tx fields.
+
+1. Build sign_transaction params from `deriveTransaction` (to, value, data, nonce, gasLimit, gasPrice, chainId)
+2. Call `social-wallet.py core sign_transaction '<params>'`
+3. Set `tx.sig = result["result"]` (the signed RLP tx hex)
+
+```python
+sign_params = {
+    "chain": f"evm_custom#bnb",
+    "chainId": derive.get("chainId", 56),
+    "to": derive["to"],
+    "value": derive.get("value", 0),
+    "data": derive.get("data", "0x"),
+    "nonce": derive["nonce"],
+    "gasLimit": str(derive["gasLimit"]),
+    "gasPrice": str(derive.get("gasPrice", "0.000000001")),
+}
+result = social_wallet_sign_transaction(sign_params)
+tx["sig"] = result["result"]
+```
+
+### Common mistakes
+
+| Mistake | Error | Fix |
+|---------|-------|-----|
+| Using `"signature"` instead of `"sig"` in msgs | error_code 40009 | Use `m["sig"]` |
+| Using sign_transaction for gasPayMaster tx | Signature verification failed | Check `deriveTransaction.msgs` first, use sign_message with EthSign |
+| Missing `EthSign:` prefix for raw hash | Wrong signature (personal_sign adds prefix) | Always use `EthSign:{hash}` |
 
 ---
 
