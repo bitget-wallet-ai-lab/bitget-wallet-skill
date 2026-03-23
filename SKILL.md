@@ -112,7 +112,7 @@ python3 scripts/social-wallet.py core get_address '{"chain":"eth"}'
 python3 scripts/social-wallet.py batchGetAddressAndPubkey '{"chainList":["eth","btc","sol"]}'
 ```
 
-Supported chains: BTC, ETH, SOL, Tron, Ton, Sui, Stellar + 16 EVM chains. See [`docs/chain-reference.md`](docs/chain-reference.md) for full chain list and per-chain parameters.
+Supported chains: BTC, ETH, SOL, Tron, Ton, Sui, Stellar + 16 EVM chains. See [`docs/social-wallet.md`](docs/social-wallet.md) for full chain list and per-chain parameters.
 
 ---
 
@@ -179,7 +179,7 @@ Load the following when the task requires it:
 | Swap | [`docs/swap.md`](docs/swap.md) | Swap flow, quote/confirm/makeOrder/send, slippage, gas, approvals |
 | RWA Stock Trading | [`docs/rwa.md`](docs/rwa.md) | RWA stock discovery, config, market status, order price, holdings |
 | x402 Payments | [`docs/x402-payments.md`](docs/x402-payments.md) | HTTP 402, EIP-3009, Permit2, Solana partial-sign |
-| Chain Reference | [`docs/chain-reference.md`](docs/chain-reference.md) | Social Login Wallet: per-chain sign_transaction params, BTC UTXO/PSBT, SOL SPL, Tron, Sui |
+| Chain Reference | [`docs/social-wallet.md`](docs/social-wallet.md) | Social Login Wallet: per-chain sign_transaction params, BTC UTXO/PSBT, SOL SPL, Tron, Sui |
 
 ---
 
