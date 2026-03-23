@@ -28,7 +28,7 @@ DIM    = "\033[2m"
 BOLD   = "\033[1m"
 RESET  = "\033[0m"
 
-BASE_URL  = "http://localhost:8000"
+BASE_URL  = "https://copenapi.bgwapi.io"
 APPID     = ""
 APPSECRET = ""
 
@@ -54,7 +54,7 @@ def load_secret():
 
 METHODS = {
     "core": {
-        "endpoint": "/agent/core",
+        "endpoint": "/social-wallet/agent/core",
         "desc": "Multi-chain wallet operations (sign_transaction, sign_message, get_address, etc.)",
         "params": {
             "operation": "Operation name (e.g. sign_transaction, sign_message, get_address, validate_address)",
@@ -62,7 +62,7 @@ METHODS = {
         },
     },
     "signMessage": {
-        "endpoint": "/agent/signMessage",
+        "endpoint": "/social-wallet/agent/signMessage",
         "desc": "Sign a message",
         "params": {
             "chain":   "Chain name (e.g. eth / btc / trx)",
@@ -70,7 +70,7 @@ METHODS = {
         },
     },
     "batchGetAddressAndPubkey": {
-        "endpoint": "/agent/batchGetAddressAndPubkey",
+        "endpoint": "/social-wallet/agent/batchGetAddressAndPubkey",
         "desc": "Batch get addresses and public keys",
         "params": {
             "chainList": 'Chain list, e.g. ["eth","btc","sol"] (max 2000)',
@@ -102,6 +102,12 @@ def hmac_sha384(message: str) -> str:
 
 # ── API Call ──────────────────────────────────────────────
 
+def _gateway_sign(method: str, path: str, body_str: str, ts: str) -> str:
+    """BKHmacAuth signature: SHA256(Method + Path + Body + Timestamp)."""
+    message = method + path + body_str + ts
+    return "0x" + hashlib.sha256(message.encode("utf-8")).hexdigest()
+
+
 def call_api(endpoint: str, param_dict: dict) -> dict | None:
     timestamp = str(int(time.time() * 1000))
     nonce = secrets.token_hex(16)
@@ -112,17 +118,26 @@ def call_api(endpoint: str, param_dict: dict) -> dict | None:
     sign_message = f"{param_encrypted}|{timestamp}|{nonce}|{APPID}"
     param_sign = hmac_sha384(sign_message)
 
+    body = {"param": param_encrypted, "paramSign": param_sign}
+    body_str = json.dumps(body, separators=(",", ":"), ensure_ascii=False)
+    gateway_sign = _gateway_sign("POST", endpoint, body_str, timestamp)
+
     headers = {
         "Content-Type": "application/json",
+        "channel": "toc_agent",
+        "brand": "toc_agent",
+        "clientversion": "10.0.0",
+        "language": "en",
+        "token": "toc_agent",
+        "X-SIGN": gateway_sign,
+        "X-TIMESTAMP": timestamp,
         "x-agent-appid": APPID,
-        "x-timestamp": timestamp,
         "x-nonce": nonce,
         "sig": param_sign,
     }
-    body = {"param": param_encrypted, "paramSign": param_sign}
 
     try:
-        resp = requests.post(f"{BASE_URL}{endpoint}", headers=headers, json=body, timeout=15)
+        resp = requests.post(f"{BASE_URL}{endpoint}", headers=headers, data=body_str, timeout=15)
     except requests.exceptions.ConnectionError:
         print(f"{RED}ERROR: Cannot connect to {BASE_URL}{RESET}", file=sys.stderr)
         return None
