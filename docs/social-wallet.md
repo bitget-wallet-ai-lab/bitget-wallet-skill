@@ -129,7 +129,6 @@ tx["sig"] = json.dumps(sig_obj)
 | Morph | `evm_custom#morph` | EVM |
 | Solana | `sol` | Native |
 | Stellar | `stellar` | Native |
-| SUI | `sui` | Native |
 | TRON | `tron` | Native |
 
 For custom EVM chains, use `evm_custom#<name>` and provide `chainId`.
@@ -363,15 +362,6 @@ python social-wallet.py core sign_transaction '{
 }'
 ```
 
-#### SUI
-
-```bash
-python social-wallet.py core sign_transaction '{
-  "chain": "sui",
-  "transaction": {"transactionBlockBytes": "Base64EncodedBytes"}
-}'
-```
-
 ---
 
 ### sign_message
@@ -400,8 +390,6 @@ python social-wallet.py core sign_message '{"chain": "btc", "message": "{\"messa
 # SOL
 python social-wallet.py core sign_message '{"chain": "sol", "message": "The quick brown fox"}'
 
-# SUI (Base64 message)
-python social-wallet.py core sign_message '{"chain": "sui", "message": "aGVsbG8gd29ybGQ="}'
 ```
 
 **ETH/EVM message formats:**
@@ -487,18 +475,18 @@ python social-wallet.py core decrypt_message '{"chain": "eth", "message": "{\"ve
 
 ## Operation Support Matrix
 
-| Operation | BTC | ETH | EVM | SOL | Stellar | SUI | TRON |
-|-----------|:---:|:---:|:---:|:---:|:-------:|:---:|:----:|
-| sign_transaction | Y | Y | Y | Y | Y | Y | Y |
-| sign_message | Y | Y | Y | Y | Y | Y | Y |
-| get_address | Y | Y | Y | Y | Y | Y | Y |
-| get_public_key | Y | Y | Y | Y | Y | Y | Y |
-| validate_address | Y | Y | Y | Y | Y | Y | Y |
-| validate_mnemonic | Y | Y | Y | Y | - | - | Y |
-| convert_address | Y | Y | Y | Y | - | - | Y |
-| verify_message | - | - | - | Y | Y | - | Y |
-| decrypt_message | - | Y | - | Y | - | - | Y |
-| get_address_type | Y | - | - | - | - | - | - |
-| bit_sign_message | Y | Y | Y | - | - | - | - |
+| Operation | BTC | ETH | EVM | SOL | Stellar | TRON |
+|-----------|:---:|:---:|:---:|:---:|:-------:|:----:|
+| sign_transaction | Y | Y | Y | Y | Y | Y |
+| sign_message | Y | Y | Y | Y | Y | Y |
+| get_address | Y | Y | Y | Y | Y | Y |
+| get_public_key | Y | Y | Y | Y | Y | Y |
+| validate_address | Y | Y | Y | Y | Y | Y |
+| validate_mnemonic | Y | Y | Y | Y | - | Y |
+| convert_address | Y | Y | Y | Y | - | Y |
+| verify_message | - | - | - | Y | Y | Y |
+| decrypt_message | - | Y | - | Y | - | Y |
+| get_address_type | Y | - | - | - | - | - |
+| bit_sign_message | Y | Y | Y | - | - | - |
 | sign_hd_transaction | Y | - | - | Y | - | - | Y |
 | sign_hd_message | Y | - | - | Y | - | - | Y |
