@@ -261,3 +261,4 @@ python3 scripts/bitget_agent_api.py get-order-details --order-id <id>
 - **Mnemonic and private keys must never appear in conversation, prompts, logs, or any output.** Only derived **addresses** may be stored in context or shown. Private keys are derived from mnemonic in secure storage, used for signing, and immediately discarded.
 - For large trades, always show the quote first and ask for user confirmation.
 - Present security audit results before recommending any token action.
+- **Use API-returned values exactly as-is.** When an API response returns a field (e.g. `market.id`, `market.protocol`, `contract`, `orderId`), pass it verbatim to subsequent API calls. Never guess, infer, transform, or substitute these values — even if a similar-looking value seems correct. Mismatched values cause silent failures or system errors.
