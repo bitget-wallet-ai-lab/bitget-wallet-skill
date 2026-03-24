@@ -11,7 +11,7 @@ Format: date-based versioning (`YYYY.M.DD`). Each release includes a sequential 
 ### Added — Social Login Wallet
 - `scripts/social-wallet.py` — 174-line Python CLI for signing transactions and messages via Bitget Wallet TEE (Trusted Execution Environment). Private keys never leave the TEE; agent authenticates with appid/appsecret.
 - `docs/social-wallet.md` — Complete integration guide: per-chain parameters (BTC/ETH/SOL/Tron + 16 EVM chains), 3 signing modes for swap flow (gasPayMaster, regular EVM tx, Tron tx), common mistakes table.
-- Supports: BTC (Taproot/SegWit/Legacy/PSBT), ETH, SOL (native+SPL+versioned), Tron, Ton, and all EVM chains via `evm_custom#` prefix.
+- Supports: BTC (Taproot/SegWit/Legacy/PSBT), ETH, SOL (native+SPL+versioned), Tron, and all EVM chains via `evm_custom#` prefix.
 - Operations: `sign_transaction`, `sign_message`, `get_address`, `get_public_key`, `validate_address`, `batchGetAddressAndPubkey`.
 
 ### Added — Swap Integration with Social Login Wallet
