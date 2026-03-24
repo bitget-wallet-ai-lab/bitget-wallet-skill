@@ -127,8 +127,7 @@ def call_api(endpoint: str, param_dict: dict) -> dict | None:
             except json.JSONDecodeError:
                 print(decrypted)
         except Exception as e:
-            print(f"ERROR: Decryption failed: {e}", file=sys.stderr)
-            print(json.dumps(data, indent=2, ensure_ascii=False))
+            print(f"ERROR: Decryption failed: {e} [status={data.get('status','')}] [trace={data.get('trace','')}]", file=sys.stderr)
     else:
         print(json.dumps(data.get("data", data), indent=2, ensure_ascii=False))
 
