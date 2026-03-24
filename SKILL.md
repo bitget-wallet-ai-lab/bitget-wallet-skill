@@ -14,6 +14,15 @@ description: "Interact with Bitget Wallet API for crypto market data, token info
 1. **Primary sources:** Use the **Scripts** section in this SKILL and the files under **`docs/`** to decide which commands to run and how. Scripts lists each Python CLI with purpose, subcommands, and when to use them; `docs/swap.md`, `docs/wallet-signing.md`, `docs/market-data.md`, etc. describe flows and domain rules.
 2. **Run commands as documented:** Execute the script invocations shown in Scripts (e.g. `python3 scripts/bitget_agent_api.py ...`, `python3 scripts/order_sign.py ...`). For swap, balance, wallet, and signing, follow the flows in `docs/swap.md` and `docs/wallet-signing.md`.
 
+**Balance query — choose the right API for the task:**
+
+| API | Use When | Tron Support | Returns |
+|-----|----------|:---:|---------|
+| `batch-v2` | General asset overview, portfolio check, "what do I have?" | ✅ | Balance + price + token info |
+| `get-processed-balance` | Swap pre-check only (verify fromToken + gas sufficiency) | ❌ | Balance + decimals (minimal) |
+
+**Rule:** If the user asks to **check assets / view balance / portfolio overview** → use **`batch-v2`**. Only use `get-processed-balance` as part of the **swap flow** pre-check.
+
 **Before starting a new swap - two mandatory pre-checks:**
 
 1. **Balance check (required):** Run **`get-processed-balance`** to verify the wallet has enough fromToken balance for the intended swap amount. Include native token (`""`) to check gas availability. If `fromToken balance < fromAmount`, inform the user of the shortfall and **do not proceed**. **Gas mode decision:** If native token balance is sufficient for gas → use `--feature user_gas` (preferred). If native token balance is near zero → use `--feature no_gas` (gasless, gas deducted from fromToken; **requires swap amount ≥ ~$5 USD** — below this threshold the API only returns `user_gas`). This choice must be passed to confirm.
@@ -234,7 +243,10 @@ Use empty string `""` for native token contract (ETH, SOL, BNB, etc.).
 ### Quick Reference
 
 ```bash
-# Balance (include native token "" to check gas)
+# Asset overview (general balance query — supports all chains including Tron; returns balance + price + token info)
+python3 scripts/bitget_agent_api.py batch-v2 --chain bnb --address <addr> --contract <token>
+
+# Swap pre-check balance (swap-specific — verifies fromToken + native gas; does NOT support Tron)
 python3 scripts/bitget_agent_api.py get-processed-balance --chain bnb --address <addr> --contract "" --contract <token>
 
 # Token find (bgw_token_find)
