@@ -128,7 +128,6 @@ tx["sig"] = json.dumps(sig_obj)
 | Klaytn | `evm_custom#klay` | EVM |
 | Morph | `evm_custom#morph` | EVM |
 | Solana | `sol` | Native |
-| Stellar | `stellar` | Native |
 | TRON | `tron` | Native |
 
 For custom EVM chains, use `evm_custom#<name>` and provide `chainId`.
@@ -346,23 +345,6 @@ python social-wallet.py core sign_transaction '{
 }'
 ```
 
-#### Stellar
-
-```bash
-# Transfer
-python social-wallet.py core sign_transaction '{
-  "chain": "stellar",
-  "transaction": {"coin": "xlm", "to": "G...", "from": "G...", "value": "10", "decimal": 7, "sequenceNumber": "123456789"}
-}'
-
-# XDR signing
-python social-wallet.py core sign_transaction '{
-  "chain": "stellar",
-  "transaction": {"xdr": "AAAAAgAAAAD..."}
-}'
-```
-
----
 
 ### sign_message
 
@@ -457,7 +439,7 @@ python social-wallet.py core get_address_type '{"chain": "btc", "address": "bc1p
 
 ---
 
-### verify_message (SOL / Stellar / TRON)
+### verify_message (SOL / TRON)
 
 ```bash
 python social-wallet.py core verify_message '{"chain": "sol", "message": "hello", "signature": "...", "address": "..."}'
@@ -475,18 +457,18 @@ python social-wallet.py core decrypt_message '{"chain": "eth", "message": "{\"ve
 
 ## Operation Support Matrix
 
-| Operation | BTC | ETH | EVM | SOL | Stellar | TRON |
-|-----------|:---:|:---:|:---:|:---:|:-------:|:----:|
-| sign_transaction | Y | Y | Y | Y | Y | Y |
-| sign_message | Y | Y | Y | Y | Y | Y |
-| get_address | Y | Y | Y | Y | Y | Y |
-| get_public_key | Y | Y | Y | Y | Y | Y |
-| validate_address | Y | Y | Y | Y | Y | Y |
+| Operation | BTC | ETH | EVM | SOL | TRON |
+|-----------|:---:|:---:|:---:|:---:|:----:|
+| sign_transaction | Y | Y | Y | Y | Y |
+| sign_message | Y | Y | Y | Y | Y |
+| get_address | Y | Y | Y | Y | Y |
+| get_public_key | Y | Y | Y | Y | Y |
+| validate_address | Y | Y | Y | Y | Y |
 | validate_mnemonic | Y | Y | Y | Y | - | Y |
 | convert_address | Y | Y | Y | Y | - | Y |
-| verify_message | - | - | - | Y | Y | Y |
-| decrypt_message | - | Y | - | Y | - | Y |
-| get_address_type | Y | - | - | - | - | - |
-| bit_sign_message | Y | Y | Y | - | - | - |
+| verify_message | - | - | - | Y | Y |
+| decrypt_message | - | Y | - | Y | Y |
+| get_address_type | Y | - | - | - | - |
+| bit_sign_message | Y | Y | Y | - | - |
 | sign_hd_transaction | Y | - | - | Y | - | - | Y |
 | sign_hd_message | Y | - | - | Y | - | - | Y |

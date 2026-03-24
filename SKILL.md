@@ -113,7 +113,7 @@ python3 scripts/social-wallet.py core get_address '{"chain":"eth"}'
 python3 scripts/social-wallet.py batchGetAddressAndPubkey '{"chainList":["eth","btc","sol"]}'
 ```
 
-Supported chains: BTC, ETH, SOL, Tron, Ton, Stellar + 16 EVM chains. See [`docs/social-wallet.md`](docs/social-wallet.md) for full chain list and per-chain parameters.
+Supported chains: BTC, ETH, SOL, Tron, Ton + 16 EVM chains. See [`docs/social-wallet.md`](docs/social-wallet.md) for full chain list and per-chain parameters.
 
 ---
 
