@@ -96,6 +96,7 @@ If NOT_FOUND, guide user:
 1. Open Bitget Wallet APP (v9.39.0+) → Social Login
 2. Settings → Bitget Wallet Skill → Enable → Copy appid + appsecret
 3. Save to `<skill_dir>/.social-wallet-secret` as `{"appid":"...","appsecret":"..."}`
+4. Restrict permissions: `chmod 600 <skill_dir>/.social-wallet-secret`
 
 ### Commands
 
