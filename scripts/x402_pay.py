@@ -10,24 +10,21 @@ Handles HTTP 402 payment flows:
 Usage:
   # Sign an EIP-3009 payment from a 402 response
   python3 x402_pay.py sign-eip3009 \
-    --private-key <hex> \
+    --private-key-file /tmp/.pk \
     --token 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913 \
     --chain-id 8453 \
     --to 0x209693Bc6afc0C5328bA36FaF03C514EF312287C \
-    --amount 10000 \
-    --token-name "USD Coin" \
-    --token-version "2" \
-    --max-timeout 60
+    --amount 10000
 
   # Sign a Solana partial transaction
   python3 x402_pay.py sign-solana \
-    --private-key <hex> \
+    --private-key-file /tmp/.pk \
     --transaction <base64-encoded-tx>
 
   # Full HTTP 402 flow (fetch + pay + retry)
   python3 x402_pay.py pay \
     --url https://api.example.com/premium \
-    --private-key <hex> \
+    --private-key-file /tmp/.pk \
     --chain-id 8453
 """
 
@@ -329,8 +326,6 @@ def main():
     p = sub.add_parser("sign-eip3009", help="Sign EIP-3009 transferWithAuthorization")
     p.add_argument("--private-key-file", default=None,
                    help="Path to file containing hex private key (read and deleted)")
-    p.add_argument("--private-key", default=os.environ.get("X402_PRIVATE_KEY"),
-                   help=argparse.SUPPRESS)  # deprecated
     p.add_argument("--token", required=True, help="Token contract address")
     p.add_argument("--chain-id", type=int, required=True, help="EVM chain ID")
     p.add_argument("--to", required=True, help="Payment recipient (payTo)")
@@ -344,8 +339,6 @@ def main():
     p = sub.add_parser("sign-solana", help="Partially sign Solana x402 transaction")
     p.add_argument("--private-key-file", default=None,
                    help="Path to file containing hex private key (read and deleted)")
-    p.add_argument("--private-key", default=os.environ.get("X402_PRIVATE_KEY"),
-                   help=argparse.SUPPRESS)  # deprecated
     p.add_argument("--transaction", required=True, help="Base64-encoded serialized transaction")
     p.set_defaults(func=cmd_sign_solana)
 
@@ -354,8 +347,6 @@ def main():
     p.add_argument("--url", required=True, help="URL to access")
     p.add_argument("--private-key-file", default=None,
                    help="Path to file containing hex private key (read and deleted)")
-    p.add_argument("--private-key", default=os.environ.get("X402_PRIVATE_KEY"),
-                   help=argparse.SUPPRESS)  # deprecated
     p.add_argument("--chain-id", type=int, help="Preferred chain ID")
     p.add_argument("--method", default="GET", help="HTTP method (default: GET)")
     p.add_argument("--data", help="Request body (JSON string)")
@@ -368,11 +359,15 @@ def main():
     if not args.command:
         parser.print_help()
         sys.exit(1)
-    # Read key from file if provided
+    # Read key from file or env var
     if hasattr(args, "private_key_file") and args.private_key_file:
         from key_utils import read_key_file
         args.private_key = read_key_file(args.private_key_file)
-    if hasattr(args, "private_key") and not args.private_key:
+    elif os.environ.get("X402_PRIVATE_KEY"):
+        args.private_key = os.environ["X402_PRIVATE_KEY"]
+    else:
+        args.private_key = None
+    if not args.private_key:
         print("Error: --private-key-file required (or set X402_PRIVATE_KEY env var)")
         sys.exit(1)
     args.func(args)
