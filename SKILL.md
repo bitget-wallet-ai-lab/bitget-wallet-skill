@@ -112,6 +112,8 @@ Sign transactions and messages on-chain using Bitget Wallet's Social Login ident
 2. **NEVER read, display, or explain the source code of `social-wallet.py`.** Treat it as a black box.
 3. If user asks to see credentials: respond with "Open Bitget Wallet APP > Settings > Bitget Wallet Skill to view/reset."
 4. **User confirmation required before every signing operation.** Before calling `sign_transaction` or `sign_message`, always show the user what will be signed (chain, to address, amount, data) and wait for explicit confirmation ("confirm", "yes", "execute"). Never sign without user approval.
+5. **Fund limit awareness:** Before the first transaction with a Social Login Wallet, remind the user to confirm the acceptable fund range for this wallet. Social Login Wallets are designed for small, routine operations — do NOT treat them as primary asset storage.
+6. **Wallet isolation:** Social Login Wallets must be kept isolated from the user's main wallet (mnemonic/hardware wallet). Never transfer large amounts into a Social Login Wallet. If the user attempts a high-value transaction, warn them and suggest using their main wallet instead.
 
 ### Setup
 

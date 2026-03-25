@@ -14,6 +14,15 @@ All operations use `social-wallet.py core <operation> '<params_json>'`.
 
 Read-only operations (`get_address`, `get_public_key`, `validate_address`, `batchGetAddressAndPubkey`) do not require confirmation.
 
+## Fund Limit & Wallet Isolation
+
+**Social Login Wallets are for small, routine on-chain operations — NOT primary asset storage.**
+
+- **Before the first transaction**, remind the user to confirm how much they are comfortable keeping in this wallet. Suggested range: small test amounts or daily-use funds only.
+- **Keep isolated from main wallet.** The Social Login Wallet should not hold the user's primary assets. If the user attempts a high-value transaction (e.g. > $100 or a significant portion of their holdings), warn them and suggest using their main wallet (mnemonic/hardware) instead.
+- **Never bulk-transfer assets** from a main wallet into a Social Login Wallet. The Social Login Wallet's security model (TEE-hosted keys, API-based signing) is different from self-custody — users should understand the tradeoff.
+- **Periodically remind users** to move excess funds back to their main wallet if the Social Login Wallet balance grows beyond their intended limit.
+
 ## Integration with Swap Flow (gasPayMaster / gasless)
 
 When using the Social Login Wallet for gasless swaps (no_gas mode), the makeOrder response returns `txFunction: "swap_instant_gas_paymaster"` with `deriveTransaction.msgs[]`. Each msg has `signType: "eth_sign"` and a `hash` to sign.
