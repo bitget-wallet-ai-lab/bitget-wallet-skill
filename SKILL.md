@@ -9,10 +9,39 @@ description: "Interact with Bitget Wallet API for crypto market data, token info
 
 ## API Overview
 
+**⚠️ MANDATORY: Load Domain Knowledge Before Any API Call**
+
+**Before calling ANY business API, you MUST first load the corresponding `docs/*.md` file for that domain.** This is non-negotiable — domain knowledge contains critical flow rules, parameter constraints, and pitfalls that cannot be inferred from command syntax alone. Skipping this step leads to silent failures, incorrect parameters, or broken flows.
+
+| Business Domain | Must Load First | Before Calling |
+|----------------|----------------|----------------|
+| Swap / Trade | [`docs/swap.md`](docs/swap.md) | quote, confirm, make-order, send, get-order-details |
+| Market Data / Token Analysis | [`docs/market-data.md`](docs/market-data.md) | coin-market-info, security, coin-dev, kline, tx-info, liquidity, rankings, launchpad-tokens, search-tokens-v3 |
+| Wallet / Signing | [`docs/wallet-signing.md`](docs/wallet-signing.md) | Any signing operation, key derivation, order_sign.py, order_make_sign_send.py |
+| Social Login Wallet | [`docs/social-wallet.md`](docs/social-wallet.md) | social-wallet.py sign_transaction, sign_message, get_address |
+| RWA Stock Trading | [`docs/rwa.md`](docs/rwa.md) | Any RWA stock discovery, config, order, holdings |
+| x402 Payments | [`docs/x402-payments.md`](docs/x402-payments.md) | x402_pay.py, HTTP 402 payment flow |
+| First-Time Setup | [`docs/first-time-setup.md`](docs/first-time-setup.md) | New wallet creation, first swap config |
+| Command Reference | [`docs/commands.md`](docs/commands.md) | When unsure about subcommand parameters or usage |
+
+**Do NOT rely solely on the Quick Reference or examples in this SKILL.md — they are summaries only.** The `docs/` files are the authoritative source for each domain's rules and flow.
+
+---
+
 **How to handle tasks:**
 
-1. **Primary sources:** Use the **Scripts** section in this SKILL and the files under **`docs/`** to decide which commands to run and how. Scripts lists each Python CLI with purpose, subcommands, and when to use them; `docs/swap.md`, `docs/wallet-signing.md`, `docs/market-data.md`, etc. describe flows and domain rules.
-2. **Run commands as documented:** Execute the script invocations shown in Scripts (e.g. `python3 scripts/bitget_agent_api.py ...`, `python3 scripts/order_sign.py ...`). For swap, balance, wallet, and signing, follow the flows in `docs/swap.md` and `docs/wallet-signing.md`.
+1. **Load domain knowledge first (mandatory):** Read the relevant `docs/*.md` file(s) from the table above before making any API calls for that domain.
+2. **Primary sources:** Use the **Scripts** section in this SKILL and the files under **`docs/`** to decide which commands to run and how. Scripts lists each Python CLI with purpose, subcommands, and when to use them; `docs/swap.md`, `docs/wallet-signing.md`, `docs/market-data.md`, etc. describe flows and domain rules.
+3. **Run commands as documented:** Execute the script invocations shown in Scripts (e.g. `python3 scripts/bitget_agent_api.py ...`, `python3 scripts/order_sign.py ...`). For swap, balance, wallet, and signing, follow the flows in `docs/swap.md` and `docs/wallet-signing.md`.
+
+**Balance query — choose the right API for the task:**
+
+| API | Use When | Tron Support | Returns |
+|-----|----------|:---:|---------|
+| `batch-v2` | General asset overview, portfolio check, "what do I have?" | ✅ | Balance + price + token info |
+| `get-processed-balance` | Swap pre-check only (verify fromToken + gas sufficiency) | ❌ | Balance + decimals (minimal) |
+
+**Rule:** If the user asks to **check assets / view balance / portfolio overview** → use **`batch-v2`**. Only use `get-processed-balance` as part of the **swap flow** pre-check.
 
 **Before starting a new swap - two mandatory pre-checks:**
 
@@ -96,6 +125,7 @@ If NOT_FOUND, guide user:
 1. Open Bitget Wallet APP (v9.39.0+) → Social Login
 2. Settings → Bitget Wallet Skill → Enable → Copy appid + appsecret
 3. Save to `<skill_dir>/.social-wallet-secret` as `{"appid":"...","appsecret":"..."}`
+4. Restrict permissions: `chmod 600 <skill_dir>/.social-wallet-secret`
 
 ### Commands
 
@@ -169,7 +199,7 @@ For other tokens, use token-info or a block explorer to verify the contract addr
 
 ### Extended Domain Knowledge
 
-Load the following when the task requires it:
+**MANDATORY: Load the corresponding file BEFORE calling any API in that domain.** Do not skip — see the mandatory rule at the top of this SKILL.
 
 | Module | File | When to Load |
 |--------|------|--------------|
@@ -234,7 +264,10 @@ Use empty string `""` for native token contract (ETH, SOL, BNB, etc.).
 ### Quick Reference
 
 ```bash
-# Balance (include native token "" to check gas)
+# Asset overview (general balance query — supports all chains including Tron; returns balance + price + token info)
+python3 scripts/bitget_agent_api.py batch-v2 --chain bnb --address <addr> --contract <token>
+
+# Swap pre-check balance (swap-specific — verifies fromToken + native gas; does NOT support Tron)
 python3 scripts/bitget_agent_api.py get-processed-balance --chain bnb --address <addr> --contract "" --contract <token>
 
 # Token find (bgw_token_find)
