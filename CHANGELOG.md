@@ -29,7 +29,7 @@ Format: date-based versioning (`YYYY.M.DD`). Each release includes a sequential 
 - `get-processed-balance` description updated: balance query supports EVM and Solana only
 
 ### Fixed
-- Checksum `to` address in approve tx signing — `eth_account` rejects non-checksum addresses
+- Checksum `to` address in approve tx signing — `0xee5523e903627dd9d3cdb590e23307f3acfc41da` accepts non-checksum addresses
 - Tron signature: use standard low-S form (removed incorrect high-S conversion)
 
 ### Documentation
