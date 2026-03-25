@@ -22,7 +22,7 @@ Usage:
     python3 scripts/order_sign.py --order-json '<json>' --private-key-file-sol /tmp/.pk
 
     # Pipe from order-create
-    python3 scripts/bitget_agent_api.py order-create ... | python3 scripts/order_sign.py --private-key-file /tmp/.pk
+    python3 scripts/bitget-wallet-agent-api.py order-create ... | python3 scripts/order_sign.py --private-key-file /tmp/.pk
 
 Output: JSON array of signed strings, ready for order-submit --signed-txs
 

@@ -1,6 +1,6 @@
 # RWA (Real World Asset) Stock Trading
 
-This document describes **RWA stock trading**: tokenized real-world stocks (e.g. NVDA, TSLA) tradable on supported chains via the same swap flow. Use `scripts/bitget_agent_api.py` for RWA discovery and config, then follow [Swap](swap.md) for execution.
+This document describes **RWA stock trading**: tokenized real-world stocks (e.g. NVDA, TSLA) tradable on supported chains via the same swap flow. Use `scripts/bitget-wallet-agent-api.py` for RWA discovery and config, then follow [Swap](swap.md) for execution.
 
 ## Business Background
 
@@ -51,14 +51,14 @@ Follow [swap.md](swap.md) for balance check, token risk check, quote, confirm, m
 
 ## Python Script Commands (RWA)
 
-All commands are run via `python3 scripts/bitget_agent_api.py <command> ...`.
+All commands are run via `python3 scripts/bitget-wallet-agent-api.py <command> ...`.
 
 ### rwa-get-user-ticker-selector
 
 Query or search RWA stock tickers; optionally include user balance when `--user-address` is provided.
 
 ```bash
-python3 scripts/bitget_agent_api.py rwa-get-user-ticker-selector --chain bnb [--user-address <addr>] [--key-word <keyword>]
+python3 scripts/bitget-wallet-agent-api.py rwa-get-user-ticker-selector --chain bnb [--user-address <addr>] [--key-word <keyword>]
 ```
 
 - `--chain` (required): `bnb` or `eth`.
@@ -70,9 +70,9 @@ python3 scripts/bitget_agent_api.py rwa-get-user-ticker-selector --chain bnb [--
 Get RWA trading config: stablecoin list (fromTokenList / toTokenList), slippage, amount limits, gasInfoList.
 
 ```bash
-python3 scripts/bitget_agent_api.py rwa-get-config --address-list "bnb,0x...;eth,0x...;sol,..."
+python3 scripts/bitget-wallet-agent-api.py rwa-get-config --address-list "bnb,0x...;eth,0x...;sol,..."
 # Or JSON stdin:
-echo '{"addressList":[{"chain":"bnb","address":"0x..."},{"chain":"eth","address":"0x..."}]}' | python3 scripts/bitget_agent_api.py rwa-get-config --json-stdin
+echo '{"addressList":[{"chain":"bnb","address":"0x..."},{"chain":"eth","address":"0x..."}]}' | python3 scripts/bitget-wallet-agent-api.py rwa-get-config --json-stdin
 ```
 
 - `--address-list`: semicolon-separated `chain,address` pairs for bnb, eth, sol.
@@ -83,7 +83,7 @@ echo '{"addressList":[{"chain":"bnb","address":"0x..."},{"chain":"eth","address"
 Get RWA stock info by ticker (market status, trading limits, chain_assets). **GET** request.
 
 ```bash
-python3 scripts/bitget_agent_api.py rwa-stock-info --ticker NVDAon
+python3 scripts/bitget-wallet-agent-api.py rwa-stock-info --ticker NVDAon
 ```
 
 ### rwa-stock-order-price
@@ -91,8 +91,8 @@ python3 scripts/bitget_agent_api.py rwa-stock-info --ticker NVDAon
 Get display buy/sell price for an RWA stock (for pre-trade display only).
 
 ```bash
-python3 scripts/bitget_agent_api.py rwa-stock-order-price --ticker NVDAon --chain bnb --side buy --tx-coin-contract 0x55d398326f99059ff775485246999027b3197955 --user-address 0x...
-python3 scripts/bitget_agent_api.py rwa-stock-order-price --ticker NVDAon --chain bnb --side sell --tx-coin-contract 0x55d398326f99059ff775485246999027b3197955 --user-address 0x...
+python3 scripts/bitget-wallet-agent-api.py rwa-stock-order-price --ticker NVDAon --chain bnb --side buy --tx-coin-contract 0x55d398326f99059ff775485246999027b3197955 --user-address 0x...
+python3 scripts/bitget-wallet-agent-api.py rwa-stock-order-price --ticker NVDAon --chain bnb --side sell --tx-coin-contract 0x55d398326f99059ff775485246999027b3197955 --user-address 0x...
 ```
 
 - `--tx-coin-contract`: stablecoin contract from rwaGetConfig (fromTokenList / toTokenList).
@@ -102,7 +102,7 @@ python3 scripts/bitget_agent_api.py rwa-stock-order-price --ticker NVDAon --chai
 Get K-line data for an RWA stock.
 
 ```bash
-python3 scripts/bitget_agent_api.py rwa-kline --chain rwa --contract NVDAon --period 1d [--size 30]
+python3 scripts/bitget-wallet-agent-api.py rwa-kline --chain rwa --contract NVDAon --period 1d [--size 30]
 ```
 
 - `--chain`: use `rwa` for RWA kline.
@@ -114,7 +114,7 @@ python3 scripts/bitget_agent_api.py rwa-kline --chain rwa --contract NVDAon --pe
 Get the user’s RWA stock holdings.
 
 ```bash
-python3 scripts/bitget_agent_api.py rwa-get-my-holdings --user-address 0x...
+python3 scripts/bitget-wallet-agent-api.py rwa-get-my-holdings --user-address 0x...
 ```
 
 Response includes `data.balance_list` with ticker, balance, chain_asset, etc.

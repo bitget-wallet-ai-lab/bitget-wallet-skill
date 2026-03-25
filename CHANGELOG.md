@@ -69,7 +69,7 @@ Format: date-based versioning (`YYYY.M.DD`). Each release includes a sequential 
 - Tron USDT (`TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t`) added to contract table
 
 ### Added — New API Method
-- `_request_get()` in `bitget_agent_api.py` — GET requests with BKHmacAuth signing (used by `rwa-stock-info`)
+- `_request_get()` in `bitget-wallet-agent-api.py` — GET requests with BKHmacAuth signing (used by `rwa-stock-info`)
 
 ### Changed
 - Request headers updated: `brand` → `toc_agent`, `channel` → `0.0.1` (was `IOS` / `9.36.0`)
@@ -95,11 +95,11 @@ Format: date-based versioning (`YYYY.M.DD`). Each release includes a sequential 
 ### Breaking Changes
 - **New API endpoint**: Migrated from `bopenapi.bgwapi.io` (HMAC auth) to `copenapi.bgwapi.io` (token auth, no API key needed)
 - **New swap flow**: `quote → confirm → makeOrder → sign+send → getOrderDetails` replaces old `order-quote → order-create → sign → order-submit → order-status`
-- **Removed**: `scripts/bitget_api.py` (legacy API client) — replaced by `scripts/bitget_agent_api.py`
+- **Removed**: `scripts/bitget_api.py` (legacy API client) — replaced by `scripts/bitget-wallet-agent-api.py`
 - **Removed**: `docs/trading.md` — replaced by `docs/swap.md`
 
 ### Added — New Scripts
-- `scripts/bitget_agent_api.py` — Unified API client: swap flow + balance + token search + market data (no API key required)
+- `scripts/bitget-wallet-agent-api.py` — Unified API client: swap flow + balance + token search + market data (no API key required)
 - `scripts/order_make_sign_send.py` — One-shot makeOrder + sign + send (EVM `--private-key` + Solana `--private-key-sol`)
 
 ### Added — New API Commands

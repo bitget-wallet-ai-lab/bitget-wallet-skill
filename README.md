@@ -86,7 +86,7 @@ The swap flow enables two capabilities no other AI agent swap skill offers:
 **Example — Same-chain swap:**
 ```bash
 # Quote: BNB USDT → USDC
-python3 scripts/bitget_agent_api.py quote \
+python3 scripts/bitget-wallet-agent-api.py quote \
   --from-chain bnb --from-contract 0x55d398326f99059fF775485246999027B3197955 \
   --from-symbol USDT --from-amount 5 \
   --to-chain bnb --to-contract 0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d \
@@ -94,7 +94,7 @@ python3 scripts/bitget_agent_api.py quote \
   --from-address 0xYourAddress --to-address 0xYourAddress
 
 # Confirm with chosen market
-python3 scripts/bitget_agent_api.py confirm \
+python3 scripts/bitget-wallet-agent-api.py confirm \
   --from-chain bnb --from-contract 0x55d398326f99059fF775485246999027B3197955 \
   --from-symbol USDT --from-amount 5 \
   --to-chain bnb --to-contract 0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d \
@@ -143,7 +143,7 @@ Natural Language Input
     ↓
 AI Agent (OpenClaw / Dify / Custom)
     ↓
-bitget_agent_api.py (Python 3.9+)
+bitget-wallet-agent-api.py (Python 3.9+)
     ↓  ← Token auth (no API key needed)
 Bitget Agent API (copenapi.bgwapi.io)
     ↓
@@ -209,7 +209,7 @@ Structured JSON → Agent interprets → Natural language response
 ### 7. Dify / LangChain Tool Node
 > Integrate as a Tool in Dify workflows or LangChain agents
 
-- `bitget_agent_api.py` can serve directly as a Dify Code node or external API Tool
+- `bitget-wallet-agent-api.py` can serve directly as a Dify Code node or external API Tool
 - Can also be wrapped as an MCP Server for any MCP-compatible agent framework
 - For: enterprise agent platform integration
 
@@ -231,13 +231,13 @@ Structured JSON → Agent interprets → Natural language response
 
 ```bash
 # Get SOL price
-python3 scripts/bitget_agent_api.py token-price --chain sol --contract ""
+python3 scripts/bitget-wallet-agent-api.py token-price --chain sol --contract ""
 
 # Security audit for a token
-python3 scripts/bitget_agent_api.py security --chain sol --contract <contract_address>
+python3 scripts/bitget-wallet-agent-api.py security --chain sol --contract <contract_address>
 
 # Swap quote (5 USDT → USDC on BNB Chain)
-python3 scripts/bitget_agent_api.py quote \
+python3 scripts/bitget-wallet-agent-api.py quote \
   --from-chain bnb --from-contract 0x55d398326f99059fF775485246999027B3197955 \
   --from-symbol USDT --from-amount 5 \
   --to-chain bnb --to-contract 0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d \
@@ -300,7 +300,7 @@ python3 scripts/bitget_agent_api.py quote \
 | [SWE-agent](https://github.com/princeton-nlp/SWE-agent) | Coding Agent | Shell access in sandbox |
 | [Dify](https://dify.ai) | Workflow Platform | Use as Code node or external API Tool |
 | [Coze](https://www.coze.com) | Agent Platform | Import as plugin or API Tool |
-| [LangChain](https://langchain.com) / [CrewAI](https://crewai.com) | Frameworks | Wrap `bitget_agent_api.py` as a Tool |
+| [LangChain](https://langchain.com) / [CrewAI](https://crewai.com) | Frameworks | Wrap `bitget-wallet-agent-api.py` as a Tool |
 
 ### 💡 Compatibility Rule
 

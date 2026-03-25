@@ -32,7 +32,7 @@ description: "Interact with Bitget Wallet API for crypto market data, token info
 
 1. **Load domain knowledge first (mandatory):** Read the relevant `docs/*.md` file(s) from the table above before making any API calls for that domain.
 2. **Primary sources:** Use the **Scripts** section in this SKILL and the files under **`docs/`** to decide which commands to run and how. Scripts lists each Python CLI with purpose, subcommands, and when to use them; `docs/swap.md`, `docs/wallet-signing.md`, `docs/market-data.md`, etc. describe flows and domain rules.
-3. **Run commands as documented:** Execute the script invocations shown in Scripts (e.g. `python3 scripts/bitget_agent_api.py ...`, `python3 scripts/order_sign.py ...`). For swap, balance, wallet, and signing, follow the flows in `docs/swap.md` and `docs/wallet-signing.md`.
+3. **Run commands as documented:** Execute the script invocations shown in Scripts (e.g. `python3 scripts/bitget-wallet-agent-api.py ...`, `python3 scripts/order_sign.py ...`). For swap, balance, wallet, and signing, follow the flows in `docs/swap.md` and `docs/wallet-signing.md`.
 
 **Balance query — choose the right API for the task:**
 
@@ -47,12 +47,12 @@ description: "Interact with Bitget Wallet API for crypto market data, token info
 
 1. **Balance check (required):** Run **`get-processed-balance`** to verify the wallet has enough fromToken balance for the intended swap amount. Include native token (`""`) to check gas availability. If `fromToken balance < fromAmount`, inform the user of the shortfall and **do not proceed**. **Gas mode decision:** If native token balance is sufficient for gas → use `--feature user_gas` (preferred). If native token balance is near zero → use `--feature no_gas` (gasless, gas deducted from fromToken; **requires swap amount ≥ ~$5 USD** — below this threshold the API only returns `user_gas`). This choice must be passed to confirm.
    ```bash
-   python3 scripts/bitget_agent_api.py get-processed-balance --chain <fromChain> --address <wallet> --contract "" --contract <fromContract>
+   python3 scripts/bitget-wallet-agent-api.py get-processed-balance --chain <fromChain> --address <wallet> --contract "" --contract <fromContract>
    ```
 
 2. **Token risk check (required):** Run **`check-swap-token`** for the intended fromToken and toToken. If `error_code != 0`, show `msg` and stop. If for any token `data.list[].checkTokenList` is non-empty, show the `tips` content to the user and let them decide whether to continue. If the **toToken** (swap target) has an item with **`waringType` equal to `"forbidden-buy"`**, do **not** proceed with the swap and warn the user that this token cannot be used as the swap target.
    ```bash
-   python3 scripts/bitget_agent_api.py check-swap-token --from-chain ... --from-contract ... --from-symbol ... --to-chain ... --to-contract ... --to-symbol ...
+   python3 scripts/bitget-wallet-agent-api.py check-swap-token --from-chain ... --from-contract ... --from-symbol ... --to-chain ... --to-contract ... --to-symbol ...
    ```
 
 **Swap execution must strictly follow `docs/swap.md` Flow Overview — no shortcuts:**
@@ -67,7 +67,7 @@ description: "Interact with Bitget Wallet API for crypto market data, token info
 
 See Scripts for full command details and `docs/swap.md` for the complete flow.
 
-**Technical reference:** Base URL `https://copenapi.bgwapi.io` (token auth, no API key). All commands via `scripts/bitget_agent_api.py` — run with `--help` for full subcommand list, or see [`docs/commands.md`](docs/commands.md).
+**Technical reference:** Base URL `https://copenapi.bgwapi.io` (token auth, no API key). All commands via `scripts/bitget-wallet-agent-api.py` — run with `--help` for full subcommand list, or see [`docs/commands.md`](docs/commands.md).
 
 ## Market Tools Architecture
 
@@ -224,7 +224,7 @@ For other tokens, use token-info or a block explorer to verify the contract addr
 4. **Insufficient gas:** Swap can fail if the wallet lacks native token for gas. Check balance before proceeding.
 5. **Token approval (EVM):** ERC-20 must be approved for the router; see "EVM Token Approval" in `docs/swap.md`.
 6. **Wallet before balance/swap:** If no wallet is configured, guide the user through First-Time Wallet Setup (see Wallet Domain Knowledge above).
-7. **Script usage:** Use CLI commands from this SKILL (e.g. `bitget_agent_api.py`, `order_sign.py`).
+7. **Script usage:** Use CLI commands from this SKILL (e.g. `bitget-wallet-agent-api.py`, `order_sign.py`).
 8. **Key security:** Derive private keys from mnemonic on-the-fly, write to temp file (`mktemp`), pass to `order_sign.py --private-key-file` (script reads and auto-deletes). Never store keys or output mnemonic/keys to chat.
 9. **Human-readable amounts:** Pass fromAmount etc. as user-facing numbers (e.g. `0.01`), not wei/lamports/decimals.
 10. **Security:** Mnemonic and private keys must **never** appear in conversation, prompts, or any output. Only mnemonic **file path** and derived **addresses** may be in context.
@@ -258,7 +258,7 @@ Use empty string `""` for native token contract (ETH, SOL, BNB, etc.).
 
 | Script | Purpose | Key commands |
 |--------|---------|-------------|
-| `bitget_agent_api.py` | Unified API client | Balance, token find (launchpad-tokens/search-tokens-v3/rankings), token check (security/coin-dev/coin-market-info/kline/tx-info), swap flow (quote→confirm→make-order→send→get-order-details) |
+| `bitget-wallet-agent-api.py` | Unified API client | Balance, token find (launchpad-tokens/search-tokens-v3/rankings), token check (security/coin-dev/coin-market-info/kline/tx-info), swap flow (quote→confirm→make-order→send→get-order-details) |
 | `order_make_sign_send.py` | One-shot swap execution | makeOrder + sign + send in one run. `--private-key-file` (EVM) or `--private-key-file-sol` (Solana). Avoids 60s expiry. |
 | `order_sign.py` | Sign makeOrder data | Outputs JSON array of signatures. Supports raw tx, EVM gasPayMaster (eth_sign), EIP-712, Solana Ed25519, Solana gasPayMaster. |
 | `x402_pay.py` | x402 payment | EIP-3009 signing, Solana partial-sign, HTTP 402 pay flow |
@@ -268,26 +268,26 @@ Use empty string `""` for native token contract (ETH, SOL, BNB, etc.).
 
 ```bash
 # Asset overview (general balance query — supports all chains including Tron; returns balance + price + token info)
-python3 scripts/bitget_agent_api.py batch-v2 --chain bnb --address <addr> --contract <token>
+python3 scripts/bitget-wallet-agent-api.py batch-v2 --chain bnb --address <addr> --contract <token>
 
 # Swap pre-check balance (swap-specific — verifies fromToken + native gas; does NOT support Tron)
-python3 scripts/bitget_agent_api.py get-processed-balance --chain bnb --address <addr> --contract "" --contract <token>
+python3 scripts/bitget-wallet-agent-api.py get-processed-balance --chain bnb --address <addr> --contract "" --contract <token>
 
 # Token find (bgw_token_find)
-python3 scripts/bitget_agent_api.py launchpad-tokens --chain sol --platforms pump.fun --stage 1 --mc-min 10000 --holder-min 100
-python3 scripts/bitget_agent_api.py search-tokens-v3 --keyword pepe --chain sol --order-by market_cap
-python3 scripts/bitget_agent_api.py rankings --name Hotpicks  # or topGainers, topLosers
+python3 scripts/bitget-wallet-agent-api.py launchpad-tokens --chain sol --platforms pump.fun --stage 1 --mc-min 10000 --holder-min 100
+python3 scripts/bitget-wallet-agent-api.py search-tokens-v3 --keyword pepe --chain sol --order-by market_cap
+python3 scripts/bitget-wallet-agent-api.py rankings --name Hotpicks  # or topGainers, topLosers
 
 # Token check (bgw_token_check)
-python3 scripts/bitget_agent_api.py coin-market-info --chain sol --contract <addr>
-python3 scripts/bitget_agent_api.py security --chain bnb --contract <addr>
-python3 scripts/bitget_agent_api.py coin-dev --chain sol --contract <addr>
+python3 scripts/bitget-wallet-agent-api.py coin-market-info --chain sol --contract <addr>
+python3 scripts/bitget-wallet-agent-api.py security --chain bnb --contract <addr>
+python3 scripts/bitget-wallet-agent-api.py coin-dev --chain sol --contract <addr>
 
 # Swap flow
-python3 scripts/bitget_agent_api.py quote --from-chain bnb --from-contract <addr> --from-symbol USDT --from-amount 5 --to-chain bnb --to-contract "" --to-symbol BNB --from-address <wallet> --to-address <wallet>
-python3 scripts/bitget_agent_api.py confirm ... --market <id> --protocol <proto> --slippage <val> --feature user_gas
+python3 scripts/bitget-wallet-agent-api.py quote --from-chain bnb --from-contract <addr> --from-symbol USDT --from-amount 5 --to-chain bnb --to-contract "" --to-symbol BNB --from-address <wallet> --to-address <wallet>
+python3 scripts/bitget-wallet-agent-api.py confirm ... --market <id> --protocol <proto> --slippage <val> --feature user_gas
 python3 scripts/order_make_sign_send.py --private-key-file /tmp/.pk_evm --order-id <id> --from-chain bnb ... --market ... --protocol ...
-python3 scripts/bitget_agent_api.py get-order-details --order-id <id>
+python3 scripts/bitget-wallet-agent-api.py get-order-details --order-id <id>
 ```
 
 ---

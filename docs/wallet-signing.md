@@ -211,7 +211,7 @@ All keys are derived on-the-fly from the mnemonic in secure storage. The agent s
 
 ```bash
 # EVM: pipe or pass JSON
-python3 scripts/bitget_agent_api.py make-order ... | python3 scripts/order_sign.py --private-key-file <key_file>
+python3 scripts/bitget-wallet-agent-api.py make-order ... | python3 scripts/order_sign.py --private-key-file <key_file>
 python3 scripts/order_sign.py --order-json '<json>' --private-key-file <key_file>
 
 # Solana: use --private-key-file-sol

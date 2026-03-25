@@ -2,7 +2,7 @@
 
 Detailed subcommand parameters and usage examples for all scripts.
 
-## `scripts/bitget_agent_api.py`
+## `scripts/bitget-wallet-agent-api.py`
 
 Unified API client: swap flow + balance + token search + market data. No API key required.
 
@@ -36,48 +36,48 @@ Unified API client: swap flow + balance + token search + market data. No API key
 
 ```bash
 # Token risk check before swap
-python3 scripts/bitget_agent_api.py check-swap-token --from-chain bnb --from-contract <addr> --from-symbol USDT --to-chain bnb --to-contract "" --to-symbol BNB
+python3 scripts/bitget-wallet-agent-api.py check-swap-token --from-chain bnb --from-contract <addr> --from-symbol USDT --to-chain bnb --to-contract "" --to-symbol BNB
 # Or via JSON stdin:
-echo '{"list":[{"chain":"bnb","contract":"","symbol":"BNB"},{"chain":"bnb","contract":"0x...","symbol":"AIO"}]}' | python3 scripts/bitget_agent_api.py check-swap-token --json-stdin
+echo '{"list":[{"chain":"bnb","contract":"","symbol":"BNB"},{"chain":"bnb","contract":"0x...","symbol":"AIO"}]}' | python3 scripts/bitget-wallet-agent-api.py check-swap-token --json-stdin
 
 # Balance (chain + address; contract "" = native, or pass multiple --contract); Only evm and Solana
-python3 scripts/bitget_agent_api.py get-processed-balance --chain bnb --address <wallet_evm> [--contract "" --contract <token_contract>]
-echo '{"list":[{"chain":"bnb","address":"0x...","contract":["","0x..."]}]}' | python3 scripts/bitget_agent_api.py get-processed-balance --json-stdin
+python3 scripts/bitget-wallet-agent-api.py get-processed-balance --chain bnb --address <wallet_evm> [--contract "" --contract <token_contract>]
+echo '{"list":[{"chain":"bnb","address":"0x...","contract":["","0x..."]}]}' | python3 scripts/bitget-wallet-agent-api.py get-processed-balance --json-stdin
 
 # Balance + token price (batch-v2)
-python3 scripts/bitget_agent_api.py batch-v2 --chain bnb --address <wallet_evm> [--contract "" --contract <token_contract>]
+python3 scripts/bitget-wallet-agent-api.py batch-v2 --chain bnb --address <wallet_evm> [--contract "" --contract <token_contract>]
 
 # Search tokens
-python3 scripts/bitget_agent_api.py search-tokens --keyword USDT
-python3 scripts/bitget_agent_api.py search-tokens --keyword USDT --chain bnb
+python3 scripts/bitget-wallet-agent-api.py search-tokens --keyword USDT
+python3 scripts/bitget-wallet-agent-api.py search-tokens --keyword USDT --chain bnb
 
 # Token list for a chain
-python3 scripts/bitget_agent_api.py get-token-list --chain bnb
+python3 scripts/bitget-wallet-agent-api.py get-token-list --chain bnb
 
 # Market data
-python3 scripts/bitget_agent_api.py token-info --chain bnb --contract 0x55d398326f99059fF775485246999027B3197955
-python3 scripts/bitget_agent_api.py token-price --chain bnb --contract 0x55d398326f99059fF775485246999027B3197955
-python3 scripts/bitget_agent_api.py batch-token-info --tokens "bnb:0x55d3...,eth:0xdAC1..."
-python3 scripts/bitget_agent_api.py kline --chain bnb --contract 0x55d3... --period 1h --size 24
-python3 scripts/bitget_agent_api.py tx-info --chain bnb --contract 0x55d3...
-python3 scripts/bitget_agent_api.py batch-tx-info --tokens "bnb:0x...,eth:0x..."
-python3 scripts/bitget_agent_api.py historical-coins --create-time "2026-02-27 00:00:00" --limit 20
-python3 scripts/bitget_agent_api.py rankings --name topGainers    # or topLosers, Hotpicks
-python3 scripts/bitget_agent_api.py liquidity --chain bnb --contract 0x55d3...
-python3 scripts/bitget_agent_api.py security --chain bnb --contract 0x55d3...
+python3 scripts/bitget-wallet-agent-api.py token-info --chain bnb --contract 0x55d398326f99059fF775485246999027B3197955
+python3 scripts/bitget-wallet-agent-api.py token-price --chain bnb --contract 0x55d398326f99059fF775485246999027B3197955
+python3 scripts/bitget-wallet-agent-api.py batch-token-info --tokens "bnb:0x55d3...,eth:0xdAC1..."
+python3 scripts/bitget-wallet-agent-api.py kline --chain bnb --contract 0x55d3... --period 1h --size 24
+python3 scripts/bitget-wallet-agent-api.py tx-info --chain bnb --contract 0x55d3...
+python3 scripts/bitget-wallet-agent-api.py batch-tx-info --tokens "bnb:0x...,eth:0x..."
+python3 scripts/bitget-wallet-agent-api.py historical-coins --create-time "2026-02-27 00:00:00" --limit 20
+python3 scripts/bitget-wallet-agent-api.py rankings --name topGainers    # or topLosers, Hotpicks
+python3 scripts/bitget-wallet-agent-api.py liquidity --chain bnb --contract 0x55d3...
+python3 scripts/bitget-wallet-agent-api.py security --chain bnb --contract 0x55d3...
 
 # Swap flow
 # 1. Quote
-python3 scripts/bitget_agent_api.py quote --from-address <wallet> --from-chain bnb --from-symbol USDT --from-contract <addr> --from-amount 0.01 --to-chain bnb --to-symbol BNB --to-contract ""
+python3 scripts/bitget-wallet-agent-api.py quote --from-address <wallet> --from-chain bnb --from-symbol USDT --from-contract <addr> --from-amount 0.01 --to-chain bnb --to-symbol BNB --to-contract ""
 # 2. Confirm
-python3 scripts/bitget_agent_api.py confirm --from-chain bnb --from-symbol USDT --from-contract <addr> --from-amount 0.01 --from-address <wallet> --to-chain bnb --to-symbol BNB --to-contract "" --to-address <wallet> --market <market.id> --protocol <market.protocol> --slippage <recommendSlippage>
+python3 scripts/bitget-wallet-agent-api.py confirm --from-chain bnb --from-symbol USDT --from-contract <addr> --from-amount 0.01 --from-address <wallet> --to-chain bnb --to-symbol BNB --to-contract "" --to-address <wallet> --market <market.id> --protocol <market.protocol> --slippage <recommendSlippage>
 # 3. makeOrder (separate)
-python3 scripts/bitget_agent_api.py make-order --order-id <orderId> --from-chain bnb --from-contract <addr> --from-symbol USDT --to-chain bnb --to-contract "" --to-symbol BNB --from-address <wallet> --to-address <wallet> --from-amount 0.01 --slippage 1.00 --market bgwevmaggregator --protocol bgwevmaggregator_v000 > /tmp/makeorder.json
+python3 scripts/bitget-wallet-agent-api.py make-order --order-id <orderId> --from-chain bnb --from-contract <addr> --from-symbol USDT --to-chain bnb --to-contract "" --to-symbol BNB --from-address <wallet> --to-address <wallet> --from-amount 0.01 --slippage 1.00 --market bgwevmaggregator --protocol bgwevmaggregator_v000 > /tmp/makeorder.json
 # 4. Sign
 python3 scripts/order_sign.py --order-json "$(cat /tmp/makeorder.json)" --private-key-file <key_file> > /tmp/sigs.json
 # 5. Send (fill txs[i].sig from sigs, then send)
 # 6. Order status
-python3 scripts/bitget_agent_api.py get-order-details --order-id <orderId>
+python3 scripts/bitget-wallet-agent-api.py get-order-details --order-id <orderId>
 ```
 
 ---

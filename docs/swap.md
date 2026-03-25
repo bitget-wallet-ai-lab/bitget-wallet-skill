@@ -1,6 +1,6 @@
 # Swap (Token Swap) Domain Knowledge
 
-This document describes the **Swap flow**: use `scripts/bitget_agent_api.py` for the new API (no apiKey). Flow: **quote → confirm → makeOrder → sign & send → getOrderDetails**. See [Wallet & Signing](wallet-signing.md) for key management details.
+This document describes the **Swap flow**: use `scripts/bitget-wallet-agent-api.py` for the new API (no apiKey). Flow: **quote → confirm → makeOrder → sign & send → getOrderDetails**. See [Wallet & Signing](wallet-signing.md) for key management details.
 
 **Wallet before swap:** The agent must have a configured wallet (mnemonic in secure storage, derived addresses in context). If not, guide the user through First-Time Wallet Setup (see SKILL.md). **Mnemonic and private keys must never appear in context.**
 
@@ -10,14 +10,14 @@ This document describes the **Swap flow**: use `scripts/bitget_agent_api.py` for
 
 | Step | Interface / script | Description |
 |------|--------------------|-------------|
-| 0 | `bitget_agent_api.py check-swap-token` | Check fromToken and toToken for risks **before** quote; if risks or forbidden-buy on toToken, prompt user or stop. |
-| 1 | `bitget_agent_api.py quote` | First quote; returns multiple markets in `data.quoteResults`. Agent shows **all** results, recommends the first; user may choose another for confirm. |
-| 2 | `bitget_agent_api.py confirm` | Second quote; use market/protocol/slippage from **chosen** quote result (default first); Get latest quoteResult and orderId. The agent should display the `data.quoteResult`. If the `data.tips` are not empty, agent should display and remind user |
+| 0 | `bitget-wallet-agent-api.py check-swap-token` | Check fromToken and toToken for risks **before** quote; if risks or forbidden-buy on toToken, prompt user or stop. |
+| 1 | `bitget-wallet-agent-api.py quote` | First quote; returns multiple markets in `data.quoteResults`. Agent shows **all** results, recommends the first; user may choose another for confirm. |
+| 2 | `bitget-wallet-agent-api.py confirm` | Second quote; use market/protocol/slippage from **chosen** quote result (default first); Get latest quoteResult and orderId. The agent should display the `data.quoteResult`. If the `data.tips` are not empty, agent should display and remind user |
 | 3+4+5 | **`order_make_sign_send.py`** (recommended) | makeOrder + sign + send in one run |
-| 3′ | `bitget_agent_api.py make-order` | Create order; returns unsigned data.txs (~60s expiry) |
+| 3′ | `bitget-wallet-agent-api.py make-order` | Create order; returns unsigned data.txs (~60s expiry) |
 | 4′ | `order_sign.py` + fill `txs[].sig` | Sign data.txs with private key (derived from mnemonic, discarded after) |
-| 5′ | `bitget_agent_api.py send` | Submit signed order (body: orderId + txs) |
-| 6 | `bitget_agent_api.py get-order-details` | Query order status and result |
+| 5′ | `bitget-wallet-agent-api.py send` | Submit signed order (body: orderId + txs) |
+| 6 | `bitget-wallet-agent-api.py get-order-details` | Query order status and result |
 
 **Balance and token discovery:** For balance only use `get-processed-balance`. For balance **plus token price** (e.g. portfolio value in USD) use **`batch-v2`** (same request format: `list: [{ chain, address, contract }]`). 
 **Search tokens:** To search tokens by keyword or contract address use **`search-tokens --keyword <keyword|contract>`** (optional **`--chain`** to restrict to one chain); use the returned `chain`, `contract`, `symbol` when building quote/confirm args.
@@ -31,7 +31,7 @@ Before any swap, the agent **must** run balance and risk checks, then show a **s
 Run **`get-processed-balance`** to verify the wallet has sufficient fromToken balance **and** native token for gas:
 
 ```bash
-python3 scripts/bitget_agent_api.py get-processed-balance --chain <fromChain> --address <wallet> --contract "" --contract <fromContract>
+python3 scripts/bitget-wallet-agent-api.py get-processed-balance --chain <fromChain> --address <wallet> --contract "" --contract <fromContract>
 ```
 
 - If **fromToken balance < fromAmount**: inform the user of the shortfall (e.g., "You have 5.85 USDT but requested 6 USDT") and **do not proceed**.
@@ -72,10 +72,10 @@ python3 scripts/bitget_agent_api.py get-processed-balance --chain <fromChain> --
 Run **`check-swap-token`** for the intended fromToken and toToken **before** calling quote:
 
 ```bash
-python3 scripts/bitget_agent_api.py check-swap-token --from-chain <chain> --from-contract <addr> --from-symbol <sym> --to-chain <chain> --to-contract <addr> --to-symbol <sym>
+python3 scripts/bitget-wallet-agent-api.py check-swap-token --from-chain <chain> --from-contract <addr> --from-symbol <sym> --to-chain <chain> --to-contract <addr> --to-symbol <sym>
 ```
 
-Or with JSON stdin: `echo '{"list":[{"chain":"...","contract":"...","symbol":"..."}, ...]}' | python3 scripts/bitget_agent_api.py check-swap-token --json-stdin`.
+Or with JSON stdin: `echo '{"list":[{"chain":"...","contract":"...","symbol":"..."}, ...]}' | python3 scripts/bitget-wallet-agent-api.py check-swap-token --json-stdin`.
 
 - If **`error_code != 0`**: show the `msg` field to the user and **do not proceed** with the swap.
 - If for any token **`data.list[].checkTokenList`** is **non-empty**: each item may contain `tips` (risk description) and `waringType`. **Show the `tips` content** to the user and let them decide whether to continue. Optionally summarize by token (from/to).
@@ -89,7 +89,7 @@ Or with JSON stdin: `echo '{"list":[{"chain":"...","contract":"...","symbol":"..
 
 ### 1. First quote (quote)
 
-- **Script:** `python3 scripts/bitget_agent_api.py quote ...`
+- **Script:** `python3 scripts/bitget-wallet-agent-api.py quote ...`
 - **Request:** fromAddress, fromChain, fromSymbol, fromContract, **fromAmount** (human-readable, e.g. `0.01` for 0.01 USDT), toChain, toSymbol, toContract (empty for native), toAddress (default same as fromAddress).
 - **Response:** If `error_code != 0`, show `msg` and stop. The response contains **multiple market results** in `data.quoteResults` (each item has e.g. `market.id`, `market.label`, `outAmount`, `minAmount`, `gasFees`, `slippageInfo.recommendSlippage`).
 - **Agent — display all results and recommend the first:**
@@ -99,7 +99,7 @@ Or with JSON stdin: `echo '{"list":[{"chain":"...","contract":"...","symbol":"..
 
 ### 2. Second quote (confirm)
 
-- **Script:** `python3 scripts/bitget_agent_api.py confirm ...`
+- **Script:** `python3 scripts/bitget-wallet-agent-api.py confirm ...`
 - **Request:** `market` and `protocol` from the **chosen** quote result (default: `data.quoteResults[0].market.id` and `.protocol`; if the user picked another, use that item's `market.id` and `market.protocol`). `slippage` from the same chosen result's `slippageInfo.recommendSlippage`. `features` a single-element array — **agent must choose based on native token balance from step 1:**
     - `["user_gas"]` — native token balance is sufficient for gas fees → user pays gas normally (**preferred**)
     - `["no_gas"]` — native token balance is insufficient (near zero) → gasless mode, gas deducted from `fromToken`
@@ -121,13 +121,13 @@ Or with JSON stdin: `echo '{"list":[{"chain":"...","contract":"...","symbol":"..
 
 Use only when not using the combined script (e.g. external signer, or key from secure storage like 1Password).
 
-- **makeOrder:** `bitget_agent_api.py make-order` with orderId, market, protocol, slippage from confirm. Response `data.txs` expires in ~60s.
+- **makeOrder:** `bitget-wallet-agent-api.py make-order` with orderId, market, protocol, slippage from confirm. Response `data.txs` expires in ~60s.
 - **Sign:** Derive private key from mnemonic in secure storage. Write to a unique temp file programmatically (`tempfile.mkstemp`). Pass full makeOrder response to `order_sign.py` (stdin or `--order-json`) with `--private-key-file <path>`. The script reads the key, deletes the file, signs, and outputs an array of signature hex strings.
-- **Fill & send:** Set `data.txs[i].sig` from that array, then `bitget_agent_api.py send --json-stdin` or `--json-file` with body `{ "orderId": data.orderId, "txs": data.txs }`.
+- **Fill & send:** Set `data.txs[i].sig` from that array, then `bitget-wallet-agent-api.py send --json-stdin` or `--json-file` with body `{ "orderId": data.orderId, "txs": data.txs }`.
 
 ### 6. Query order (getOrderDetails)
 
-- **Script:** `python3 scripts/bitget_agent_api.py get-order-details --order-id <orderId>`
+- **Script:** `python3 scripts/bitget-wallet-agent-api.py get-order-details --order-id <orderId>`
 - **Request:** orderId from send response `data.orderId`; timestamp optional (default current ms).
 - **Response:** If `error_code != 0`, show `msg` and stop. `data.details.status`: `success` means success. `data.details.fromTxId` / `data.details.toTxId`: transaction hashes; same for same-chain, may differ for cross-chain.
 - **Agent — handling `tips`:** The getOrderDetails response may include a `tips` field even when the order succeeded. **When `data.details.status === "success"`**, ignore the `tips` field and do not show it to the user. **When status is not success**, use the `tips` field (if present) to inform or prompt the user; combine with other error information as appropriate.
@@ -203,4 +203,4 @@ The swap API supports 7 chains. Use these chain codes in all swap commands:
 7. **Gasless signing:** EVM gasPayMaster returns `msgs[]` with `signType: "eth_sign"` — `order_sign.py` returns full msgs JSON struct (not raw tx). Solana gasPayMaster uses `source.serializedTransaction` for partial-sign. Both are auto-detected.
 8. **Cross-chain minimum:** Cross-chain swaps require minimum $10 USD value.
 
-For request/response details, see the script help: `python3 scripts/bitget_agent_api.py <command> --help`.
+For request/response details, see the script help: `python3 scripts/bitget-wallet-agent-api.py <command> --help`.

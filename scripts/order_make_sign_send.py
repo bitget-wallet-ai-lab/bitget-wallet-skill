@@ -99,7 +99,9 @@ def main():
         print("Error: must provide --private-key-file (EVM), --private-key-file-sol (Solana), or --private-key-file-tron (Tron)", file=sys.stderr)
         sys.exit(1)
 
-    from bitget_agent_api import make_order, send
+    import importlib
+    _api = importlib.import_module("bitget-wallet-agent-api")
+    make_order, send = _api.make_order, _api.send
 
     resp = make_order(
         order_id=args.order_id,
@@ -161,7 +163,7 @@ def main():
     if send_resp.get("status") != 0 or send_resp.get("error_code") != 0:
         sys.exit(1)
     print(
-        f"\nOrderId: {order_id}\nCheck: python3 scripts/bitget_agent_api.py get-order-details --order-id {order_id}",
+        f"\nOrderId: {order_id}\nCheck: python3 scripts/bitget-wallet-agent-api.py get-order-details --order-id {order_id}",
         file=sys.stderr,
     )
 
