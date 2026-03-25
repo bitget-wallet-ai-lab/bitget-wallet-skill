@@ -226,6 +226,7 @@ For other tokens, use token-info or a block explorer to verify the contract addr
 8. **Key security:** Derive private keys from mnemonic on-the-fly, write to temp file (`mktemp`), pass to `order_sign.py --private-key-file` (script reads and auto-deletes). Never store keys or output mnemonic/keys to chat.
 9. **Human-readable amounts:** Pass fromAmount etc. as user-facing numbers (e.g. `0.01`), not wei/lamports/decimals.
 10. **Security:** Mnemonic and private keys must **never** appear in conversation, prompts, or any output. Only mnemonic **file path** and derived **addresses** may be in context.
+11. **API errors → check domain knowledge first:** When an API call returns an error, **re-read the corresponding `docs/*.md` file** before retrying or troubleshooting. Most errors (wrong parameters, missing steps, incorrect flow) are already documented in the domain knowledge. Do not guess fixes — consult the docs.
 
 ---
 
