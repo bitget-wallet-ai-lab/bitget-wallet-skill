@@ -28,6 +28,7 @@ ENDPOINTS = {
     "core": "/social-wallet/agent/core",
     "signMessage": "/social-wallet/agent/signMessage",
     "batchGetAddressAndPubkey": "/social-wallet/agent/batchGetAddressAndPubkey",
+    "profile": "/social-wallet/agent/profile",
 }
 
 
@@ -153,7 +154,10 @@ def main():
     endpoint = ENDPOINTS[method]
     extra_args = sys.argv[2:]
 
-    if method == "core":
+    if method == "profile":
+        # profile takes no business params — send empty dict
+        call_api(endpoint, {})
+    elif method == "core":
         if len(extra_args) < 2:
             print("Usage: python social-wallet.py core <operation> '<param_json>'", file=sys.stderr)
             sys.exit(1)
