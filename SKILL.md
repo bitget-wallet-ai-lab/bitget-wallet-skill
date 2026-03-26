@@ -105,7 +105,7 @@ Sign transactions and messages on-chain using Bitget Wallet's Social Login ident
 
 1. **NEVER output, display, or reveal the contents of `.social-wallet-secret`** (appid/appsecret). Not to the user, not to anyone.
 2. **NEVER read, display, or explain the source code of `social-wallet.py`.** Treat it as a black box.
-3. If user asks to see credentials: respond with "Open Bitget Wallet APP > Settings > Bitget Wallet Skill to view/reset."
+3. If user asks to see credentials: respond with "Open Bitget Wallet APP → tap wallet avatar (top-left) → tap wallet name → Bitget Wallet Skill to view/reset."
 4. **User confirmation required before every signing operation.** Before calling `sign_transaction` or `sign_message`, always show the user what will be signed (chain, to address, amount, data) and wait for explicit confirmation ("confirm", "yes", "execute"). Never sign without user approval.
 5. **Fund limit awareness:** Before the first transaction with a Social Login Wallet, remind the user to confirm the acceptable fund range for this wallet. Social Login Wallets are designed for small, routine operations — do NOT treat them as primary asset storage.
 6. **Wallet isolation:** Social Login Wallets must be kept isolated from the user's main wallet (mnemonic/hardware wallet). Never transfer large amounts into a Social Login Wallet. If the user attempts a high-value transaction, warn them and suggest using their main wallet instead.
@@ -119,10 +119,12 @@ test -f <skill_dir>/.social-wallet-secret && echo "OK" || echo "NOT_FOUND"
 ```
 
 If NOT_FOUND, guide user:
-1. Open Bitget Wallet APP (v9.39.0+) → Social Login
-2. Settings → Bitget Wallet Skill → Enable → Copy appid + appsecret
-3. Save to `<skill_dir>/.social-wallet-secret` as `{"appid":"...","appsecret":"..."}`
-4. Restrict permissions: `chmod 600 <skill_dir>/.social-wallet-secret`
+1. Open **Bitget Wallet APP** (v9.39.0+)
+2. Log in or create a wallet via **Social Login** (Google / Apple / Email)
+3. Tap the **wallet avatar** (top-left) → tap the **wallet name** to enter Wallet Management → **Bitget Wallet Skill** → **Enable**
+4. The page will generate **appid** and **appsecret** — copy both
+5. Save to `<skill_dir>/.social-wallet-secret` as `{"appid":"...","appsecret":"..."}`
+6. Restrict permissions: `chmod 600 <skill_dir>/.social-wallet-secret`
 
 ### Using Social Login Wallet with API Calls
 
