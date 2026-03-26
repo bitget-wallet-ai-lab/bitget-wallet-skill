@@ -4,6 +4,39 @@ All operations use `social-wallet.py core <operation> '<params_json>'`.
 
 `<params_json>` is a JSON object. The `chain` field is always required. For custom EVM chains (`evm_custom#`), `chainId` is also required (e.g. `"chainId": 56` for BNB, `"chainId": 8453` for Base). Native chains like `eth` default to their standard chainId.
 
+## profile — Get Wallet Identity
+
+Retrieve the `walletId` for the current Social Login Wallet. This ID must be passed as `--wallet-id` to all `bitget-wallet-agent-api.py` calls when using a Social Login Wallet.
+
+**Endpoint:** `POST /social-wallet/agent/profile`
+
+**Usage:**
+```bash
+python3 scripts/social-wallet.py profile
+```
+
+**Request:** Encrypted empty `{}` payload (same auth flow as other endpoints — AES-GCM encryption + HMAC-SHA384 signature). No business parameters needed.
+
+**Response:**
+```json
+{
+  "walletId": "58680ea41d9e987cddc641ff8b058c55"
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `walletId` | string | Unique wallet identifier. Pass to `--wallet-id` in all `bitget-wallet-agent-api.py` calls. |
+
+**When to call:**
+- Once per session, before any API calls that need wallet identity.
+- The `walletId` does not expire within a session, but changes if the user re-binds with a different appid/appsecret.
+
+**Flow:**
+1. Call `social-wallet.py profile` → get `walletId`
+2. Pass `--wallet-id <walletId>` to all subsequent `bitget-wallet-agent-api.py` commands (balance, quote, confirm, make-order, send, etc.)
+3. Without `--wallet-id`, the API defaults to `toc_agent` token (for mnemonic/private-key wallets)
+
 ## User Confirmation Rule
 
 **Every signing operation (`sign_transaction`, `sign_message`) requires explicit user confirmation before execution.** The agent must:

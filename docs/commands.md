@@ -130,3 +130,37 @@ python3 scripts/x402_pay.py sign-eip3009 --private-key-file <key_file> --token <
 python3 scripts/x402_pay.py sign-solana --private-key-file <key_file> --transaction <base64_tx>
 python3 scripts/x402_pay.py pay --url https://api.example.com/data --private-key-file <key_file>
 ```
+
+## `scripts/social-wallet.py`
+
+Social Login Wallet operations — sign transactions and messages via Bitget Wallet TEE (no local private key).
+
+| Subcommand | What it does |
+|------------|----------------|
+| `profile` | Get wallet identity (`walletId`) for API routing |
+| `core get_address` | Get wallet address for a chain |
+| `core sign_transaction` | Sign a transaction (ETH/BTC/SOL/Tron + all EVM chains) |
+| `core sign_message` | Sign a message (including `EthSign:` prefix for raw hash signing) |
+| `core get_public_key` | Get public key for a chain |
+| `core validate_address` | Validate an address for a chain |
+| `batchGetAddressAndPubkey` | Get addresses and public keys for multiple chains |
+
+```bash
+# Get walletId (required before using --wallet-id with bitget-wallet-agent-api.py)
+python3 scripts/social-wallet.py profile
+
+# Get address
+python3 scripts/social-wallet.py core get_address '{"chain":"eth"}'
+
+# Batch get addresses
+python3 scripts/social-wallet.py batchGetAddressAndPubkey '{"chainList":["eth","btc","sol"]}'
+
+# Sign transaction (EVM)
+python3 scripts/social-wallet.py core sign_transaction '{"chain":"evm_custom#bnb","chainId":56,"to":"0x...","value":0,"data":"0x...","nonce":0,"gasLimit":21000,"gasPrice":3000000000}'
+
+# Sign message (regular)
+python3 scripts/social-wallet.py core sign_message '{"chain":"eth","message":"hello"}'
+
+# Sign message (raw hash for gasPayMaster — EthSign prefix)
+python3 scripts/social-wallet.py core sign_message '{"chain":"evm_custom#bnb","message":"EthSign:0x<hash>"}'
+```
