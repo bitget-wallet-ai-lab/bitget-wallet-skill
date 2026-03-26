@@ -113,6 +113,8 @@ Or with JSON stdin: `echo '{"list":[{"chain":"...","contract":"...","symbol":"..
 
 ### 3–5. makeOrder, sign, send (combined — recommended)
 
+> **⚠️ Social Login Wallet exception:** `order_make_sign_send.py` requires a local private key file and is **NOT compatible** with Social Login Wallets. If the user is using a Social Login Wallet, skip this section and use the **separate steps (3′–5′)** below with `social-wallet.py` for signing. See [`docs/social-wallet.md`](social-wallet.md) for the full Social Login signing flow.
+
 - **Script (EVM):** `python3 scripts/order_make_sign_send.py --private-key-file /tmp/.pk_evm --from-address <addr> --to-address <addr> --order-id <from_confirm> --from-chain ... --from-contract ... --from-symbol ... --to-chain ... --to-contract ... --to-symbol ... --from-amount ... --slippage ... --market ... --protocol ...`
 - **Script (Solana):** `python3 scripts/order_make_sign_send.py --private-key-file-sol /tmp/.pk_sol --from-address <sol_addr> --to-address <sol_addr> --order-id <from_confirm> --from-chain sol ...`
 - **Behavior:** Takes private key from secure storage, calls makeOrder, signs `data.txs`, fills `txs[].sig`, then sends. Auto-detects EVM vs Solana from makeOrder response. Never outputs private keys. Use this so the ~60s makeOrder expiry does not run out.
@@ -150,7 +152,7 @@ Recommended flow:
 5. confirm → use market/protocol/slippage from the chosen quote result (default first); get and show latest quoteResult(data.quoteResult), orderId(data.orderId) and gasFee(data.gasFee); also show tips(data.tips) if not empty
 6. PRESENT → show confirmation summary (required)
 7. WAIT → user explicitly confirms
-8. order_make_sign_send.py (recommended) or make-order → order_sign.py → send (must complete within ~60s)
+8. order_make_sign_send.py (recommended for mnemonic/private-key wallets) or make-order → sign → send (must complete within ~60s). **Social Login Wallet: must use make-order → social-wallet.py sign → send (see docs/social-wallet.md).**
 9. get-order-details → show final status and txId / explorer link
 ```
 

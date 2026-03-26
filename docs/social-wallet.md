@@ -23,7 +23,17 @@ Read-only operations (`get_address`, `get_public_key`, `validate_address`, `batc
 - **Never bulk-transfer assets** from a main wallet into a Social Login Wallet. The Social Login Wallet's security model (TEE-hosted keys, API-based signing) is different from self-custody — users should understand the tradeoff.
 - **Periodically remind users** to move excess funds back to their main wallet if the Social Login Wallet balance grows beyond their intended limit.
 
-## Integration with Swap Flow (gasPayMaster / gasless)
+## Integration with Swap Flow
+
+**⚠️ `order_make_sign_send.py` is NOT compatible with Social Login Wallets.** That script requires a local private key file, but Social Login Wallets sign via TEE API — no local private key exists. For Social Login Wallet swaps, you **must** use the 3-step manual flow:
+
+1. **makeOrder** → `bitget-wallet-agent-api.py make-order ...`
+2. **Sign** → `social-wallet.py core sign_message/sign_transaction` (per tx, based on mode detection)
+3. **Send** → `bitget-wallet-agent-api.py send --json-file ...`
+
+All three steps must complete within ~60 seconds (makeOrder data expiry).
+
+### gasPayMaster / gasless
 
 When using the Social Login Wallet for gasless swaps (no_gas mode), the makeOrder response returns `txFunction: "swap_instant_gas_paymaster"` with `deriveTransaction.msgs[]`. Each msg has `signType: "eth_sign"` and a `hash` to sign.
 

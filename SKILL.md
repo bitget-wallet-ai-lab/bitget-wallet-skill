@@ -62,7 +62,7 @@ description: "Interact with Bitget Wallet API for crypto market data, token info
 3. **Quote** — display **all** market results to user, recommend the first, let user choose
 4. **Confirm** — must display three fields to user: `outAmount` (expected), `minAmount` (minimum), `gasTotalAmount` (gas cost); check `recommendFeatures` for gas sufficiency
 5. **User confirmation** — **do not** sign or send until user explicitly confirms ("confirm", "execute", "yes")
-6. **makeOrder + sign + send** — execute as one atomic operation (use `order_make_sign_send.py`)
+6. **makeOrder + sign + send** — execute as one atomic operation (use `order_make_sign_send.py` for mnemonic/private-key wallets; **Social Login Wallet must use manual 3-step flow** — see `docs/social-wallet.md`)
 7. **Query status** — check order result; ignore `tips` when status=success
 
 See Scripts for full command details and `docs/swap.md` for the complete flow.
