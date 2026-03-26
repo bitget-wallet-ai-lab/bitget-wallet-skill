@@ -716,21 +716,38 @@ def _is_tron_order(order_data: dict) -> bool:
 
 
 def _is_solana_order(order_data: dict) -> bool:
-    """Detect if order data is for Solana chain."""
+    """Detect if order data is for Solana chain.
+
+    Checks multiple fields because Solana gasPayMaster mode may return
+    chainId=None and chainName=None — only chain="sol" and/or
+    serializedTransaction are present in that case.
+    """
     txs = order_data.get("txs", [])
     for tx_item in txs:
-        chain_id = tx_item.get("chainId") or (tx_item.get("deriveTransaction") or {}).get("chainId")
+        derive = tx_item.get("deriveTransaction") or {}
+        # 1. chainId check (standard mode)
+        chain_id = tx_item.get("chainId") or derive.get("chainId")
         if chain_id is not None and int(chain_id) == _SOLANA_CHAIN_ID:
             return True
-        # Check chainName or chain field
-        chain_name = (tx_item.get("chainName") or tx_item.get("chain") or "").lower()
+        # 2. chainName check
+        chain_name = (tx_item.get("chainName") or "").lower()
         if chain_name in ("sol", "solana"):
             return True
-        # Check for serializedTx (Solana-specific field) in data or source
+        # 3. chain field check (gasPayMaster mode — chainId/chainName are None)
+        chain = (tx_item.get("chain") or "").lower()
+        if chain in ("sol", "solana"):
+            return True
+        # 4. deriveTransaction.chain check
+        derive_chain = (derive.get("chain") or "").lower()
+        if derive_chain in ("sol", "solana"):
+            return True
+        # 5. serializedTransaction / serializedTx = Solana (EVM never has this)
+        if derive.get("serializedTransaction"):
+            return True
         data = tx_item.get("data", {})
         if isinstance(data, dict) and data.get("serializedTx"):
             return True
-        source = tx_item.get("source") or (tx_item.get("deriveTransaction") or {}).get("source")
+        source = tx_item.get("source") or derive.get("source")
         if isinstance(source, dict) and source.get("serializedTransaction"):
             return True
     return False

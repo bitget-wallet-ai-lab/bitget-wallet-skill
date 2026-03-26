@@ -43,13 +43,38 @@ _SOLANA_CHAIN_ID = 501
 
 
 def _is_solana_order(order_data: dict) -> bool:
-    """Detect if order data contains Solana transactions."""
+    """Detect if order data contains Solana transactions.
+
+    Checks multiple fields because Solana gasPayMaster mode may return
+    chainId=None and chainName=None — only chain="sol" and/or
+    serializedTransaction are present in that case.
+    """
     for tx_item in order_data.get("txs", []):
-        cid = tx_item.get("chainId") or (tx_item.get("deriveTransaction") or {}).get("chainId")
+        derive = tx_item.get("deriveTransaction") or {}
+        # 1. chainId check (standard mode)
+        cid = tx_item.get("chainId") or derive.get("chainId")
         if cid is not None and int(cid) == _SOLANA_CHAIN_ID:
             return True
-        chain_name = tx_item.get("chainName", "").lower()
+        # 2. chainName check
+        chain_name = (tx_item.get("chainName") or "").lower()
         if chain_name in ("sol", "solana"):
+            return True
+        # 3. chain field check (gasPayMaster mode — chainId/chainName are None)
+        chain = (tx_item.get("chain") or "").lower()
+        if chain in ("sol", "solana"):
+            return True
+        # 4. deriveTransaction.chain check
+        derive_chain = (derive.get("chain") or "").lower()
+        if derive_chain in ("sol", "solana"):
+            return True
+        # 5. serializedTransaction exists = Solana (EVM never has this field)
+        if derive.get("serializedTransaction"):
+            return True
+        data = tx_item.get("data", {})
+        if isinstance(data, dict) and data.get("serializedTx"):
+            return True
+        source = tx_item.get("source") or derive.get("source")
+        if isinstance(source, dict) and source.get("serializedTransaction"):
             return True
     return False
 
