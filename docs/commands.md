@@ -39,7 +39,7 @@ python3 scripts/bitget-wallet-agent-api.py check-swap-token --from-chain bnb --f
 # Or via JSON stdin:
 echo '{"list":[{"chain":"bnb","contract":"","symbol":"BNB"},{"chain":"bnb","contract":"0x...","symbol":"AIO"}]}' | python3 scripts/bitget-wallet-agent-api.py check-swap-token --json-stdin
 
-# Balance (chain + address; contract "" = native, or pass multiple --contract); Only evm and Solana
+# Balance + token price (all chains including Tron)
 # Balance + token price (use for all balance queries)
 python3 scripts/bitget-wallet-agent-api.py batch-v2 --chain bnb --address <wallet_evm> [--contract "" --contract <token_contract>]
 
