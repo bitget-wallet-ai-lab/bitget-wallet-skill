@@ -8,7 +8,7 @@ Signs order-create response for both EVM and Solana chains.
 - EVM RWA swap: when txs[].function is "signTypeData", signs EIP-712 typed data (1inch Order);
   signTypeData.domain.chainId may be hex string (e.g. "0x38") and is normalized to int for signing
 - Tron (TRX) txs mode: SHA256(transaction.raw_data_hex) then ECDSA secp256k1; output sig is JSON
-  { signature: [hex], txID, raw_data }. Recovery id 0/1; high-S form to match Tron SDK/API.
+  { signature: [hex], txID, raw_data }. Recovery id 0/1; low-S canonical form.
 - Solana txs mode: partial-sign VersionedTransaction (or Legacy fallback)
 
 Usage:
@@ -502,9 +502,11 @@ def _sign_eip712_sign_type_data(sign_type_data: dict, acct) -> str:
 
 def _sign_msgs_eth_sign(msgs: list, acct) -> list[str]:
     """
-    Sign gasPayMaster msgs using eth_sign.
+    Sign gasPayMaster msgs using eth_sign (raw hash, NO EIP-191 prefix).
     Each msg has: hash (bytes32 hex), signType ("eth_sign"), call[], deadline, nonce, etc.
-    eth_sign = sign(keccak256("\\x19Ethereum Signed Message:\\n32" + hash_bytes))
+    Uses unsafe_sign_hash to sign the raw 32-byte hash directly — adding an
+    EIP-191 prefix ("\\x19Ethereum Signed Message:\\n32") would cause on-chain
+    execution failure.
     Returns list of signature hex strings.
     """
     sig_list = []
@@ -615,25 +617,6 @@ def sign_order_txs_evm(order_data: dict, private_key: str, chain_id: int = None)
 # Tron (TRX) signing
 # ---------------------------------------------------------------------------
 
-# SECP256k1 curve order (same as Ethereum/Bitcoin); for Tron low-S canonical form
-_TRON_SECP256K1_ORDER = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141
-
-
-def _tron_signature_to_high_s(sig_bytes: bytes) -> bytes:
-    """Convert signature to high-S form if currently low-S (some Tron SDKs/APIs expect high-S)."""
-    if len(sig_bytes) != 65:
-        return sig_bytes
-    r = sig_bytes[:32]
-    s = int.from_bytes(sig_bytes[32:64], "big")
-    v = sig_bytes[64]
-    half_n = _TRON_SECP256K1_ORDER // 2
-    if s <= half_n:
-        s = _TRON_SECP256K1_ORDER - s
-        if v in (27, 28):
-            v = 28 if v == 27 else 27
-    s_bytes = s.to_bytes(32, "big")
-    return r + s_bytes + bytes([v])
-
 
 def _normalize_tron_private_key(private_key: str) -> str:
     """Ensure Tron private key has 0x prefix for eth_account (same secp256k1 curve)."""
@@ -716,21 +699,38 @@ def _is_tron_order(order_data: dict) -> bool:
 
 
 def _is_solana_order(order_data: dict) -> bool:
-    """Detect if order data is for Solana chain."""
+    """Detect if order data is for Solana chain.
+
+    Checks multiple fields because Solana gasPayMaster mode may return
+    chainId=None and chainName=None — only chain="sol" and/or
+    serializedTransaction are present in that case.
+    """
     txs = order_data.get("txs", [])
     for tx_item in txs:
-        chain_id = tx_item.get("chainId") or (tx_item.get("deriveTransaction") or {}).get("chainId")
+        derive = tx_item.get("deriveTransaction") or {}
+        # 1. chainId check (standard mode)
+        chain_id = tx_item.get("chainId") or derive.get("chainId")
         if chain_id is not None and int(chain_id) == _SOLANA_CHAIN_ID:
             return True
-        # Check chainName or chain field
-        chain_name = (tx_item.get("chainName") or tx_item.get("chain") or "").lower()
+        # 2. chainName check
+        chain_name = (tx_item.get("chainName") or "").lower()
         if chain_name in ("sol", "solana"):
             return True
-        # Check for serializedTx (Solana-specific field) in data or source
+        # 3. chain field check (gasPayMaster mode — chainId/chainName are None)
+        chain = (tx_item.get("chain") or "").lower()
+        if chain in ("sol", "solana"):
+            return True
+        # 4. deriveTransaction.chain check
+        derive_chain = (derive.get("chain") or "").lower()
+        if derive_chain in ("sol", "solana"):
+            return True
+        # 5. serializedTransaction / serializedTx = Solana (EVM never has this)
+        if derive.get("serializedTransaction"):
+            return True
         data = tx_item.get("data", {})
         if isinstance(data, dict) and data.get("serializedTx"):
             return True
-        source = tx_item.get("source") or (tx_item.get("deriveTransaction") or {}).get("source")
+        source = tx_item.get("source") or derive.get("source")
         if isinstance(source, dict) and source.get("serializedTransaction"):
             return True
     return False

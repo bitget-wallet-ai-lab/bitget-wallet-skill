@@ -154,7 +154,7 @@ def confirm(
     features: single-element array. Selection logic:
       - ["user_gas"] — user pays gas in native token. Use when native balance is sufficient for gas.
       - ["no_gas"] — gasless mode, gas deducted from fromToken. Use when native balance is insufficient.
-      Agent must check native token balance (via get-processed-balance) and choose accordingly.
+      Agent must check native token balance (via batch-v2) and choose accordingly.
       Default: ["user_gas"] if not specified.
     """
     body = {
@@ -285,19 +285,7 @@ def check_swap_token(list_: List[dict]) -> dict:
 
 
 # ---------------------------------------------------------------------------
-# 8. Get processed balance /swapx/getProcessedBalance
-# ---------------------------------------------------------------------------
-
-def get_processed_balance(items: List[dict]) -> dict:
-    """
-    Batch get on-chain balance for address(es). items: list of {chain, address, contract: ["" for native, or contract addrs]}.
-    """
-    body = {"list": items}
-    return _request("/swap-go/swapx/getProcessedBalance", body)
-
-
-# ---------------------------------------------------------------------------
-# 9. Batch balance + price /user/wallet/batchV2
+# 8. Batch balance + price /user/wallet/batchV2 (primary balance API)
 # ---------------------------------------------------------------------------
 
 def batch_v2(
@@ -809,34 +797,8 @@ def _cmd_check_swap_token(args):
     print(json.dumps(out, indent=2, ensure_ascii=False))
 
 
-def _cmd_get_processed_balance(args):
-    if args.json_stdin:
-        payload = json.load(sys.stdin)
-        items = payload.get("list", payload) if isinstance(payload, dict) and "list" in payload else (payload if isinstance(payload, list) else [])
-        if not items:
-            print("Error: stdin JSON must contain 'list' array or be an array of items", file=sys.stderr)
-            sys.exit(1)
-    else:
-        chain = getattr(args, "chain", None)
-        address = getattr(args, "address", None)
-        if not chain or not address:
-            print("Error: when not using --json-stdin, both --chain and --address are required", file=sys.stderr)
-            sys.exit(1)
-        contracts = []
-        if getattr(args, "contract", None):
-            for c in args.contract:
-                contracts.extend(s.strip() for s in str(c).split(",") if s.strip())
-        if "" not in contracts and not getattr(args, "no_include_native", False):
-            contracts.insert(0, "")
-        if not contracts:
-            contracts = [""]
-        items = [{"chain": chain, "address": address, "contract": contracts}]
-    out = get_processed_balance(items)
-    print(json.dumps(out, indent=2, ensure_ascii=False))
-
-
 def _cmd_batch_v2(args):
-    """Batch balance + price: same list format as get-processed-balance."""
+    """Primary balance API: batch balance + price for all chains."""
     if args.json_stdin:
         payload = json.load(sys.stdin)
         list_ = payload.get("list", payload if isinstance(payload, list) else [])
@@ -1146,17 +1108,8 @@ def main():
     p.add_argument("--is-all-network", type=int, default=1, dest="is_all_network")
     p.set_defaults(func=_cmd_get_token_list)
 
-    # getProcessedBalance: either --json-stdin (full body) or --chain + --address (single query)
-    p = sub.add_parser("get-processed-balance", help="Get address balance /swapx/getProcessedBalance")
-    p.add_argument("--json-stdin", action="store_true", help="Read body {list: [{chain, address, contract}]} from stdin; then --chain/--address are ignored")
-    p.add_argument("--chain", help="Chain code (required when not using --json-stdin)")
-    p.add_argument("--address", help="Wallet address (required when not using --json-stdin)")
-    p.add_argument("--contract", action="append", default=[], help="Token contract(s); empty for native. Repeat or comma-separated. Used only when not --json-stdin.")
-    p.add_argument("--no-include-native", action="store_true", dest="no_include_native", help="Do not add native token to contract list")
-    p.set_defaults(func=_cmd_get_processed_balance)
-
-    # batchV2: balance + token price per address (same list format as get-processed-balance)
-    p = sub.add_parser("batch-v2", help="Batch balance and token price /user/wallet/batchV2")
+    # batchV2: primary balance API — balance + token price for all chains
+    p = sub.add_parser("batch-v2", help="[Balance] Batch balance + token price /user/wallet/batchV2 (primary balance API)")
     p.add_argument("--json-stdin", action="store_true", help="Read body {list: [{chain, address, contract}]} from stdin")
     p.add_argument("--chain", help="Chain code (required when not using --json-stdin)")
     p.add_argument("--address", help="Wallet address (required when not using --json-stdin)")

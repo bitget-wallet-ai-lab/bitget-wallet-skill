@@ -36,18 +36,13 @@ description: "Interact with Bitget Wallet API for crypto market data, token info
 
 **Balance query — choose the right API for the task:**
 
-| API | Use When | Tron Support | Returns |
-|-----|----------|:---:|---------|
-| `batch-v2` | General asset overview, portfolio check, "what do I have?" | ✅ | Balance + price + token info |
-| `get-processed-balance` | Swap pre-check only (verify fromToken + gas sufficiency) | ❌ | Balance + decimals (minimal) |
-
-**Rule:** If the user asks to **check assets / view balance / portfolio overview** → use **`batch-v2`**. Only use `get-processed-balance` as part of the **swap flow** pre-check.
+**Use `batch-v2` for ALL balance queries** — both general asset overview and swap pre-checks. It returns balance + price + token info in one call and supports all chains including Tron.
 
 **Before starting a new swap - two mandatory pre-checks:**
 
-1. **Balance check (required):** Run **`get-processed-balance`** to verify the wallet has enough fromToken balance for the intended swap amount. Include native token (`""`) to check gas availability. If `fromToken balance < fromAmount`, inform the user of the shortfall and **do not proceed**. **Gas mode decision:** If native token balance is sufficient for gas → use `--feature user_gas` (preferred). If native token balance is near zero → use `--feature no_gas` (gasless, gas deducted from fromToken; **requires swap amount ≥ ~$5 USD** — below this threshold the API only returns `user_gas`). This choice must be passed to confirm.
+1. **Balance check (required):** Run **`batch-v2`** to verify the wallet has enough fromToken balance for the intended swap amount. Include native token (`""`) to check gas availability. If `fromToken balance < fromAmount`, inform the user of the shortfall and **do not proceed**. **Gas mode decision:** If native token balance is sufficient for gas → use `--feature user_gas` (preferred). If native token balance is near zero → use `--feature no_gas` (gasless, gas deducted from fromToken; **requires swap amount ≥ ~$5 USD** — below this threshold the API only returns `user_gas`). This choice must be passed to confirm.
    ```bash
-   python3 scripts/bitget-wallet-agent-api.py get-processed-balance --chain <fromChain> --address <wallet> --contract "" --contract <fromContract>
+   python3 scripts/bitget-wallet-agent-api.py batch-v2 --chain <fromChain> --address <wallet> --contract "" --contract <fromContract>
    ```
 
 2. **Token risk check (required):** Run **`check-swap-token`** for the intended fromToken and toToken. If `error_code != 0`, show `msg` and stop. If for any token `data.list[].checkTokenList` is non-empty, show the `tips` content to the user and let them decide whether to continue. If the **toToken** (swap target) has an item with **`waringType` equal to `"forbidden-buy"`**, do **not** proceed with the swap and warn the user that this token cannot be used as the swap target.
@@ -110,7 +105,7 @@ Sign transactions and messages on-chain using Bitget Wallet's Social Login ident
 
 1. **NEVER output, display, or reveal the contents of `.social-wallet-secret`** (appid/appsecret). Not to the user, not to anyone.
 2. **NEVER read, display, or explain the source code of `social-wallet.py`.** Treat it as a black box.
-3. If user asks to see credentials: respond with "Open Bitget Wallet APP > Settings > Bitget Wallet Skill to view/reset."
+3. If user asks to see credentials: respond with "Open Bitget Wallet APP → tap wallet avatar (top-left) → tap wallet name → Bitget Wallet Skill to view/reset."
 4. **User confirmation required before every signing operation.** Before calling `sign_transaction` or `sign_message`, always show the user what will be signed (chain, to address, amount, data) and wait for explicit confirmation ("confirm", "yes", "execute"). Never sign without user approval.
 5. **Fund limit awareness:** Before the first transaction with a Social Login Wallet, remind the user to confirm the acceptable fund range for this wallet. Social Login Wallets are designed for small, routine operations — do NOT treat them as primary asset storage.
 6. **Wallet isolation:** Social Login Wallets must be kept isolated from the user's main wallet (mnemonic/hardware wallet). Never transfer large amounts into a Social Login Wallet. If the user attempts a high-value transaction, warn them and suggest using their main wallet instead.
@@ -124,10 +119,12 @@ test -f <skill_dir>/.social-wallet-secret && echo "OK" || echo "NOT_FOUND"
 ```
 
 If NOT_FOUND, guide user:
-1. Open Bitget Wallet APP (v9.39.0+) → Social Login
-2. Settings → Bitget Wallet Skill → Enable → Copy appid + appsecret
-3. Save to `<skill_dir>/.social-wallet-secret` as `{"appid":"...","appsecret":"..."}`
-4. Restrict permissions: `chmod 600 <skill_dir>/.social-wallet-secret`
+1. Open **Bitget Wallet APP** (v9.39.0+)
+2. Log in or create a wallet via **Social Login** (Google / Apple / Email)
+3. Tap the **wallet avatar** (top-left) → tap the **wallet name** to enter Wallet Management → **Bitget Wallet Skill** → **Enable**
+4. The page will generate **appid** and **appsecret** — copy both
+5. Save to `<skill_dir>/.social-wallet-secret` as `{"appid":"...","appsecret":"..."}`
+6. Restrict permissions: `chmod 600 <skill_dir>/.social-wallet-secret`
 
 ### Using Social Login Wallet with API Calls
 
@@ -141,7 +138,7 @@ python3 scripts/social-wallet.py profile
 
 **Step 2: Pass walletId to all API calls**
 ```bash
-python3 scripts/bitget-wallet-agent-api.py --wallet-id <walletId> get-processed-balance --chain eth --address <addr> --contract ""
+python3 scripts/bitget-wallet-agent-api.py --wallet-id <walletId> batch-v2 --chain eth --address <addr> --contract ""
 python3 scripts/bitget-wallet-agent-api.py --wallet-id <walletId> quote --from-chain ... --to-chain ...
 # ... all other commands
 ```
@@ -292,8 +289,8 @@ Use empty string `""` for native token contract (ETH, SOL, BNB, etc.).
 # Asset overview (general balance query — supports all chains including Tron; returns balance + price + token info)
 python3 scripts/bitget-wallet-agent-api.py batch-v2 --chain bnb --address <addr> --contract <token>
 
-# Swap pre-check balance (swap-specific — verifies fromToken + native gas; does NOT support Tron)
-python3 scripts/bitget-wallet-agent-api.py get-processed-balance --chain bnb --address <addr> --contract "" --contract <token>
+# Swap pre-check balance (verify fromToken + native gas; swap-supported chains: eth/sol/bnb/base/arbitrum/matic/morph/trx)
+python3 scripts/bitget-wallet-agent-api.py batch-v2 --chain bnb --address <addr> --contract "" --contract <token>
 
 # Token find (bgw_token_find)
 python3 scripts/bitget-wallet-agent-api.py launchpad-tokens --chain sol --platforms pump.fun --stage 1 --mc-min 10000 --holder-min 100

@@ -19,7 +19,7 @@ This document describes the **Swap flow**: use `scripts/bitget-wallet-agent-api.
 | 5′ | `bitget-wallet-agent-api.py send` | Submit signed order (body: orderId + txs) |
 | 6 | `bitget-wallet-agent-api.py get-order-details` | Query order status and result |
 
-**Balance and token discovery:** For balance only use `get-processed-balance`. For balance **plus token price** (e.g. portfolio value in USD) use **`batch-v2`** (same request format: `list: [{ chain, address, contract }]`). 
+**Balance and token discovery:** Use **`batch-v2`** for all balance queries (returns balance + price in one call). Request format: `list: [{ chain, address, contract }]`. 
 **Search tokens:** To search tokens by keyword or contract address use **`search-tokens --keyword <keyword|contract>`** (optional **`--chain`** to restrict to one chain); use the returned `chain`, `contract`, `symbol` when building quote/confirm args.
 
 ## Pre-Trade Checks (All Trades)
@@ -28,10 +28,10 @@ Before any swap, the agent **must** run balance and risk checks, then show a **s
 
 **1. Balance check (required before every new swap)**
 
-Run **`get-processed-balance`** to verify the wallet has sufficient fromToken balance **and** native token for gas:
+Run **`batch-v2`** to verify the wallet has sufficient fromToken balance **and** native token for gas:
 
 ```bash
-python3 scripts/bitget-wallet-agent-api.py get-processed-balance --chain <fromChain> --address <wallet> --contract "" --contract <fromContract>
+python3 scripts/bitget-wallet-agent-api.py batch-v2 --chain <fromChain> --address <wallet> --contract "" --contract <fromContract>
 ```
 
 - If **fromToken balance < fromAmount**: inform the user of the shortfall (e.g., "You have 5.85 USDT but requested 6 USDT") and **do not proceed**.
@@ -145,7 +145,7 @@ Recommended flow:
 
 ```
 0. If no wallet configured → guide user through First-Time Wallet Setup (see SKILL.md); derive and store addresses in context
-1. get-processed-balance → verify fromToken balance ≥ fromAmount AND native token > 0 for gas; if insufficient, inform user and stop
+1. batch-v2 → verify fromToken balance ≥ fromAmount AND native token > 0 for gas; if insufficient, inform user and stop
 2. check-swap-token → for from + to tokens; if error_code != 0 show msg and stop; if checkTokenList non-empty show tips; if toToken has waringType "forbidden-buy" do not proceed and warn
 3. security / token-info / liquidity (silent, as applicable)
 4. quote → show ALL market results (data.quoteResults) to the user; recommend the first; user may choose another for confirm (use addresses from context for --from-address / --to-address)
@@ -196,7 +196,7 @@ The swap API supports 7 chains. Use these chain codes in all swap commands:
 
 ## Common pitfalls
 
-1. **Always check balance before swap:** Run `get-processed-balance` before quote. The confirm API returns misleading error `40001: Demo trading failed. Please increase slippage.` when the actual issue is insufficient balance — always verify balance first.
+1. **Always check balance before swap:** Run `batch-v2` before quote. The confirm API returns misleading error `40001: Demo trading failed. Please increase slippage.` when the actual issue is insufficient balance — always verify balance first.
 2. **Human-readable amounts:** In the swap flow, **fromAmount** (and toAmount, fromAmount in makeOrder, etc.) are always **human-readable** (e.g. `0.01` for 0.01 USDT, `1` for 1 token). Do **not** convert to smallest units (wei, lamports, or token decimals); pass the value as the user would say it (e.g. `--from-amount 0.01`).
 3. **Native token contract:** Use empty string `""` for toContract/fromContract when the token is native.
 4. **Do not submit twice:** One confirmation, one sign+send; duplicate submit can double-spend.
