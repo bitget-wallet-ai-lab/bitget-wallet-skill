@@ -8,7 +8,7 @@ Signs order-create response for both EVM and Solana chains.
 - EVM RWA swap: when txs[].function is "signTypeData", signs EIP-712 typed data (1inch Order);
   signTypeData.domain.chainId may be hex string (e.g. "0x38") and is normalized to int for signing
 - Tron (TRX) txs mode: SHA256(transaction.raw_data_hex) then ECDSA secp256k1; output sig is JSON
-  { signature: [hex], txID, raw_data }. Recovery id 0/1; high-S form to match Tron SDK/API.
+  { signature: [hex], txID, raw_data }. Recovery id 0/1; low-S canonical form.
 - Solana txs mode: partial-sign VersionedTransaction (or Legacy fallback)
 
 Usage:
@@ -616,25 +616,6 @@ def sign_order_txs_evm(order_data: dict, private_key: str, chain_id: int = None)
 # ---------------------------------------------------------------------------
 # Tron (TRX) signing
 # ---------------------------------------------------------------------------
-
-# SECP256k1 curve order (same as Ethereum/Bitcoin); for Tron low-S canonical form
-_TRON_SECP256K1_ORDER = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141
-
-
-def _tron_signature_to_high_s(sig_bytes: bytes) -> bytes:
-    """Convert signature to high-S form if currently low-S (some Tron SDKs/APIs expect high-S)."""
-    if len(sig_bytes) != 65:
-        return sig_bytes
-    r = sig_bytes[:32]
-    s = int.from_bytes(sig_bytes[32:64], "big")
-    v = sig_bytes[64]
-    half_n = _TRON_SECP256K1_ORDER // 2
-    if s <= half_n:
-        s = _TRON_SECP256K1_ORDER - s
-        if v in (27, 28):
-            v = 28 if v == 27 else 27
-    s_bytes = s.to_bytes(32, "big")
-    return r + s_bytes + bytes([v])
 
 
 def _normalize_tron_private_key(private_key: str) -> str:
