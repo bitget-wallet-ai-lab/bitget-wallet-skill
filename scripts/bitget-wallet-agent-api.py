@@ -19,6 +19,7 @@ from typing import List, Optional
 import requests
 
 BASE_URL = "https://copenapi.bgwapi.io"
+WALLET_ID = ""  # Set via --wallet-id flag for Social Login Wallet users
 
 
 def _make_sign(method: str, path: str, body_str: str, ts: str) -> str:
@@ -37,13 +38,14 @@ def _request(path: str, body: dict) -> dict:
     ts = str(int(time.time() * 1000))
     body_str = json.dumps(body, separators=(",", ":"), ensure_ascii=False)
     sign = _make_sign("POST", path, body_str, ts)
+    token_val = WALLET_ID if WALLET_ID else "toc_agent"
     headers = {
         "Content-Type": "application/json",
         "channel": "toc_agent",
         "brand": "toc_agent",
         "clientversion": "10.0.0",
         "language": "en",
-        "token": "toc_agent",
+        "token": token_val,
         "X-SIGN": sign,
         "X-TIMESTAMP": ts,
     }
@@ -62,13 +64,14 @@ def _request_get(path_with_query: str) -> dict:
     ts = str(int(time.time() * 1000))
     body_str = ""
     sign = _make_sign("GET", path_with_query, body_str, ts)
+    token_val = WALLET_ID if WALLET_ID else "toc_agent"
     headers = {
         "Content-Type": "application/json",
         "channel": "toc_agent",
         "brand": "toc_agent",
         "clientversion": "10.0.0",
         "language": "en",
-        "token": "toc_agent",
+        "token": token_val,
         "X-SIGN": sign,
         "X-TIMESTAMP": ts,
     }
@@ -1054,7 +1057,12 @@ def _cmd_rwa_get_my_holdings(args):
 
 
 def main():
+    global WALLET_ID
     parser = argparse.ArgumentParser(description="Bitget Wallet Agent API (new swap flow, no apiKey)")
+    parser.add_argument("--wallet-id", default="",
+                        help="Social Login Wallet ID (from profile endpoint). "
+                             "When set, all API calls use this as the 'token' header "
+                             "instead of the default 'toc_agent'.")
     sub = parser.add_subparsers(dest="command", required=True)
 
     # quote
@@ -1288,6 +1296,8 @@ def main():
     p.set_defaults(func=_cmd_rwa_get_my_holdings)
 
     args = parser.parse_args()
+    if args.wallet_id:
+        WALLET_ID = args.wallet_id
     args.func(args)
 
 

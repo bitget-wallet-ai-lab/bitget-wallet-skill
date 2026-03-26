@@ -129,9 +129,31 @@ If NOT_FOUND, guide user:
 3. Save to `<skill_dir>/.social-wallet-secret` as `{"appid":"...","appsecret":"..."}`
 4. Restrict permissions: `chmod 600 <skill_dir>/.social-wallet-secret`
 
+### Using Social Login Wallet with API Calls
+
+When the user is using a Social Login Wallet, **all `bitget-wallet-agent-api.py` calls must include `--wallet-id`** to identify the wallet session. The walletId is obtained from the `profile` endpoint.
+
+**Step 1: Get walletId (once per session)**
+```bash
+python3 scripts/social-wallet.py profile
+# Returns: {"walletId": "<id>"}
+```
+
+**Step 2: Pass walletId to all API calls**
+```bash
+python3 scripts/bitget-wallet-agent-api.py --wallet-id <walletId> get-processed-balance --chain eth --address <addr> --contract ""
+python3 scripts/bitget-wallet-agent-api.py --wallet-id <walletId> quote --from-chain ... --to-chain ...
+# ... all other commands
+```
+
+Without `--wallet-id`, the API uses the default `toc_agent` token (for mnemonic/private-key wallets). With `--wallet-id`, the API routes requests to the Social Login Wallet's backend identity.
+
 ### Commands
 
 ```bash
+# Get wallet profile (walletId)
+python3 scripts/social-wallet.py profile
+
 # Sign transaction (ETH/BTC/SOL/Tron + all EVM chains)
 python3 scripts/social-wallet.py core sign_transaction '{"chain":"eth","to":"0x...","value":0.1,"nonce":0,"gasLimit":21000,"gasPrice":0.0000001}'
 
