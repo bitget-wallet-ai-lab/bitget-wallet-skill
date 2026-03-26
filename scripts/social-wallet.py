@@ -70,6 +70,19 @@ def _gateway_sign(path: str, body_str: str, ts: str) -> str:
     return "0x" + hashlib.sha256(("POST" + path + body_str + ts).encode("utf-8")).hexdigest()
 
 
+# ── Error Handling ────────────────────────────────────────
+
+def _error_exit(msg: str):
+    """Print error to stderr AND structured JSON to stdout, then exit(1).
+
+    This ensures callers that parse stdout with json.loads() always get
+    valid JSON instead of an empty string / JSONDecodeError.
+    """
+    print(f"ERROR: {msg}", file=sys.stderr)
+    print(json.dumps({"error": True, "msg": msg}, ensure_ascii=False))
+    sys.exit(1)
+
+
 # ── API Call ──────────────────────────────────────────────
 
 def call_api(endpoint: str, param_dict: dict) -> dict | None:
@@ -100,22 +113,23 @@ def call_api(endpoint: str, param_dict: dict) -> dict | None:
     try:
         resp = requests.post(f"{BASE_URL}{endpoint}", headers=headers, data=body_str, timeout=15)
     except requests.exceptions.ConnectionError:
-        print(f"ERROR: Cannot connect to {BASE_URL}", file=sys.stderr)
-        return None
+        _error_exit(f"Cannot connect to {BASE_URL}")
     except requests.exceptions.RequestException as e:
-        print(f"ERROR: {e}", file=sys.stderr)
-        return None
+        _error_exit(str(e))
 
     try:
         data = resp.json()
     except Exception:
-        print(f"ERROR: Non-JSON response (HTTP {resp.status_code})", file=sys.stderr)
-        return None
+        _error_exit(f"Non-JSON response (HTTP {resp.status_code})")
 
     status = data.get("status", -1)
     if resp.status_code != 200 or status != 0:
-        print(f"ERROR [status={status}] [trace={data.get('trace','')}] {data.get('msg','unknown')}", file=sys.stderr)
-        return data
+        msg = data.get("msg", "unknown")
+        trace = data.get("trace", "")
+        print(f"ERROR [status={status}] [trace={trace}] {msg}", file=sys.stderr)
+        # Output structured error to stdout so callers parsing JSON get a valid object
+        print(json.dumps({"error": True, "status": status, "msg": msg, "trace": trace}, ensure_ascii=False))
+        sys.exit(1)
 
     resp_data = data.get("data") if isinstance(data.get("data"), dict) else {}
     result_encrypted = resp_data.get("result", "")
@@ -128,7 +142,7 @@ def call_api(endpoint: str, param_dict: dict) -> dict | None:
             except json.JSONDecodeError:
                 print(decrypted)
         except Exception as e:
-            print(f"ERROR: Decryption failed: {e} [status={data.get('status','')}] [trace={data.get('trace','')}]", file=sys.stderr)
+            _error_exit(f"Decryption failed: {e} [status={data.get('status','')}] [trace={data.get('trace','')}]")
     else:
         print(json.dumps(data.get("data", data), indent=2, ensure_ascii=False))
 
