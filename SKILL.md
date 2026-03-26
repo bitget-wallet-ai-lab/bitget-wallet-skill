@@ -36,18 +36,13 @@ description: "Interact with Bitget Wallet API for crypto market data, token info
 
 **Balance query — choose the right API for the task:**
 
-| API | Use When | Tron Support | Returns |
-|-----|----------|:---:|---------|
-| `batch-v2` | General asset overview, portfolio check, "what do I have?" | ✅ | Balance + price + token info |
-| `get-processed-balance` | Swap pre-check only (verify fromToken + gas sufficiency) | ❌ | Balance + decimals (minimal) |
-
-**Rule:** If the user asks to **check assets / view balance / portfolio overview** → use **`batch-v2`**. Only use `get-processed-balance` as part of the **swap flow** pre-check.
+**Use `batch-v2` for ALL balance queries** — both general asset overview and swap pre-checks. It returns balance + price + token info in one call and supports all chains including Tron.
 
 **Before starting a new swap - two mandatory pre-checks:**
 
-1. **Balance check (required):** Run **`get-processed-balance`** to verify the wallet has enough fromToken balance for the intended swap amount. Include native token (`""`) to check gas availability. If `fromToken balance < fromAmount`, inform the user of the shortfall and **do not proceed**. **Gas mode decision:** If native token balance is sufficient for gas → use `--feature user_gas` (preferred). If native token balance is near zero → use `--feature no_gas` (gasless, gas deducted from fromToken; **requires swap amount ≥ ~$5 USD** — below this threshold the API only returns `user_gas`). This choice must be passed to confirm.
+1. **Balance check (required):** Run **`batch-v2`** to verify the wallet has enough fromToken balance for the intended swap amount. Include native token (`""`) to check gas availability. If `fromToken balance < fromAmount`, inform the user of the shortfall and **do not proceed**. **Gas mode decision:** If native token balance is sufficient for gas → use `--feature user_gas` (preferred). If native token balance is near zero → use `--feature no_gas` (gasless, gas deducted from fromToken; **requires swap amount ≥ ~$5 USD** — below this threshold the API only returns `user_gas`). This choice must be passed to confirm.
    ```bash
-   python3 scripts/bitget-wallet-agent-api.py get-processed-balance --chain <fromChain> --address <wallet> --contract "" --contract <fromContract>
+   python3 scripts/bitget-wallet-agent-api.py batch-v2 --chain <fromChain> --address <wallet> --contract "" --contract <fromContract>
    ```
 
 2. **Token risk check (required):** Run **`check-swap-token`** for the intended fromToken and toToken. If `error_code != 0`, show `msg` and stop. If for any token `data.list[].checkTokenList` is non-empty, show the `tips` content to the user and let them decide whether to continue. If the **toToken** (swap target) has an item with **`waringType` equal to `"forbidden-buy"`**, do **not** proceed with the swap and warn the user that this token cannot be used as the swap target.
@@ -141,7 +136,7 @@ python3 scripts/social-wallet.py profile
 
 **Step 2: Pass walletId to all API calls**
 ```bash
-python3 scripts/bitget-wallet-agent-api.py --wallet-id <walletId> get-processed-balance --chain eth --address <addr> --contract ""
+python3 scripts/bitget-wallet-agent-api.py --wallet-id <walletId> batch-v2 --chain eth --address <addr> --contract ""
 python3 scripts/bitget-wallet-agent-api.py --wallet-id <walletId> quote --from-chain ... --to-chain ...
 # ... all other commands
 ```
@@ -293,7 +288,7 @@ Use empty string `""` for native token contract (ETH, SOL, BNB, etc.).
 python3 scripts/bitget-wallet-agent-api.py batch-v2 --chain bnb --address <addr> --contract <token>
 
 # Swap pre-check balance (swap-specific — verifies fromToken + native gas; does NOT support Tron)
-python3 scripts/bitget-wallet-agent-api.py get-processed-balance --chain bnb --address <addr> --contract "" --contract <token>
+python3 scripts/bitget-wallet-agent-api.py batch-v2 --chain bnb --address <addr> --contract "" --contract <token>
 
 # Token find (bgw_token_find)
 python3 scripts/bitget-wallet-agent-api.py launchpad-tokens --chain sol --platforms pump.fun --stage 1 --mc-min 10000 --holder-min 100

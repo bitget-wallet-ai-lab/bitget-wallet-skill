@@ -11,8 +11,7 @@ Unified API client: swap flow + balance + token search + market data. No API key
 | Subcommand | What it does | When to use |
 |------------|----------------|-------------|
 | `check-swap-token` | Checks fromToken and toToken for risks before swap. Pass both tokens via `--from-*`/`--to-*` or `--json-stdin` with `{ "list": [{ chain, contract, symbol }, ...] }`. Returns `data.list[].checkTokenList`; empty = no risk. If any item has `waringType` `"forbidden-buy"`, that token **must not** be used as swap target (toToken). | **Before every new swap:** run this for the intended from and to tokens; if risks are reported, show `tips` to the user; if toToken has `forbidden-buy`, do not proceed and warn. |
-| `get-processed-balance` | Returns processed balance(s) for a chain+address, optionally per token (contract `""` = native). Accepts `--chain`/`--address`/`--contract` or JSON body via `--json-stdin`. | User asks for balance; before swap to verify sufficient balance; Only evm and Solana. |
-| `batch-v2` | Batch get on-chain balance **and token price** for address(es). Same list format as get-processed-balance: `{ list: [{ chain, address, contract: ["" or contract addrs] }] }`. Returns `data[].list` keyed by contract (empty string = native); each has `balance`, `price`, etc. | When user needs balance **plus** token price in one call (e.g. portfolio value in USD). |
+| `batch-v2` | **Primary balance API.** Batch get on-chain balance **and token price** for address(es). Format: `{ list: [{ chain, address, contract: ["" or contract addrs] }] }`. Returns `data[].list` keyed by contract (empty string = native); each has `balance`, `price`, etc. Supports all chains including Tron. | All balance queries — asset overview, swap pre-check, portfolio value. |
 | `search-tokens` | Search on-chain tokens by **keyword or full contract address**. Optional `--chain` to restrict results to one chain (e.g. bnb, eth). Returns `data.list` (name, symbol, chain, contract, price, etc.), `data.showMore`, `data.isContract`. | When user searches for a token by name/symbol or pastes a contract address; use `--chain` when user wants results on a specific chain. |
 | `get-token-list` | Returns the list of tokens available for a chain (for swap/quote). | When you need token symbols or contracts for a chain (e.g. to build quote args). |
 | **Market data** | | |
@@ -41,10 +40,7 @@ python3 scripts/bitget-wallet-agent-api.py check-swap-token --from-chain bnb --f
 echo '{"list":[{"chain":"bnb","contract":"","symbol":"BNB"},{"chain":"bnb","contract":"0x...","symbol":"AIO"}]}' | python3 scripts/bitget-wallet-agent-api.py check-swap-token --json-stdin
 
 # Balance (chain + address; contract "" = native, or pass multiple --contract); Only evm and Solana
-python3 scripts/bitget-wallet-agent-api.py get-processed-balance --chain bnb --address <wallet_evm> [--contract "" --contract <token_contract>]
-echo '{"list":[{"chain":"bnb","address":"0x...","contract":["","0x..."]}]}' | python3 scripts/bitget-wallet-agent-api.py get-processed-balance --json-stdin
-
-# Balance + token price (batch-v2)
+# Balance + token price (use for all balance queries)
 python3 scripts/bitget-wallet-agent-api.py batch-v2 --chain bnb --address <wallet_evm> [--contract "" --contract <token_contract>]
 
 # Search tokens
