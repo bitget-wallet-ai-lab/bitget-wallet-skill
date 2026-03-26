@@ -287,7 +287,7 @@ Use empty string `""` for native token contract (ETH, SOL, BNB, etc.).
 # Asset overview (general balance query — supports all chains including Tron; returns balance + price + token info)
 python3 scripts/bitget-wallet-agent-api.py batch-v2 --chain bnb --address <addr> --contract <token>
 
-# Swap pre-check balance (verify fromToken + native gas; supports all chains)
+# Swap pre-check balance (verify fromToken + native gas; swap-supported chains: eth/sol/bnb/base/arbitrum/matic/morph/trx)
 python3 scripts/bitget-wallet-agent-api.py batch-v2 --chain bnb --address <addr> --contract "" --contract <token>
 
 # Token find (bgw_token_find)
