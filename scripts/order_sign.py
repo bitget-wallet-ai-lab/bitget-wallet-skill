@@ -502,9 +502,11 @@ def _sign_eip712_sign_type_data(sign_type_data: dict, acct) -> str:
 
 def _sign_msgs_eth_sign(msgs: list, acct) -> list[str]:
     """
-    Sign gasPayMaster msgs using eth_sign.
+    Sign gasPayMaster msgs using eth_sign (raw hash, NO EIP-191 prefix).
     Each msg has: hash (bytes32 hex), signType ("eth_sign"), call[], deadline, nonce, etc.
-    eth_sign = sign(keccak256("\\x19Ethereum Signed Message:\\n32" + hash_bytes))
+    Uses unsafe_sign_hash to sign the raw 32-byte hash directly — adding an
+    EIP-191 prefix ("\\x19Ethereum Signed Message:\\n32") would cause on-chain
+    execution failure.
     Returns list of signature hex strings.
     """
     sig_list = []
