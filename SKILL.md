@@ -57,7 +57,7 @@ description: "Interact with Bitget Wallet API for crypto market data, token info
 3. **Quote** — display **all** market results to user, recommend the first, let user choose
 4. **Confirm** — must display three fields to user: `outAmount` (expected), `minAmount` (minimum), `gasTotalAmount` (gas cost); check `recommendFeatures` for gas sufficiency
 5. **User confirmation** — **do not** sign or send until user explicitly confirms ("confirm", "execute", "yes")
-6. **makeOrder + sign + send** — execute as one atomic operation (use `order_make_sign_send.py` for mnemonic/private-key wallets; **Social Login Wallet must use manual 3-step flow** — see `docs/social-wallet.md`)
+6. **makeOrder + sign + send** — execute as one atomic operation (use `order_make_sign_send.py` for mnemonic/private-key wallets; use `social_order_make_sign_send.py` for Social Login Wallets — see `docs/social-wallet.md`)
 7. **Query status** — check order result; ignore `tips` when status=success
 
 See Scripts for full command details and `docs/swap.md` for the complete flow.
@@ -278,7 +278,8 @@ Use empty string `""` for native token contract (ETH, SOL, BNB, etc.).
 | Script | Purpose | Key commands |
 |--------|---------|-------------|
 | `bitget-wallet-agent-api.py` | Unified API client | Balance, token find (launchpad-tokens/search-tokens-v3/rankings), token check (security/coin-dev/coin-market-info/kline/tx-info), swap flow (quote→confirm→make-order→send→get-order-details) |
-| `order_make_sign_send.py` | One-shot swap execution | makeOrder + sign + send in one run. `--private-key-file` (EVM) or `--private-key-file-sol` (Solana). Avoids 60s expiry. |
+| `order_make_sign_send.py` | One-shot swap execution (mnemonic/private-key) | makeOrder + sign + send in one run. `--private-key-file` (EVM) or `--private-key-file-sol` (Solana). Avoids 60s expiry. |
+| `social_order_make_sign_send.py` | One-shot swap execution (Social Login Wallet) | makeOrder + sign (TEE) + send in one run. `--wallet-id` required. No local private key needed. |
 | `order_sign.py` | Sign makeOrder data | Outputs JSON array of signatures. Supports raw tx, EVM gasPayMaster (eth_sign), EIP-712, Solana Ed25519, Solana gasPayMaster. |
 | `x402_pay.py` | x402 payment | EIP-3009 signing, Solana partial-sign, HTTP 402 pay flow |
 | `social-wallet.py` | Social Login Wallet | Sign transactions/messages via Bitget Wallet TEE (no local private key needed) |
@@ -306,6 +307,8 @@ python3 scripts/bitget-wallet-agent-api.py coin-dev --chain sol --contract <addr
 python3 scripts/bitget-wallet-agent-api.py quote --from-chain bnb --from-contract <addr> --from-symbol USDT --from-amount 5 --to-chain bnb --to-contract "" --to-symbol BNB --from-address <wallet> --to-address <wallet>
 python3 scripts/bitget-wallet-agent-api.py confirm ... --market <id> --protocol <proto> --slippage <val> --feature user_gas
 python3 scripts/order_make_sign_send.py --private-key-file /tmp/.pk_evm --order-id <id> --from-chain bnb ... --market ... --protocol ...
+# Social Login Wallet: one-shot swap (no private key needed)
+python3 scripts/social_order_make_sign_send.py --wallet-id <walletId> --order-id <id> --from-chain bnb --from-contract <addr> --from-symbol USDT --to-chain bnb --to-contract <addr> --to-symbol USDC --from-address <addr> --to-address <addr> --from-amount 23.35 --slippage 0.005 --market bgwevmaggregator --protocol bgwevmaggregator_v000
 python3 scripts/bitget-wallet-agent-api.py get-order-details --order-id <id>
 ```
 

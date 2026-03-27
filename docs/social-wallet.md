@@ -58,7 +58,22 @@ Read-only operations (`get_address`, `get_public_key`, `validate_address`, `batc
 
 ## Integration with Swap Flow
 
-**⚠️ `order_make_sign_send.py` is NOT compatible with Social Login Wallets.** That script requires a local private key file, but Social Login Wallets sign via TEE API — no local private key exists. For Social Login Wallet swaps, you **must** use the 3-step manual flow:
+**Recommended: Use `social_order_make_sign_send.py`** — combines makeOrder + sign (TEE) + send in one run, avoiding the 60s expiry issue. No local private key needed.
+
+```bash
+python3 scripts/social_order_make_sign_send.py \
+  --wallet-id <walletId> \
+  --order-id <from confirm> \
+  --from-chain bnb --from-contract 0x... --from-symbol USDT \
+  --to-chain bnb --to-contract 0x... --to-symbol USDC \
+  --from-address 0x... --to-address 0x... \
+  --from-amount 23.35 --slippage 0.005 \
+  --market bgwevmaggregator --protocol bgwevmaggregator_v000
+```
+
+Auto-detects signing mode: EVM gasPayMaster, EVM regular tx, Solana, Tron.
+
+**Alternative: Manual 3-step flow** (for debugging or custom flows):
 
 1. **makeOrder** → `bitget-wallet-agent-api.py make-order ...`
 2. **Sign** → `social-wallet.py core sign_message/sign_transaction` (per tx, based on mode detection)

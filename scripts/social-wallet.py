@@ -85,6 +85,71 @@ def _error_exit(msg: str):
 
 # ── API Call ──────────────────────────────────────────────
 
+def call_api_return(endpoint: str, param_dict: dict) -> dict:
+    """Call API and return decrypted result as dict (importable, no stdout)."""
+    timestamp = str(int(time.time() * 1000))
+    nonce = secrets.token_hex(16)
+
+    param_json = json.dumps(param_dict, separators=(",", ":"), ensure_ascii=False)
+    param_encrypted = aes_gcm_encrypt(param_json)
+    param_sign = hmac_sha384(f"{param_encrypted}|{timestamp}|{nonce}|{APPID}")
+
+    body = {"param": param_encrypted, "paramSign": param_sign}
+    body_str = json.dumps(body, separators=(",", ":"), ensure_ascii=False)
+
+    headers = {
+        "Content-Type": "application/json",
+        "channel": "toc_agent",
+        "brand": "toc_agent",
+        "clientversion": "10.0.0",
+        "language": "en",
+        "token": "toc_agent",
+        "X-SIGN": _gateway_sign(endpoint, body_str, timestamp),
+        "X-TIMESTAMP": timestamp,
+        "x-agent-appid": APPID,
+        "x-nonce": nonce,
+        "sig": param_sign,
+    }
+
+    resp = requests.post(f"{BASE_URL}{endpoint}", headers=headers, data=body_str, timeout=15)
+    data = resp.json()
+
+    status = data.get("status", -1)
+    if resp.status_code != 200 or status != 0:
+        msg = data.get("msg", "unknown")
+        raise RuntimeError(f"Social wallet API error [status={status}]: {msg}")
+
+    resp_data = data.get("data") if isinstance(data.get("data"), dict) else {}
+    result_encrypted = resp_data.get("result", "")
+
+    if result_encrypted:
+        decrypted = aes_gcm_decrypt(result_encrypted)
+        try:
+            return json.loads(decrypted)
+        except json.JSONDecodeError:
+            return {"result": decrypted}
+    else:
+        return data.get("data", data)
+
+
+def sign_message_return(chain: str, message: str) -> dict:
+    """Sign a message via Social Login Wallet TEE. Returns decrypted result dict."""
+    load_secret()
+    if not APPID or not APPSECRET:
+        raise RuntimeError(f"Missing credentials. Create {SECRET_FILE}")
+    param = json.dumps({"chain": chain, "message": message}, separators=(",", ":"), ensure_ascii=False)
+    return call_api_return(ENDPOINTS["core"], {"operation": "sign_message", "param": param})
+
+
+def sign_transaction_return(chain: str, tx_params: dict) -> dict:
+    """Sign a transaction via Social Login Wallet TEE. Returns decrypted result dict."""
+    load_secret()
+    if not APPID or not APPSECRET:
+        raise RuntimeError(f"Missing credentials. Create {SECRET_FILE}")
+    param = json.dumps(tx_params, separators=(",", ":"), ensure_ascii=False)
+    return call_api_return(ENDPOINTS["core"], {"operation": "sign_transaction", "param": param})
+
+
 def call_api(endpoint: str, param_dict: dict) -> dict | None:
     timestamp = str(int(time.time() * 1000))
     nonce = secrets.token_hex(16)
