@@ -6,6 +6,36 @@ Format: date-based versioning (`YYYY.M.DD`). Each release includes a sequential 
 
 ---
 
+## [2026.3.27-1] - 2026-03-27
+
+### Added — Token Deep Analysis (bgw_token_analyze)
+- **`simple-kline`** — K-line with KOL/smart money trade signals and hot level indicator (`POST /market/v2/coin/SimpleKline`). Supports signal overlays: KOL, smart money, developer. Includes `kolSmartHotLevel` (low/medium/high) and per-candle `tagUserStats`.
+- **`trading-dynamics`** — Multi-window trading dynamics (5m/1h/4h/24h) in a single call (`POST /market/v2/coin/GetTradingDynamics`). Returns AI-generated summary, buy/sell pressure, address quality distribution (A/B/C/wash), amount distribution, and tagged address fund flow.
+- **`transaction-list`** — Transaction records with tag/direction/time filtering (`POST /market/v2/coin/TransactionList`). Supports `--only-barrage` for tagged-only transactions, `--txnfrom-tags` for fine-grained tag filtering (smart_money/kol/developer/bot/manipulator), direction and time window filters.
+- **`holders-info`** — Top 100 holders with classification (CEX/smart money/KOL/manipulator) and PnL (`POST /market/v2/GetHoldersInfo`). Sort by holding or PnL, filter by special holder type or address tags.
+- **`profit-address-analysis`** — Profitable address summary statistics (`POST /market/v2/coin/GetProfitAddressAnalysis`). Position dynamics (add/hold/reduce/close) with user type breakdown (kol/smart_money/manipulator), profit distribution ranges.
+- **`top-profit`** — Top profitable addresses list with PnL details (`POST /market/v2/coin/GetTopProfit`). Per-address: total profit, profit rate, latest position action, user tags, quality grade.
+- **`compare-tokens`** — Side-by-side K-line comparison of two tokens. Calls SimpleKline twice, aligns by timestamp, outputs unified `{ts, price_a, price_b, volume_a, volume_b, marketCap_a, marketCap_b}`.
+
+### Added — Address Discovery (bgw_address_find)
+- **`recommend-address-list`** — Find addresses by role (KOL / smart money) with performance filters (`POST /market/v2/monitor/recommend-group/address/list`). Filter by chain, win rate, profit, trade count. Sort by profit/win rate/trade count/last activity. Time windows: 24h/7d/30d. Returns per-address: profit_analysis (win_rate, total_profit, tx_count, daily profit_list), holdings, address_tags, social links.
+
+### Added — Documentation
+- `docs/token-analyze.md` — Complete domain knowledge: per-command parameters, response fields, recommended analysis flow, key field reference, trading signal identification matrix.
+- `docs/address-find.md` — Domain knowledge: parameters, response fields, role groups, filters, usage examples, key signals.
+- Updated `docs/market-data.md` — Added bgw_token_analyze reference section with API mapping table.
+- Updated `docs/commands.md` — Added 8 new subcommand references with usage examples (7 token analyze + 1 address find).
+- Updated `SKILL.md` — Added bgw_token_analyze to domain knowledge table, market tools architecture, extended knowledge table, scripts table, and quick reference.
+- Updated `README.md` — Added 7 new capabilities to core capabilities table (6 token analyze + 1 address find).
+
+### Audit
+- No new external dependencies added
+- All 8 endpoints are read-only market data APIs (no fund movement, no signing)
+- No credentials or secrets involved
+- All APIs verified working via live calls against production endpoint
+
+---
+
 ## [2026.3.23-1] - 2026-03-23
 
 ### Added — Social Login Wallet

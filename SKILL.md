@@ -17,6 +17,8 @@ description: "Interact with Bitget Wallet API for crypto market data, token info
 |----------------|----------------|----------------|
 | Swap / Trade | [`docs/swap.md`](docs/swap.md) | quote, confirm, make-order, send, get-order-details |
 | Market Data / Token Analysis | [`docs/market-data.md`](docs/market-data.md) | coin-market-info, security, coin-dev, kline, tx-info, liquidity, rankings, launchpad-tokens, search-tokens-v3 |
+| Token Deep Analysis | [`docs/token-analyze.md`](docs/token-analyze.md) | simple-kline, trading-dynamics, transaction-list, holders-info, profit-address-analysis, top-profit, compare-tokens |
+| Address Discovery | [`docs/address-find.md`](docs/address-find.md) | recommend-address-list |
 | Wallet / Signing | [`docs/wallet-signing.md`](docs/wallet-signing.md) | Any signing operation, key derivation, order_sign.py, order_make_sign_send.py |
 | Social Login Wallet | [`docs/social-wallet.md`](docs/social-wallet.md) | social-wallet.py sign_transaction, sign_message, get_address |
 | RWA Stock Trading | [`docs/rwa.md`](docs/rwa.md) | Any RWA stock discovery, config, order, holdings |
@@ -96,6 +98,32 @@ Market tools handle **token discovery and analysis only** — no trading, wallet
 **Pre-trade mandatory:** check-swap-token → security
 
 Full domain knowledge and Skills-layer computation rules in [`docs/market-data.md`](docs/market-data.md).
+
+### bgw_token_analyze — Token Deep Analysis
+
+| Use Case | Command | Description |
+|----------|---------|-------------|
+| K-line + signals | `simple-kline` | K-line with KOL/smart money trade signals + hot level |
+| Trading dynamics | `trading-dynamics` | 4-window (5m/1h/4h/24h) buy/sell pressure + address quality |
+| Transactions | `transaction-list` | Tagged trades (smart money/KOL/dev), direction/time filtering |
+| Holders | `holders-info` | Top100 distribution + PnL + tag classification |
+| Profit analysis | `profit-address-analysis` | Profitable address stats + position dynamics |
+| Top profit | `top-profit` | Top profitable address list with PnL details |
+| Compare | `compare-tokens` | Side-by-side K-line comparison of two tokens |
+
+**Recommended analysis order:** trading-dynamics → simple-kline → holders-info → transaction-list → profit analysis
+
+Full domain knowledge in [`docs/token-analyze.md`](docs/token-analyze.md).
+
+### bgw_address_find — Address Discovery
+
+| Use Case | Command | Description |
+|----------|---------|-------------|
+| Find by role | `recommend-address-list` | Find KOL / smart money addresses with performance filters (win rate, profit, chain, trade count) |
+
+**Filter dimensions:** role group (KOL/smart money/all), chain, win rate, profit, trade count. Sort by profit/win rate/trade count/last activity. Time windows: 24h/7d/30d.
+
+Full domain knowledge in [`docs/address-find.md`](docs/address-find.md).
 
 ## Social Login Wallet
 
@@ -228,6 +256,8 @@ For other tokens, use token-info or a block explorer to verify the contract addr
 | Commands | [`docs/commands.md`](docs/commands.md) | Full subcommand parameters, usage examples for all scripts |
 | Wallet & Signing | [`docs/wallet-signing.md`](docs/wallet-signing.md) | Key management, BIP-39/44, signing, multi-chain |
 | Market Data | [`docs/market-data.md`](docs/market-data.md) | Token info, price, K-line, tx info, rankings, liquidity, security |
+| Token Deep Analysis | [`docs/token-analyze.md`](docs/token-analyze.md) | Deep token analysis: K-line signals, trading dynamics, holders, smart money |
+| Address Discovery | [`docs/address-find.md`](docs/address-find.md) | Find KOL/smart money addresses by role and performance filters |
 | Swap | [`docs/swap.md`](docs/swap.md) | Swap flow, quote/confirm/makeOrder/send, slippage, gas, approvals |
 | RWA Stock Trading | [`docs/rwa.md`](docs/rwa.md) | RWA stock discovery, config, market status, order price, holdings |
 | x402 Payments | [`docs/x402-payments.md`](docs/x402-payments.md) | HTTP 402, EIP-3009, Permit2, Solana partial-sign |
@@ -277,7 +307,7 @@ Use empty string `""` for native token contract (ETH, SOL, BNB, etc.).
 
 | Script | Purpose | Key commands |
 |--------|---------|-------------|
-| `bitget-wallet-agent-api.py` | Unified API client | Balance, token find (launchpad-tokens/search-tokens-v3/rankings), token check (security/coin-dev/coin-market-info/kline/tx-info), swap flow (quote→confirm→make-order→send→get-order-details) |
+| `bitget-wallet-agent-api.py` | Unified API client | Balance, token find (launchpad-tokens/search-tokens-v3/rankings), token check (security/coin-dev/coin-market-info/kline/tx-info), token analyze (simple-kline/trading-dynamics/transaction-list/holders-info/profit-address-analysis/top-profit/compare-tokens), address find (recommend-address-list), swap flow (quote→confirm→make-order→send→get-order-details) |
 | `order_make_sign_send.py` | One-shot swap execution (mnemonic/private-key) | makeOrder + sign + send in one run. `--private-key-file` (EVM) or `--private-key-file-sol` (Solana). Avoids 60s expiry. |
 | `social_order_make_sign_send.py` | One-shot swap execution (Social Login Wallet) | makeOrder + sign (TEE) + send in one run. `--wallet-id` required. No local private key needed. |
 | `order_sign.py` | Sign makeOrder data | Outputs JSON array of signatures. Supports raw tx, EVM gasPayMaster (eth_sign), EIP-712, Solana Ed25519, Solana gasPayMaster. |
@@ -302,6 +332,19 @@ python3 scripts/bitget-wallet-agent-api.py rankings --name Hotpicks  # or topGai
 python3 scripts/bitget-wallet-agent-api.py coin-market-info --chain sol --contract <addr>
 python3 scripts/bitget-wallet-agent-api.py security --chain bnb --contract <addr>
 python3 scripts/bitget-wallet-agent-api.py coin-dev --chain sol --contract <addr>
+
+# Token analyze (bgw_token_analyze)
+python3 scripts/bitget-wallet-agent-api.py simple-kline --chain sol --contract <addr> --period 1h --size 24
+python3 scripts/bitget-wallet-agent-api.py trading-dynamics --chain sol --contract <addr>
+python3 scripts/bitget-wallet-agent-api.py transaction-list --chain sol --contract <addr> --only-barrage
+python3 scripts/bitget-wallet-agent-api.py holders-info --chain sol --contract <addr>
+python3 scripts/bitget-wallet-agent-api.py profit-address-analysis --chain sol --contract <addr>
+python3 scripts/bitget-wallet-agent-api.py top-profit --chain sol --contract <addr>
+python3 scripts/bitget-wallet-agent-api.py compare-tokens --chain-a sol --contract-a <addr1> --chain-b sol --contract-b <addr2> --period 1h --size 24
+
+# Address find (bgw_address_find)
+python3 scripts/bitget-wallet-agent-api.py recommend-address-list --group-ids 1 --filter-chain sol --sort-field win_rate
+python3 scripts/bitget-wallet-agent-api.py recommend-address-list --group-ids 2 --filter-win-rate-min 80 --data-period 30d
 
 # Swap flow
 python3 scripts/bitget-wallet-agent-api.py quote --from-chain bnb --from-contract <addr> --from-symbol USDT --from-amount 5 --to-chain bnb --to-contract "" --to-symbol BNB --from-address <wallet> --to-address <wallet>

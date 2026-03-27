@@ -127,6 +127,72 @@ python3 scripts/x402_pay.py sign-solana --private-key-file <key_file> --transact
 python3 scripts/x402_pay.py pay --url https://api.example.com/data --private-key-file <key_file>
 ```
 
+## Token Deep Analysis (bgw_token_analyze)
+
+All subcommands under `scripts/bitget-wallet-agent-api.py`. See [`docs/token-analyze.md`](token-analyze.md) for full domain knowledge.
+
+| Subcommand | What it does | When to use |
+|------------|-------------|-------------|
+| `simple-kline` | K-line + KOL/smart money trade signals + hot level | Deep price analysis with smart money overlay |
+| `trading-dynamics` | Multi-window (5m/1h/4h/24h) trading dynamics | Quick activity overview, buy/sell pressure |
+| `transaction-list` | Transaction records with tag/direction/time filtering | Drill into specific trades, smart money activity |
+| `holders-info` | Top 100 holders + classification + PnL | Holder distribution, concentration risk |
+| `profit-address-analysis` | Profitable address summary statistics | Profitability landscape overview |
+| `top-profit` | Top profitable addresses list with PnL | Identify successful traders |
+| `compare-tokens` | Side-by-side K-line comparison of two tokens | Compare price action between tokens |
+
+```bash
+# K-line with smart money signals (24h hourly)
+python3 scripts/bitget-wallet-agent-api.py simple-kline --chain sol --contract <addr> --period 1h --size 24
+
+# Multi-window trading dynamics
+python3 scripts/bitget-wallet-agent-api.py trading-dynamics --chain sol --contract <addr>
+
+# Tagged transactions only (smart money, KOL, dev)
+python3 scripts/bitget-wallet-agent-api.py transaction-list --chain sol --contract <addr> --only-barrage
+
+# Smart money buys in last hour
+python3 scripts/bitget-wallet-agent-api.py transaction-list --chain sol --contract <addr> --txnfrom-tags smart_money --side buy --period 1h
+
+# Top 100 holders sorted by PnL
+python3 scripts/bitget-wallet-agent-api.py holders-info --chain sol --contract <addr> --sort pnl_desc
+
+# Smart money holders only
+python3 scripts/bitget-wallet-agent-api.py holders-info --chain sol --contract <addr> --special-holder-key smart_money
+
+# Profitable address analysis
+python3 scripts/bitget-wallet-agent-api.py profit-address-analysis --chain sol --contract <addr>
+python3 scripts/bitget-wallet-agent-api.py top-profit --chain sol --contract <addr>
+
+# Compare two tokens
+python3 scripts/bitget-wallet-agent-api.py compare-tokens --chain-a sol --contract-a <addr1> --chain-b sol --contract-b <addr2> --period 1h --size 24
+```
+
+## Address Discovery (bgw_address_find)
+
+All subcommands under `scripts/bitget-wallet-agent-api.py`. See [`docs/address-find.md`](address-find.md) for full domain knowledge.
+
+| Subcommand | What it does | When to use |
+|------------|-------------|-------------|
+| `recommend-address-list` | Find KOL / smart money addresses with performance filters | Discover high-performing wallets, copy-trading research, whale watching |
+
+```bash
+# Top profitable addresses (default: all roles, 7d, sorted by profit)
+python3 scripts/bitget-wallet-agent-api.py recommend-address-list
+
+# Smart money on Solana sorted by win rate
+python3 scripts/bitget-wallet-agent-api.py recommend-address-list --group-ids 1 --filter-chain sol --sort-field win_rate
+
+# KOLs with >80% win rate over 30 days
+python3 scripts/bitget-wallet-agent-api.py recommend-address-list --group-ids 2 --filter-win-rate-min 80 --data-period 30d
+
+# High-profit smart money (>$10K, 7d)
+python3 scripts/bitget-wallet-agent-api.py recommend-address-list --group-ids 1 --filter-pnl-min 10000
+
+# Recently active addresses
+python3 scripts/bitget-wallet-agent-api.py recommend-address-list --sort-field last_activity_time --limit 10
+```
+
 ## `scripts/social-wallet.py`
 
 Social Login Wallet operations — sign transactions and messages via Bitget Wallet TEE (no local private key).

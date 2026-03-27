@@ -39,6 +39,13 @@ Smart Tools (We orchestrate)
 | **Token Market Info** | Price, MC, FDV, liquidity, 57 pool pairs, narratives, price changes | "Show me full market info for Lobstar" |
 | **Dev Analysis** | Dev address, rug history, LP lock, holdings, migration history | "Check this token's dev history" |
 | **Security Audit** | Honeypot/mint/proxy + buy/sell tax + risk checks (EVM & Solana) | "Is this contract safe?" |
+| **K-line + Smart Signals** | K-line with KOL/smart money trade markers + hot level | "Show me smart money activity on this token" |
+| **Trading Dynamics** | Multi-window buy/sell pressure + address quality + wash detection | "What's the trading activity like?" |
+| **Transaction Analysis** | Tagged transactions (smart money/KOL/dev) with filtering | "Show me KOL trades on this token" |
+| **Holder Analysis** | Top100 distribution + PnL + tag classification (CEX/smart/KOL) | "Who's holding this token?" |
+| **Smart Money Analysis** | Profitable address stats + top earners list | "Are smart money addresses in profit?" |
+| **Token Comparison** | Side-by-side K-line comparison of two tokens | "Compare BONK vs WIF price action" |
+| **Address Discovery** | Find KOL / smart money addresses by role with performance filters | "Find top smart money on Solana with >80% win rate" |
 | **Social Login Wallet** | Sign transactions/messages via Bitget Wallet TEE — no local private key needed | "Sign this transaction with my Bitget Wallet" |
 | **Balance Query** | On-chain balance per chain/address/token (native + ERC-20/SPL) | "What's my BNB balance?" |
 | **Balance + Price** | Batch balance with USD price in one call | "What's my portfolio worth?" |

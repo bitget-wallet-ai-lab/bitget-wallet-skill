@@ -540,6 +540,188 @@ def launchpad_tokens(
 
 
 # ---------------------------------------------------------------------------
+# Token Deep Analysis APIs (bgw_token_analyze)
+# ---------------------------------------------------------------------------
+
+
+def simple_kline(
+    chain: str,
+    contract: str,
+    period: str = "5m",
+    size: Optional[int] = None,
+    user_address: Optional[str] = None,
+    is_show_kol: bool = True,
+    is_show_smart_money: bool = True,
+    is_show_developer: bool = True,
+) -> dict:
+    """K-line with KOL/smart money trade signals and hot level.
+
+    period: 1m/5m/15m/30m/1h/2h/4h/6h/8h/12h/1d/3d/1w (default 5m)
+    size: number of candles (auto-calculated if omitted)
+    user_address: wallet address for user avg buy/sell price lines
+    is_show_kol/is_show_smart_money/is_show_developer: toggle signal overlays
+
+    Response includes: list (candles with tagUserStats), kolSmartHotLevel (low/medium/high),
+    userAvgBuyPrice, userAvgSellPrice, ssekey, isHaveMoreData.
+    """
+    body: dict = {
+        "chain": chain,
+        "contract": contract,
+        "period": period,
+        "isShowKol": is_show_kol,
+        "isShowSmartMoney": is_show_smart_money,
+        "isShowDeveloper": is_show_developer,
+    }
+    if size is not None:
+        body["size"] = size
+    if user_address is not None:
+        body["userAddress"] = user_address
+    return _request("/market/v2/coin/SimpleKline", body)
+
+
+def trading_dynamics(chain: str, contract: str) -> dict:
+    """Multi-window trading dynamics (5m/1h/4h/24h).
+
+    Returns 4 time windows with: summary (AI text), price_change, buy/sell volume,
+    buyer/seller count, level_a/b/c/wash address counts, amount_distribution,
+    address_tags (smart_money/kol/manipulator fund flow).
+    """
+    body = {"chain": chain, "contract": contract}
+    return _request("/market/v2/coin/GetTradingDynamics", body)
+
+
+def transaction_list(
+    chain: str,
+    contract: str,
+    page: int = 1,
+    size: int = 20,
+    side: Optional[str] = None,
+    only_barrage: bool = False,
+    period: Optional[str] = None,
+    txnfrom_tags: Optional[List[str]] = None,
+    address_list: Optional[List[str]] = None,
+) -> dict:
+    """Transaction records with tag/direction/time filtering.
+
+    side: buy / sell (omit for all)
+    only_barrage: true = only tagged transactions (smart money/KOL/dev etc.)
+    period: 5m / 15m / 1h / 4h / 24h
+    txnfrom_tags: filter by tags — smart_money / kol / developer / bot / manipulator
+    address_list: filter by specific addresses
+
+    Response per tx: side, txnfrom, txhash, valueNum (USD), amountNum, price,
+    ts, marketCap, txnfromTags, txnfromLevelTag (A/B/C/D), addressUserName, tx_url.
+    """
+    body: dict = {"chain": chain, "contract": contract, "page": page, "size": size}
+    if side is not None:
+        body["side"] = side
+    if only_barrage:
+        body["onlyBarrage"] = True
+    if period is not None:
+        body["period"] = period
+    if txnfrom_tags is not None:
+        body["txnfromTags"] = txnfrom_tags
+    if address_list is not None:
+        body["addressList"] = address_list
+    return _request("/market/v2/coin/TransactionList", body)
+
+
+def holders_info(
+    chain: str,
+    contract: str,
+    sort: str = "holding_desc",
+    special_holder_key: Optional[str] = None,
+    address_tags: Optional[List[str]] = None,
+) -> dict:
+    """Top100 holders with classification (CEX/smart money/KOL) and PnL.
+
+    sort: holding_desc (default) / pnl_desc / pnl_asc
+    special_holder_key: kol / smart_money / follow
+    address_tags: multi-tag OR filter
+
+    Response: top10Percent, total_holder_count, price, avg_holder_balance,
+    holders.list[] (addr, amount, amount_usd, percent, profit_amount_str,
+    profit_rate_str, user_tags, level_tag), special_holders, other_holders.
+    """
+    body: dict = {"chain": chain, "contract": contract, "sort": sort}
+    if special_holder_key is not None:
+        body["special_holder_key"] = special_holder_key
+    if address_tags is not None:
+        body["address_tags"] = address_tags
+    return _request("/market/v2/GetHoldersInfo", body)
+
+
+def profit_address_analysis(chain: str, contract: str) -> dict:
+    """Profitable address summary statistics.
+
+    Response: profit_addr_count, total_profit_addr_count, total_addr_count,
+    profit_percent, avg_cost, address_dynamics (add/hold/reduce/close counts
+    with user_type breakdown: kol/smart_money/manipulator/other),
+    profit_distribution (ranges: 0-100/100-500/500-1k/1k-5k/5k+),
+    user_type_stats (kol/smart_money/manipulator counts).
+    """
+    body = {"chain": chain, "contract": contract}
+    return _request("/market/v2/coin/GetProfitAddressAnalysis", body)
+
+
+def top_profit(chain: str, contract: str) -> dict:
+    """Top profitable addresses list with PnL details.
+
+    Response: summary (profit_rate, buy_avg_price, sell_avg_price),
+    list[] (address, latest_position, total_profit, total_profit_str,
+    total_profit_rate, total_profit_rate_str, user_tags, level_tag).
+    """
+    body = {"chain": chain, "contract": contract}
+    return _request("/market/v2/coin/GetTopProfit", body)
+
+
+# ---------------------------------------------------------------------------
+# Address Discovery APIs (bgw_address_find)
+# ---------------------------------------------------------------------------
+
+
+def recommend_address_list(
+    recommend_group_ids: Optional[List[int]] = None,
+    data_period: str = "7d",
+    sort_field: str = "pnl_usd",
+    sort_order: str = "desc",
+    param_filters: Optional[dict] = None,
+    page: int = 1,
+    limit: int = 30,
+) -> dict:
+    """Find addresses by role (KOL / smart money) with performance filters.
+
+    recommend_group_ids: role filter. [0]=all (default), [1]=smart money, [2]=KOL.
+        Group IDs are dynamic — obtain from response recommend_groups field.
+    data_period: statistics window — 24h / 7d (default) / 30d
+    sort_field: pnl_usd (default) / win_rate / trade_count / last_activity_time
+    sort_order: desc (default) / asc
+    param_filters: filter map. Keys: chain (values: ["sol","bnb","base","eth"]),
+        pnl_usd (range: min/max in USD), win_rate (range: min/max 0-100),
+        trade_count (range: min/max).
+        Example: {"chain": {"values": ["sol"]}, "win_rate": {"min": 70, "max": 100}}
+    page: page number (default 1)
+    limit: page size, max 30 (default 30)
+
+    Response: addresses[] (chain, address, address_tags, profit_analysis with
+    win_rate/total_profit_usd/tx_count, holdings[]),
+    recommend_groups (available role groups), sort_fields, filter_fields, statistic_times.
+    """
+    body: dict = {
+        "data_period": data_period,
+        "sort_field": sort_field,
+        "sort_order": sort_order,
+        "page": page,
+        "limit": limit,
+    }
+    if recommend_group_ids is not None:
+        body["recommend_group_ids"] = recommend_group_ids
+    if param_filters is not None:
+        body["param_filters"] = param_filters
+    return _request("/market/v2/monitor/recommend-group/address/list", body)
+
+
+# ---------------------------------------------------------------------------
 # RWA (Real World Asset) stock trading APIs
 # ---------------------------------------------------------------------------
 
@@ -954,6 +1136,146 @@ def _cmd_launchpad_tokens(args):
     print(json.dumps(out, indent=2, ensure_ascii=False))
 
 
+# ---- Token Analyze CLI ----
+
+
+def _cmd_simple_kline(args):
+    out = simple_kline(
+        chain=args.chain,
+        contract=args.contract,
+        period=getattr(args, "period", "5m"),
+        size=getattr(args, "size", None),
+        user_address=getattr(args, "user_address", None),
+        is_show_kol=not getattr(args, "no_kol", False),
+        is_show_smart_money=not getattr(args, "no_smart_money", False),
+        is_show_developer=not getattr(args, "no_developer", False),
+    )
+    print(json.dumps(out, indent=2, ensure_ascii=False))
+
+
+def _cmd_trading_dynamics(args):
+    out = trading_dynamics(chain=args.chain, contract=args.contract)
+    print(json.dumps(out, indent=2, ensure_ascii=False))
+
+
+def _cmd_transaction_list(args):
+    out = transaction_list(
+        chain=args.chain,
+        contract=args.contract,
+        page=getattr(args, "page", 1),
+        size=getattr(args, "size", 20),
+        side=getattr(args, "side", None),
+        only_barrage=getattr(args, "only_barrage", False),
+        period=getattr(args, "period", None),
+        txnfrom_tags=args.txnfrom_tags.split(",") if getattr(args, "txnfrom_tags", None) else None,
+        address_list=args.address_list.split(",") if getattr(args, "address_list", None) else None,
+    )
+    print(json.dumps(out, indent=2, ensure_ascii=False))
+
+
+def _cmd_holders_info(args):
+    out = holders_info(
+        chain=args.chain,
+        contract=args.contract,
+        sort=getattr(args, "sort", "holding_desc"),
+        special_holder_key=getattr(args, "special_holder_key", None),
+        address_tags=args.address_tags.split(",") if getattr(args, "address_tags", None) else None,
+    )
+    print(json.dumps(out, indent=2, ensure_ascii=False))
+
+
+def _cmd_profit_address_analysis(args):
+    out = profit_address_analysis(chain=args.chain, contract=args.contract)
+    print(json.dumps(out, indent=2, ensure_ascii=False))
+
+
+def _cmd_top_profit(args):
+    out = top_profit(chain=args.chain, contract=args.contract)
+    print(json.dumps(out, indent=2, ensure_ascii=False))
+
+
+def _cmd_compare_tokens(args):
+    period = getattr(args, "period", "1h")
+    size = getattr(args, "size", None)
+    out_a = simple_kline(chain=args.chain_a, contract=args.contract_a, period=period, size=size,
+                         is_show_kol=False, is_show_smart_money=False, is_show_developer=False)
+    out_b = simple_kline(chain=args.chain_b, contract=args.contract_b, period=period, size=size,
+                         is_show_kol=False, is_show_smart_money=False, is_show_developer=False)
+    # Build ts-indexed maps
+    map_a = {item["ts"]: item for item in (out_a.get("data", {}).get("list", []))}
+    map_b = {item["ts"]: item for item in (out_b.get("data", {}).get("list", []))}
+    all_ts = sorted(set(map_a.keys()) | set(map_b.keys()))
+    aligned = []
+    for ts in all_ts:
+        row = {"ts": ts}
+        a = map_a.get(ts)
+        b = map_b.get(ts)
+        if a:
+            row["price_a"] = a.get("price")
+            row["volume_a"] = a.get("volume")
+            row["marketCap_a"] = a.get("marketCap")
+        if b:
+            row["price_b"] = b.get("price")
+            row["volume_b"] = b.get("volume")
+            row["marketCap_b"] = b.get("marketCap")
+        aligned.append(row)
+    result = {
+        "token_a": {"chain": args.chain_a, "contract": args.contract_a},
+        "token_b": {"chain": args.chain_b, "contract": args.contract_b},
+        "period": period,
+        "aligned": aligned,
+    }
+    print(json.dumps(result, indent=2, ensure_ascii=False))
+
+
+# ---- Address Find CLI ----
+
+
+def _cmd_recommend_address_list(args):
+    group_ids = None
+    if getattr(args, "group_ids", None):
+        group_ids = [int(x) for x in args.group_ids.split(",")]
+    param_filters = None
+    if getattr(args, "filter_chain", None) or getattr(args, "filter_win_rate_min", None) \
+            or getattr(args, "filter_win_rate_max", None) or getattr(args, "filter_pnl_min", None) \
+            or getattr(args, "filter_pnl_max", None) or getattr(args, "filter_trade_count_min", None) \
+            or getattr(args, "filter_trade_count_max", None):
+        param_filters = {}
+        if getattr(args, "filter_chain", None):
+            param_filters["chain"] = {"values": args.filter_chain.split(",")}
+        wr = {}
+        if getattr(args, "filter_win_rate_min", None) is not None:
+            wr["min"] = args.filter_win_rate_min
+        if getattr(args, "filter_win_rate_max", None) is not None:
+            wr["max"] = args.filter_win_rate_max
+        if wr:
+            param_filters["win_rate"] = wr
+        pnl = {}
+        if getattr(args, "filter_pnl_min", None) is not None:
+            pnl["min"] = args.filter_pnl_min
+        if getattr(args, "filter_pnl_max", None) is not None:
+            pnl["max"] = args.filter_pnl_max
+        if pnl:
+            param_filters["pnl_usd"] = pnl
+        tc = {}
+        if getattr(args, "filter_trade_count_min", None) is not None:
+            tc["min"] = args.filter_trade_count_min
+        if getattr(args, "filter_trade_count_max", None) is not None:
+            tc["max"] = args.filter_trade_count_max
+        if tc:
+            param_filters["trade_count"] = tc
+    out = recommend_address_list(
+        recommend_group_ids=group_ids,
+        data_period=getattr(args, "data_period", "7d"),
+        sort_field=getattr(args, "sort_field", "pnl_usd"),
+        sort_order=getattr(args, "sort_order", "desc"),
+        param_filters=param_filters,
+        page=getattr(args, "page", 1),
+        limit=getattr(args, "limit", 30),
+    )
+    print(json.dumps(out, indent=2, ensure_ascii=False))
+
+
 # ---- RWA CLI ----
 
 def _cmd_rwa_get_user_ticker_selector(args):
@@ -1212,6 +1534,79 @@ def main():
     p.add_argument("--keywords", default=None, help="Search keyword (e.g. pepe)")
     p.add_argument("--limit", type=int, default=100, help="Max results (default: 100)")
     p.set_defaults(func=_cmd_launchpad_tokens)
+
+    # ---- Token Analyze (bgw_token_analyze) ----
+    p = sub.add_parser("simple-kline", help="[Analyze] K-line + KOL/smart money signals + hot level")
+    p.add_argument("--chain", required=True)
+    p.add_argument("--contract", required=True)
+    p.add_argument("--period", default="5m", help="K-line period: 1m/5m/15m/30m/1h/2h/4h/6h/8h/12h/1d/3d/1w (default: 5m)")
+    p.add_argument("--size", type=int, default=None, help="Number of candles (auto if omitted)")
+    p.add_argument("--user-address", dest="user_address", default=None, help="Wallet address for avg buy/sell price lines")
+    p.add_argument("--no-kol", dest="no_kol", action="store_true", help="Hide KOL trade signals")
+    p.add_argument("--no-smart-money", dest="no_smart_money", action="store_true", help="Hide smart money signals")
+    p.add_argument("--no-developer", dest="no_developer", action="store_true", help="Hide developer signals")
+    p.set_defaults(func=_cmd_simple_kline)
+
+    p = sub.add_parser("trading-dynamics", help="[Analyze] Multi-window trading dynamics (5m/1h/4h/24h)")
+    p.add_argument("--chain", required=True)
+    p.add_argument("--contract", required=True)
+    p.set_defaults(func=_cmd_trading_dynamics)
+
+    p = sub.add_parser("transaction-list", help="[Analyze] Transaction records with tag/direction/time filtering")
+    p.add_argument("--chain", required=True)
+    p.add_argument("--contract", required=True)
+    p.add_argument("--page", type=int, default=1, help="Page number (default: 1)")
+    p.add_argument("--size", type=int, default=20, help="Page size (default: 20)")
+    p.add_argument("--side", default=None, choices=["buy", "sell"], help="Direction filter")
+    p.add_argument("--only-barrage", dest="only_barrage", action="store_true", help="Only tagged transactions (smart money/KOL/dev)")
+    p.add_argument("--period", default=None, help="Time window: 5m/15m/1h/4h/24h")
+    p.add_argument("--txnfrom-tags", dest="txnfrom_tags", default=None, help="Comma-separated tags: smart_money,kol,developer,bot,manipulator")
+    p.add_argument("--address-list", dest="address_list", default=None, help="Comma-separated addresses to filter")
+    p.set_defaults(func=_cmd_transaction_list)
+
+    p = sub.add_parser("holders-info", help="[Analyze] Top100 holders + classification + PnL")
+    p.add_argument("--chain", required=True)
+    p.add_argument("--contract", required=True)
+    p.add_argument("--sort", default="holding_desc", choices=["holding_desc", "pnl_desc", "pnl_asc"], help="Sort order (default: holding_desc)")
+    p.add_argument("--special-holder-key", dest="special_holder_key", default=None, choices=["kol", "smart_money", "follow"], help="Filter special holders")
+    p.add_argument("--address-tags", dest="address_tags", default=None, help="Comma-separated tag filter (OR logic)")
+    p.set_defaults(func=_cmd_holders_info)
+
+    p = sub.add_parser("profit-address-analysis", help="[Analyze] Profitable address statistics")
+    p.add_argument("--chain", required=True)
+    p.add_argument("--contract", required=True)
+    p.set_defaults(func=_cmd_profit_address_analysis)
+
+    p = sub.add_parser("top-profit", help="[Analyze] Top profitable addresses list")
+    p.add_argument("--chain", required=True)
+    p.add_argument("--contract", required=True)
+    p.set_defaults(func=_cmd_top_profit)
+
+    p = sub.add_parser("compare-tokens", help="[Analyze] Compare two tokens K-line side by side")
+    p.add_argument("--chain-a", dest="chain_a", required=True, help="Token A chain")
+    p.add_argument("--contract-a", dest="contract_a", required=True, help="Token A contract")
+    p.add_argument("--chain-b", dest="chain_b", required=True, help="Token B chain")
+    p.add_argument("--contract-b", dest="contract_b", required=True, help="Token B contract")
+    p.add_argument("--period", default="1h", help="K-line period (default: 1h)")
+    p.add_argument("--size", type=int, default=None, help="Number of candles")
+    p.set_defaults(func=_cmd_compare_tokens)
+
+    # ---- Address Find (bgw_address_find) ----
+    p = sub.add_parser("recommend-address-list", help="[Address] Find addresses by role (KOL/smart money) with performance filters")
+    p.add_argument("--group-ids", dest="group_ids", default=None, help="Role group IDs, comma-separated. 0=all, 1=smart money, 2=KOL (dynamic — check response recommend_groups)")
+    p.add_argument("--data-period", dest="data_period", default="7d", choices=["24h", "7d", "30d"], help="Statistics window (default: 7d)")
+    p.add_argument("--sort-field", dest="sort_field", default="pnl_usd", choices=["pnl_usd", "win_rate", "trade_count", "last_activity_time"], help="Sort field (default: pnl_usd)")
+    p.add_argument("--sort-order", dest="sort_order", default="desc", choices=["desc", "asc"], help="Sort direction (default: desc)")
+    p.add_argument("--filter-chain", dest="filter_chain", default=None, help="Chain filter, comma-separated (sol,bnb,base,eth)")
+    p.add_argument("--filter-win-rate-min", dest="filter_win_rate_min", type=float, default=None, help="Min win rate (0-100)")
+    p.add_argument("--filter-win-rate-max", dest="filter_win_rate_max", type=float, default=None, help="Max win rate (0-100)")
+    p.add_argument("--filter-pnl-min", dest="filter_pnl_min", type=float, default=None, help="Min profit (USD)")
+    p.add_argument("--filter-pnl-max", dest="filter_pnl_max", type=float, default=None, help="Max profit (USD)")
+    p.add_argument("--filter-trade-count-min", dest="filter_trade_count_min", type=int, default=None, help="Min trade count")
+    p.add_argument("--filter-trade-count-max", dest="filter_trade_count_max", type=int, default=None, help="Max trade count")
+    p.add_argument("--page", type=int, default=1, help="Page number (default: 1)")
+    p.add_argument("--limit", type=int, default=30, help="Page size, max 30 (default: 30)")
+    p.set_defaults(func=_cmd_recommend_address_list)
 
     # ---- RWA ----
     p = sub.add_parser("rwa-get-user-ticker-selector", help="[RWA] Query/search RWA stock tickers; optional user_address for balance")

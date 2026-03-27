@@ -406,3 +406,23 @@ Combine multiple signals to assess token risk. No single indicator is definitive
 | Token age < 24h | `token-info` | Unproven, higher risk |
 
 **When multiple red flags appear together, strongly advise the user against trading.**
+
+---
+
+### bgw_token_analyze — Token Deep Analysis
+
+Deep analysis beyond bgw_token_check. See [`docs/token-analyze.md`](token-analyze.md) for full domain knowledge.
+
+**vs bgw_token_check:** token_check provides security/dev/market overview (is it safe?); token_analyze provides trading dynamics/holders/smart money (should I trade it now?).
+
+| Use Case | Command | Endpoint |
+|----------|---------|----------|
+| K-line + signals | `simple-kline` | `POST /market/v2/coin/SimpleKline` |
+| Trading dynamics | `trading-dynamics` | `POST /market/v2/coin/GetTradingDynamics` |
+| Transaction list | `transaction-list` | `POST /market/v2/coin/TransactionList` |
+| Holder analysis | `holders-info` | `POST /market/v2/GetHoldersInfo` |
+| Profit summary | `profit-address-analysis` | `POST /market/v2/coin/GetProfitAddressAnalysis` |
+| Top profit list | `top-profit` | `POST /market/v2/coin/GetTopProfit` |
+| Token compare | `compare-tokens` | 2x `SimpleKline`, ts-aligned |
+
+**Recommended analysis order:** trading-dynamics -> simple-kline -> holders-info -> transaction-list -> profit analysis
