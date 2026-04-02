@@ -4,6 +4,7 @@ Social Login Wallet CLI — sign transactions and messages via Bitget Wallet TEE
 Credentials loaded from .social-wallet-secret (same directory as this script).
 Dependencies: requests, cryptography
 """
+from __future__ import annotations
 
 import base64
 import hashlib
