@@ -342,7 +342,7 @@ python3 scripts/bitget-wallet-agent-api.py top-profit --chain sol --contract <ad
 
 ---
 
-## smart_in_token — Smart Money In Token (Composite Analysis)
+## smart_in_token — Smart Money In Token (Composite — not a single command)
 
 **Combines:** `profit-address-analysis` (接口 A: 摘要) + `top-profit` (接口 B: 明细)
 

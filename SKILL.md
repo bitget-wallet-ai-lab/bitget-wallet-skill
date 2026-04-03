@@ -102,6 +102,8 @@ Full domain knowledge and Skills-layer computation rules in [`docs/market-data.m
 
 ### bgw_alpha — Alpha Intelligence
 
+**Use when:** User asks for AI-curated token picks, alpha signals, smart money address discovery, or behavioral tag-based address lookup. Use bgw_alpha (not bgw_token_find) when the intent is AI/signal-driven discovery rather than keyword/filter-based search.
+
 | Use Case | Command | Description |
 |----------|---------|-------------|
 | Alpha gems | `alpha-gems` | AI-curated high-potential tokens with strategy labels |

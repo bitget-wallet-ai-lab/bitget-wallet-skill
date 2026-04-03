@@ -60,7 +60,7 @@ Real-time trading signals — smart money flow, KOL calls, buyer growth patterns
 | `--chain` | string | no | all | Chain filter: sol, eth, bnb, base, all |
 | `--page` | int | no | 1 | Page number |
 | `--size` | int | no | 20 | Page size |
-| `--offset` | int | no | 0 | Offset for dedup pagination |
+| `--offset` | int | no | 0 | Offset for dedup pagination. Use `page` for regular pagination; use `offset` to skip already-seen items when new signals are inserted between pages |
 | `--filters` | JSON string | no | — | Array of `{chain, contract}` to filter specific tokens |
 
 ### Response fields
@@ -230,7 +230,7 @@ Find smart money addresses by **Agent tag** — a behavioral classification syst
 python3 scripts/bitget-wallet-agent-api.py agent-alpha-tags
 ```
 
-No parameters. Returns the static tag enum:
+No parameters. Returns the tag enum. The list below is for reference — always use the API response as the authoritative source, as tags may be added or removed by backend:
 
 | Tag | Description |
 |-----|-------------|
