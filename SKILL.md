@@ -17,6 +17,7 @@ description: "Interact with Bitget Wallet API for crypto market data, token info
 |----------------|----------------|----------------|
 | Swap / Trade | [`docs/swap.md`](docs/swap.md) | quote, confirm, make-order, send, get-order-details |
 | Market Data / Token Analysis | [`docs/market-data.md`](docs/market-data.md) | coin-market-info, security, coin-dev, kline, tx-info, liquidity, rankings, launchpad-tokens, search-tokens-v3 |
+| Alpha Intelligence | [`docs/alpha.md`](docs/alpha.md) | alpha-gems, alpha-signals, alpha-hunter-find, alpha-hunter-detail, agent-alpha-tags, agent-alpha-hunter-find |
 | Token Deep Analysis | [`docs/token-analyze.md`](docs/token-analyze.md) | simple-kline, trading-dynamics, transaction-list, holders-info, profit-address-analysis, top-profit, compare-tokens |
 | Address Discovery | [`docs/address-find.md`](docs/address-find.md) | recommend-address-list |
 | Wallet / Signing | [`docs/wallet-signing.md`](docs/wallet-signing.md) | Any signing operation, key derivation, order_sign.py, order_make_sign_send.py |
@@ -98,6 +99,19 @@ Market tools handle **token discovery and analysis only** — no trading, wallet
 **Pre-trade mandatory:** check-swap-token → security
 
 Full domain knowledge and Skills-layer computation rules in [`docs/market-data.md`](docs/market-data.md).
+
+### bgw_alpha — Alpha Intelligence
+
+| Use Case | Command | Description |
+|----------|---------|-------------|
+| Alpha gems | `alpha-gems` | AI-curated high-potential tokens with strategy labels |
+| Alpha signals | `alpha-signals` | Smart money/KOL/growth signals with filtering |
+| Alpha hunter find | `alpha-hunter-find` | Smart money address list with multi-dimensional scoring |
+| Alpha hunter detail | `alpha-hunter-detail` | Detailed scoring factors for a specific address |
+| Agent alpha tags | `agent-alpha-tags` | List available Agent tag labels |
+| Agent alpha hunter find | `agent-alpha-hunter-find` | Find addresses by Agent tag with scores |
+
+Full domain knowledge in [`docs/alpha.md`](docs/alpha.md).
 
 ### bgw_token_analyze — Token Deep Analysis
 

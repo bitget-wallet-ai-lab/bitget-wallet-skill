@@ -302,6 +302,10 @@ Top profitable addresses list with PnL details.
 |-----------|------|----------|-------------|
 | `--chain` | string | yes | Chain code |
 | `--contract` | string | yes | Token contract address |
+| `--limit` | int | no | Max results (default: 100) |
+| `--offset` | int | no | Pagination offset (default: 0) |
+| `--latest-position` | string | no | Filter by position: `add` / `hold` / `reduce` / `close` / `open` |
+| `--txn-from-tags` | string | no | Comma-separated tag filter: `smart_money`, `kol`, `bot`, `manipulator` |
 
 ### Response — Summary
 
@@ -326,8 +330,71 @@ Top profitable addresses list with PnL details.
 | `level_tag` | string | Address quality: `A` / `B` / `C` / `D` |
 
 ```bash
+# All top profitable addresses
 python3 scripts/bitget-wallet-agent-api.py top-profit --chain sol --contract <addr>
+
+# Smart money only, currently adding positions
+python3 scripts/bitget-wallet-agent-api.py top-profit --chain sol --contract <addr> --txn-from-tags smart_money --latest-position add
+
+# KOL addresses that are reducing or closing
+python3 scripts/bitget-wallet-agent-api.py top-profit --chain sol --contract <addr> --txn-from-tags kol --latest-position reduce
 ```
+
+---
+
+## smart_in_token — Smart Money In Token (Composite Analysis)
+
+**Combines:** `profit-address-analysis` (接口 A: 摘要) + `top-profit` (接口 B: 明细)
+
+**Purpose:** Answer "Is smart money entering or exiting this token?" by combining profitability landscape with individual address behavior.
+
+### When to use
+
+When the user asks about smart money activity, profit distribution, or whether top traders are accumulating or distributing a specific token.
+
+### Analysis Flow
+
+```bash
+# Step 1: Get profitability summary (dynamics + distribution + role breakdown)
+python3 scripts/bitget-wallet-agent-api.py profit-address-analysis --chain sol --contract <addr>
+
+# Step 2: Get smart money address details (filtered by tag)
+python3 scripts/bitget-wallet-agent-api.py top-profit --chain sol --contract <addr> --txn-from-tags smart_money
+```
+
+### Interpretation Rules (Skills Layer)
+
+**From profit-address-analysis:**
+1. Check `address_dynamics.user_type_dynamics.smart_money` — what are smart money addresses doing?
+   - `add_count` high → Smart money accumulating (bullish)
+   - `close_count` high → Smart money exiting (bearish)
+   - `hold_count` high → Smart money holding steady (neutral/confident)
+2. Check `user_type_stats` — how many smart money / KOL / manipulators among top profitable addresses?
+   - High `manipulator` count → Caution, likely pump & dump
+3. Check `profit_distribution` — where is profit concentrated?
+   - Mostly $5k+ range → Whale-driven token
+   - Mostly $0-100 range → Retail-dominated
+
+**From top-profit (filtered by smart_money):**
+4. Check `latest_position` distribution across smart money addresses:
+   - Majority `add`/`open` → Active accumulation signal
+   - Majority `reduce`/`close` → Distribution / exit signal
+5. Check `level_tag` quality:
+   - Many A-grade addresses adding → Strongest bullish signal
+   - Mostly C/D-grade → Lower confidence
+6. Cross-check `total_profit_rate` — are smart money addresses actually profitable?
+   - High profit rate + still adding → Strong conviction
+   - High profit rate + reducing → Taking profits, potential top
+
+### Composite Signal Summary
+
+| Signal | Condition | Interpretation |
+|--------|-----------|----------------|
+| Smart money accumulation | A: smart_money `add_count` high + B: majority `add`/`open` | Bullish — smart money entering |
+| Smart money distribution | A: smart_money `close_count` high + B: majority `reduce`/`close` | Bearish — smart money exiting |
+| Smart money confidence | A: smart_money `hold_count` high + B: high profit rate | Neutral-bullish — holding with conviction |
+| Manipulator warning | A: `manipulator` count high in `user_type_stats` | Caution — potential pump & dump |
+| Retail-dominated | A: low smart_money count + $0-100 profit range dominant | Higher risk — no institutional backing |
 
 ---
 

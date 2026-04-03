@@ -138,7 +138,7 @@ All subcommands under `scripts/bitget-wallet-agent-api.py`. See [`docs/token-ana
 | `transaction-list` | Transaction records with tag/direction/time filtering | Drill into specific trades, smart money activity |
 | `holders-info` | Top 100 holders + classification + PnL | Holder distribution, concentration risk |
 | `profit-address-analysis` | Profitable address summary statistics | Profitability landscape overview |
-| `top-profit` | Top profitable addresses list with PnL | Identify successful traders |
+| `top-profit` | Top profitable addresses list with PnL. `--limit`, `--offset`, `--latest-position` (add/hold/reduce/close/open), `--txn-from-tags` (smart_money,kol,bot,manipulator). | Identify successful traders, filter by position or role |
 | `compare-tokens` | Side-by-side K-line comparison of two tokens | Compare price action between tokens |
 
 ```bash
@@ -164,8 +164,51 @@ python3 scripts/bitget-wallet-agent-api.py holders-info --chain sol --contract <
 python3 scripts/bitget-wallet-agent-api.py profit-address-analysis --chain sol --contract <addr>
 python3 scripts/bitget-wallet-agent-api.py top-profit --chain sol --contract <addr>
 
+# Smart money in token (smart_in_token composite analysis)
+python3 scripts/bitget-wallet-agent-api.py profit-address-analysis --chain sol --contract <addr>
+python3 scripts/bitget-wallet-agent-api.py top-profit --chain sol --contract <addr> --txn-from-tags smart_money --latest-position add
+
 # Compare two tokens
 python3 scripts/bitget-wallet-agent-api.py compare-tokens --chain-a sol --contract-a <addr1> --chain-b sol --contract-b <addr2> --period 1h --size 24
+```
+
+## Alpha Intelligence (bgw_alpha)
+
+All subcommands under `scripts/bitget-wallet-agent-api.py`. See [`docs/alpha.md`](alpha.md) for full domain knowledge.
+
+| Subcommand | What it does | When to use |
+|------------|-------------|-------------|
+| `alpha-gems` | AI-curated high-potential tokens. No parameters. | User asks for alpha picks, AI-selected gems, trending opportunities |
+| `alpha-signals` | Smart money/KOL/growth signals. `--chain`, `--page`, `--size`, `--offset`, `--filters`. | User asks for trading signals, smart money flow, KOL calls |
+| `alpha-hunter-find` | Smart money address list with scores. `--chain` (required), `--page`, `--limit`. | User asks for top smart money addresses, alpha hunters on a chain |
+| `alpha-hunter-detail` | Address scoring factor detail. `--chain` (required), `--address` (required). | User asks for detailed analysis of a specific smart money address |
+| `agent-alpha-tags` | List available Agent tag labels. No parameters. | User wants to see available behavioral tags before querying |
+| `agent-alpha-hunter-find` | Find addresses by Agent tag. `--chain` (required), `--tag` (required), `--page`, `--limit`. | User asks for addresses by behavioral type (meme_sniper, diamond_hand, etc.) |
+
+```bash
+# Alpha gems (no parameters)
+python3 scripts/bitget-wallet-agent-api.py alpha-gems
+
+# Alpha signals (all chains)
+python3 scripts/bitget-wallet-agent-api.py alpha-signals
+
+# Solana signals only
+python3 scripts/bitget-wallet-agent-api.py alpha-signals --chain sol --size 10
+
+# Filter by specific token
+python3 scripts/bitget-wallet-agent-api.py alpha-signals --filters '[{"chain":"sol","contract":"CE2Mfjg46daZVQHmc3iVLnVDFKQyQe5zwLB9Zmrppump"}]'
+
+# Top smart money on Solana
+python3 scripts/bitget-wallet-agent-api.py alpha-hunter-find --chain sol
+
+# Detail for a specific address
+python3 scripts/bitget-wallet-agent-api.py alpha-hunter-detail --chain sol --address <wallet_address>
+
+# List Agent tag labels
+python3 scripts/bitget-wallet-agent-api.py agent-alpha-tags
+
+# Find early alpha hunters on Solana
+python3 scripts/bitget-wallet-agent-api.py agent-alpha-hunter-find --chain sol --tag early_alpha_hunter --limit 10
 ```
 
 ## Address Discovery (bgw_address_find)

@@ -411,6 +411,48 @@ def rankings(name: str) -> dict:
     return _request("/market/v3/topRank/detail", body)
 
 
+def alpha_gems() -> dict:
+    """Get Alpha gems — AI-curated high-potential tokens with strategy labels."""
+    return _request_get("/market/v3/alpha/gems")
+
+
+def alpha_signals(
+    chain: str = "all",
+    page: int = 1,
+    size: int = 20,
+    offset: int = 0,
+    filters: Optional[List[dict]] = None,
+) -> dict:
+    """Get Alpha signals — smart money/KOL/growth signals for tokens."""
+    body: dict = {"chain": chain, "page": page, "size": size, "offset": offset}
+    if filters is not None:
+        body["filters"] = filters
+    return _request("/market/v3/alpha/signals", body)
+
+
+def alpha_hunter_find(chain: str, page: int = 1, limit: int = 20) -> dict:
+    """Get Alpha hunter (smart money) address list with scoring factors."""
+    body: dict = {"chain": chain, "page": page, "limit": limit}
+    return _request("/market/v3/address/smart-money", body)
+
+
+def alpha_hunter_detail(chain: str, address: str) -> dict:
+    """Get Alpha hunter factor detail for a specific address."""
+    body = {"chain": chain, "address": address}
+    return _request("/market/v3/address/factor-detail", body)
+
+
+def agent_alpha_tags() -> dict:
+    """Get available Agent tag labels (static enum)."""
+    return _request_get("/market/v3/address/agent-tags")
+
+
+def agent_alpha_hunter_find(chain: str, tag: str, page: int = 1, limit: int = 20) -> dict:
+    """Get addresses by Agent tag, sorted by score desc."""
+    body: dict = {"chain": chain, "tag": tag, "page": page, "limit": limit}
+    return _request("/market/v3/address/agent-tag-list", body)
+
+
 def liquidity(chain: str, contract: str) -> dict:
     """Get liquidity pool info for a token."""
     body = {"chain": chain, "contract": contract}
@@ -664,14 +706,26 @@ def profit_address_analysis(chain: str, contract: str) -> dict:
     return _request("/market/v2/coin/GetProfitAddressAnalysis", body)
 
 
-def top_profit(chain: str, contract: str) -> dict:
+def top_profit(
+    chain: str,
+    contract: str,
+    limit: int = 100,
+    offset: int = 0,
+    latest_position: Optional[str] = None,
+    txn_from_tags: Optional[List[str]] = None,
+) -> dict:
     """Top profitable addresses list with PnL details.
 
     Response: summary (profit_rate, buy_avg_price, sell_avg_price),
     list[] (address, latest_position, total_profit, total_profit_str,
-    total_profit_rate, total_profit_rate_str, user_tags, level_tag).
+    total_profit_rate, total_profit_rate_str, user_tags, level_tag),
+    address_tag_config[], address_level_tag_config[].
     """
-    body = {"chain": chain, "contract": contract}
+    body: dict = {"chain": chain, "contract": contract, "limit": limit, "offset": offset}
+    if latest_position is not None:
+        body["latest_position"] = latest_position
+    if txn_from_tags is not None:
+        body["txn_from_tags"] = txn_from_tags
     return _request("/market/v2/coin/GetTopProfit", body)
 
 
@@ -1084,6 +1138,54 @@ def _cmd_rankings(args):
     print(json.dumps(out, indent=2, ensure_ascii=False))
 
 
+def _cmd_alpha_gems(args):
+    out = alpha_gems()
+    print(json.dumps(out, indent=2, ensure_ascii=False))
+
+
+def _cmd_alpha_signals(args):
+    filters = None
+    if getattr(args, "filters", None):
+        filters = json.loads(args.filters)
+    out = alpha_signals(
+        chain=args.chain,
+        page=args.page,
+        size=args.size,
+        offset=args.offset,
+        filters=filters,
+    )
+    print(json.dumps(out, indent=2, ensure_ascii=False))
+
+
+def _cmd_alpha_hunter_find(args):
+    out = alpha_hunter_find(
+        chain=args.chain,
+        page=args.page,
+        limit=args.limit,
+    )
+    print(json.dumps(out, indent=2, ensure_ascii=False))
+
+
+def _cmd_alpha_hunter_detail(args):
+    out = alpha_hunter_detail(chain=args.chain, address=args.address)
+    print(json.dumps(out, indent=2, ensure_ascii=False))
+
+
+def _cmd_agent_alpha_tags(args):
+    out = agent_alpha_tags()
+    print(json.dumps(out, indent=2, ensure_ascii=False))
+
+
+def _cmd_agent_alpha_hunter_find(args):
+    out = agent_alpha_hunter_find(
+        chain=args.chain,
+        tag=args.tag,
+        page=args.page,
+        limit=args.limit,
+    )
+    print(json.dumps(out, indent=2, ensure_ascii=False))
+
+
 def _cmd_liquidity(args):
     out = liquidity(chain=args.chain, contract=args.contract)
     print(json.dumps(out, indent=2, ensure_ascii=False))
@@ -1190,7 +1292,15 @@ def _cmd_profit_address_analysis(args):
 
 
 def _cmd_top_profit(args):
-    out = top_profit(chain=args.chain, contract=args.contract)
+    tags = args.txn_from_tags.split(",") if getattr(args, "txn_from_tags", None) else None
+    out = top_profit(
+        chain=args.chain,
+        contract=args.contract,
+        limit=args.limit,
+        offset=args.offset,
+        latest_position=getattr(args, "latest_position", None),
+        txn_from_tags=tags,
+    )
     print(json.dumps(out, indent=2, ensure_ascii=False))
 
 
@@ -1492,6 +1602,38 @@ def main():
     p.add_argument("--name", required=True, help="e.g. topGainers, topLosers, or Hotpicks")
     p.set_defaults(func=_cmd_rankings)
 
+    p = sub.add_parser("alpha-gems", help="[Alpha] Alpha gems — AI-curated high-potential tokens")
+    p.set_defaults(func=_cmd_alpha_gems)
+
+    p = sub.add_parser("alpha-signals", help="[Alpha] Alpha signals — smart money/KOL/growth signals")
+    p.add_argument("--chain", default="all", help="Chain filter (sol, eth, bnb, base, all; default: all)")
+    p.add_argument("--page", type=int, default=1, help="Page number (default: 1)")
+    p.add_argument("--size", type=int, default=20, help="Page size (default: 20)")
+    p.add_argument("--offset", type=int, default=0, help="Offset for dedup (default: 0)")
+    p.add_argument("--filters", default=None, help='JSON array of {chain, contract} filters, e.g. \'[{"chain":"sol","contract":"0x..."}]\'')
+    p.set_defaults(func=_cmd_alpha_signals)
+
+    p = sub.add_parser("alpha-hunter-find", help="[Alpha] Alpha hunter — smart money address list with scores")
+    p.add_argument("--chain", required=True, help="Chain code (sol, eth, bnb, base)")
+    p.add_argument("--page", type=int, default=1, help="Page number (default: 1)")
+    p.add_argument("--limit", type=int, default=20, help="Page size (default: 20, max: 200)")
+    p.set_defaults(func=_cmd_alpha_hunter_find)
+
+    p = sub.add_parser("alpha-hunter-detail", help="[Alpha] Alpha hunter factor detail for an address")
+    p.add_argument("--chain", required=True, help="Chain code (sol, eth, bnb, base)")
+    p.add_argument("--address", required=True, help="Wallet address")
+    p.set_defaults(func=_cmd_alpha_hunter_detail)
+
+    p = sub.add_parser("agent-alpha-tags", help="[Alpha] List available Agent tag labels")
+    p.set_defaults(func=_cmd_agent_alpha_tags)
+
+    p = sub.add_parser("agent-alpha-hunter-find", help="[Alpha] Find addresses by Agent tag (e.g. early_alpha_hunter)")
+    p.add_argument("--chain", required=True, help="Chain code (sol, eth, bnb, base)")
+    p.add_argument("--tag", required=True, help="Agent tag (use agent-alpha-tags to list available)")
+    p.add_argument("--page", type=int, default=1, help="Page number (default: 1)")
+    p.add_argument("--limit", type=int, default=20, help="Page size (default: 20, max: 200)")
+    p.set_defaults(func=_cmd_agent_alpha_hunter_find)
+
     p = sub.add_parser("liquidity", help="[Market] Get liquidity pool info for a token")
     p.add_argument("--chain", required=True)
     p.add_argument("--contract", required=True)
@@ -1580,6 +1722,10 @@ def main():
     p = sub.add_parser("top-profit", help="[Analyze] Top profitable addresses list")
     p.add_argument("--chain", required=True)
     p.add_argument("--contract", required=True)
+    p.add_argument("--limit", type=int, default=100, help="Max results (default: 100)")
+    p.add_argument("--offset", type=int, default=0, help="Offset for pagination (default: 0)")
+    p.add_argument("--latest-position", dest="latest_position", default=None, help="Filter by position: add/hold/reduce/close/open")
+    p.add_argument("--txn-from-tags", dest="txn_from_tags", default=None, help="Comma-separated tag filter: smart_money,kol,bot,manipulator")
     p.set_defaults(func=_cmd_top_profit)
 
     p = sub.add_parser("compare-tokens", help="[Analyze] Compare two tokens K-line side by side")

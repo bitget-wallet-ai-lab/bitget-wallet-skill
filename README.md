@@ -22,6 +22,7 @@ Atomic Tools (Agent orchestrates)
 ├── bgw_token_find      Find tokens (chain scan / search / rankings / sectors)
 ├── bgw_token_check     Check tokens (security / dev / anti-manipulation / signals / market)
 ├── bgw_token_analyze   Analyze tokens (deep: timeline / trades / holdings / smart money)
+├── bgw_alpha           Alpha intelligence (gems / signals)
 ├── bgw_address_find    Find addresses (by pool / role / criteria)
 └── bgw_address_analyze Analyze addresses (scoring / PnL / style / operations / comparison)
 
