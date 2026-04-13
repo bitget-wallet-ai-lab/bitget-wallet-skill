@@ -62,6 +62,8 @@ Smart Tools (We orchestrate)
 | **Swap MakeOrder** | Generate unsigned transaction data for signing | Execute trades via wallet signing |
 | **Swap Send** | Submit signed transactions | Broadcast with MEV protection |
 | **Order Details** | Track order lifecycle (processing→success/failed) | "Check my swap status" |
+| **Token Transfer** | Direct on-chain token transfer (EVM + Solana), server broadcasts | "Send 100 USDT to 0xDeF..." |
+| **Gasless Transfer** | Transfer tokens without native gas — gas paid from USDT/USDC balance | "Send USDC on Base with no ETH for gas" |
 | **x402 Payment** | Pay for x402-enabled APIs with USDC on Base | "Access this paid API endpoint" |
 
 > ⚠️ **Swap amounts are human-readable** — pass `0.1` for 0.1 USDT, NOT `100000000000000000`. The `toAmount` in responses is also human-readable. This differs from most on-chain APIs.
@@ -137,6 +139,41 @@ python3 scripts/x402_pay.py pay \
 ```
 
 See [`docs/x402-payments.md`](docs/x402-payments.md) for domain knowledge, signing details, and testing guide.
+
+### 💸 Gasless Token Transfer
+
+Direct on-chain token transfer where the server handles transaction construction, broadcasting, and tracking. Supports **gasless mode** — gas fees paid from stablecoin balance (USDT/USDC) instead of native tokens.
+
+**How it works:**
+```
+1. makeTransferOrder  → Get unsigned source data + fee info + orderId
+2. Sign locally       → Sign using the appropriate method for the chain
+3. submitTransferOrder → Submit signed tx; server broadcasts
+4. getTransferOrder    → Poll until SUCCESS or FAILED
+```
+
+**Key features:**
+- **Gasless (EIP-7702 / FeePayer)** — transfer tokens with zero native gas. Gas deducted from USDT/USDC balance
+- **Multi-chain** — ETH, BNB, Base, Arbitrum, Polygon, Morph, Solana
+- **Server-side broadcast** — client only signs, server handles nonce management and chain tracking
+- **Silent degradation** — if gasless is unavailable, falls back to standard transfer automatically
+
+```bash
+# Standard EVM token transfer
+python3 scripts/transfer_make_sign_send.py --private-key-file /tmp/.pk_evm \
+  --chain eth --contract 0xdAC17F958D2ee523a2206206994597C13D831ec7 \
+  --from-address 0xAbC... --to-address 0xDeF... --amount 100
+
+# Gasless transfer (no ETH needed for gas)
+python3 scripts/transfer_make_sign_send.py --private-key-file /tmp/.pk_evm \
+  --chain base --contract 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913 \
+  --from-address 0xAbC... --to-address 0xDeF... --amount 50 --gasless
+
+# Poll status
+python3 scripts/bitget-wallet-agent-api.py get-transfer-order --order-id <orderId>
+```
+
+See [`docs/transfer.md`](docs/transfer.md) for domain knowledge, signing modes, and gasless details.
 
 ### Supported Chains
 

@@ -172,6 +172,18 @@ When `chain=morph` and the response contains both `source` (evm_1559) and `altFe
 | Standard | `source` (evm_1559) | ETH |
 | AltFee | `altFeeSource` (evm_morph_altfee) | USDT/USDC/BGB |
 
+**AltFee token contracts (Morph mainnet, chainId=2818):**
+
+| feeTokenID | Symbol | Contract |
+|-----------|--------|----------|
+| 1 | USDT | `0xc7D67A9CBB121B3B0b9c053Dd9F469523243379A` |
+| 2 | USDC | `0xE34C91815d7FC18A9E2148bcD4241D0a5848b693` |
+| 3 | BGB | `0x55d1F1879969bDbb9960d269974564C58dbc3238` |
+
+The response `altFee.feeTokenID` indicates which token was selected by the server. The `altFee` object also includes `feeTokenContract`, `feeTokenSymbol`, `feeTokenDecimal`, and `feeTokenPrice`.
+
+**Signing (type-0x7f):** Uses viem + Morph custom serializer (`serializeAltFeeTransaction`, `ALT_FEE_TX_TYPE = "0x7f"`). RLP structure: `[chainId, nonce, maxPriorityFeePerGas, maxFeePerGas, gas, to, value, data, accessList(empty), feeTokenID, feeLimit, yParity, r, s]`. Sign hash: `keccak256(0x7f || rlp(unsigned_fields))`.
+
 `transfer_make_sign_send.py` signs the standard `source` (evm_1559). For AltFee signing, use external tooling (viem + Morph custom serializer).
 
 ## Chain-Specific Notes
@@ -189,6 +201,9 @@ When `chain=morph` and the response contains both `source` (evm_1559) and `altFe
 - **Fee units**: `fee.stdPriPrice` (lamports/CU), `fee.stdPriLimit` (compute unit limit)
 - **blockhash expiry**: ~60 seconds. Use `transfer_make_sign_send.py` to avoid expiry.
 
+### Memo Field
+The `--memo` parameter is passed through to `ms_chain` for on-chain inclusion. Chain support varies — not all chains support memo. Pass `""` or omit for no memo.
+
 ## Order Status
 
 | Status | Description | txid |
@@ -200,6 +215,8 @@ When `chain=morph` and the response contains both `source` (evm_1559) and `altFe
 
 - Status comes from real-time chain query, not database cache
 - Gasless orders may have `txid` in format `getgas_task_xxx` (gas-account task ID, not final chain hash)
+- When `orderStatus=FAILED`, the `failReason` field contains the failure description
+- `gasAccountData` in the make-transfer-order response is for server internal use; clients should ignore it
 - Poll `get-transfer-order` until terminal status (SUCCESS/FAILED)
 
 ## Error Codes

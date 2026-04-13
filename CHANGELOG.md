@@ -6,6 +6,49 @@ Format: date-based versioning (`YYYY.M.DD`). Each release includes a sequential 
 
 ---
 
+## [2026.4.13-1] - 2026-04-13
+
+### Added — Token Transfer with Gasless Support (bgw_transfer)
+
+- **`scripts/transfer_make_sign_send.py`** (new): One-shot script — `makeTransferOrder → sign → submitTransferOrder` in a single run. Avoids Solana blockhash expiry (~60s). Supports all signing modes:
+  - `evm_legacy` — BNB Chain legacy gasPrice raw tx
+  - `evm_1559` — EIP-1559 (ETH/Base/Arbitrum/Polygon/Morph)
+  - `evm_7702` — EIP-7702 gasless (auth + call `unsafe_sign_hash`, returns `JSON.stringify(msgs)`)
+  - `sol_raw` — Solana full unsigned transaction
+  - `sol_partial` — Solana partial-sign (feePayer pre-signed by server)
+  - Flags: `--gasless` (maps to `noGas=true`), `--gasless-pay-token` (`noGasPayToken`), `--override-7702`
+  - Guards: `estimateRevert` check aborts before signing; gasless degradation detection warns user
+
+- **`scripts/bitget-wallet-agent-api.py`**: Added 3 Transfer API functions and CLI subcommands:
+  - `make_transfer_order()` / `make-transfer-order` — create transfer order (`POST /order/makeTransferOrder`)
+  - `submit_transfer_order()` / `submit-transfer-order` — submit signed tx (`POST /order/submitTransferOrder`)
+  - `get_transfer_order()` / `get-transfer-order` — poll order status (`GET /order/getTransferOrder`)
+
+- **`docs/transfer.md`** (new): Complete domain knowledge:
+  - Flow overview (one-shot and step-by-step)
+  - Pre-transfer checks (`batch-v2`, `estimateRevert`)
+  - Gasless transfer: supported chains/tokens, token selection, response fields, silent degradation, EIP-7702 override
+  - Signing modes table by `source.type`
+  - EVM 7702 signing detail (auth + call message structure)
+  - Solana partial signing flow
+  - Morph AltFee: token contracts (USDT/USDC/BGB), `feeTokenID` mapping, type-0x7f signing requirements
+  - Chain-specific notes (BNB Legacy, L2 `l1FeeMax`, gasless native-token restriction, SOL blockhash expiry, memo field)
+  - Order status table with `failReason` and `gasAccountData` notes
+  - Full error code table (30101–30500)
+  - Timing constraints
+
+- **`SKILL.md`**: Added `bgw_transfer` tool section with routing table, key rules, and domain knowledge link; updated mandatory load table (top and extended), scripts table, and Quick Reference
+
+- **`README.md`**: Added Token Transfer and Gasless Transfer rows to Core Capabilities; added `💸 Gasless Token Transfer` section with flow overview, key features, and usage examples
+
+### Audit
+- No new external dependencies (reuses existing `eth_account` for EVM, pure-Python Ed25519 for Solana)
+- Transfer API is fund-moving — requires explicit private key file; no key is ever logged or passed as CLI argument
+- API params `noGas`, `noGasPayToken`, `override7702` preserved exactly as-is; user-facing terminology uses "gasless"
+- Server broadcasts transactions — client is signing-only
+
+---
+
 ## [2026.3.27-1] - 2026-03-27
 
 ### Added — Token Deep Analysis (bgw_token_analyze)
