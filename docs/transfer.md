@@ -2,18 +2,16 @@
 
 This document describes the **Transfer flow** for on-chain token transfers via the ToB Transfer API (`ms-user-go`). The server handles transaction construction, broadcasting, and on-chain status tracking. The client (B-side) only manages private keys and signing.
 
-**MUST read this file before calling any transfer API** (`make-transfer-order`, `submit-transfer-order`, `get-transfer-order`, or `transfer_make_sign_send.py`).
+**MUST read this file before calling any transfer API** (`transfer_make_sign_send.py`, `social_transfer_make_sign_send.py`, or `get-transfer-order`).
 
 ## Flow Overview
 
 | Step | Interface / Script | Description |
 |------|--------------------|-------------|
 | 0 | `batch-v2` | **Pre-check**: verify sender has enough token balance and (if not gasless) enough native gas |
-| 1 | `make-transfer-order` | Create transfer order; returns unsigned source data + fee info + orderId |
-| 2 | Local signing | Sign the source data using the appropriate method (see Signing Modes) |
-| 3 | `submit-transfer-order` | Submit signed tx; server broadcasts to chain |
+| 1+2+3 | **`transfer_make_sign_send.py`** | One-shot (mnemonic/private-key): make + sign + submit in one run |
+| 1+2+3 | **`social_transfer_make_sign_send.py`** | One-shot (Social Login Wallet): make + sign (TEE) + submit. No local private key needed. |
 | 4 | `get-transfer-order` | Poll order status until SUCCESS or FAILED |
-| 1+2+3 | **`transfer_make_sign_send.py`** | One-shot: make + sign + submit in one run (recommended) |
 
 ### One-Shot Script (Recommended)
 
@@ -45,22 +43,24 @@ python3 scripts/transfer_make_sign_send.py \
   --amount 10 --gasless
 ```
 
-### Step-by-Step (Diagnostic)
+### One-Shot Script — Social Login Wallet
+
+Use `social_transfer_make_sign_send.py` when the user has a Social Login Wallet. No local private key needed — signing happens via Bitget Wallet TEE.
 
 ```bash
-# Step 1: Create order
-python3 scripts/bitget-wallet-agent-api.py make-transfer-order \
-  --chain eth --contract 0xdAC17F958D2ee523a2206206994597C13D831ec7 \
-  --from-address 0xAbC... --to-address 0xDeF... --amount 100
+# Social Login Wallet: gasless transfer
+python3 scripts/social_transfer_make_sign_send.py \
+  --wallet-id <walletId> \
+  --chain bnb --contract 0x55d398326f99059fF775485246999027B3197955 \
+  --from-address 0xAbC... --to-address 0xDeF... \
+  --amount 1 --gasless
 
-# Step 2: Sign externally (using source data from step 1)
-
-# Step 3: Submit signed tx
-python3 scripts/bitget-wallet-agent-api.py submit-transfer-order \
-  --order-id <orderId> --sig <signed_hex>
-
-# Step 4: Poll status
-python3 scripts/bitget-wallet-agent-api.py get-transfer-order --order-id <orderId>
+# Social Login Wallet: standard Solana transfer
+python3 scripts/social_transfer_make_sign_send.py \
+  --wallet-id <walletId> \
+  --chain sol --contract Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB \
+  --from-address ApPjj... --to-address 7xKXt... \
+  --amount 10
 ```
 
 ## Pre-Transfer Checks
@@ -69,7 +69,7 @@ Before any transfer, the agent **must**:
 
 1. **Balance check**: Run `batch-v2` to verify sender has enough token balance for the transfer amount.
 2. **Gas check** (if not gasless): Verify native token balance is sufficient for gas fees.
-3. **estimateRevert guard**: After `make-transfer-order`, check `data.estimateRevert`. If `true`, **abort** — the transaction is predicted to fail (insufficient balance, contract revert, etc.).
+3. **estimateRevert guard**: The one-shot scripts automatically check `data.estimateRevert` and abort if `true` (insufficient balance, contract revert, etc.).
 
 ```bash
 python3 scripts/bitget-wallet-agent-api.py batch-v2 \
@@ -82,7 +82,7 @@ Gasless mode allows token transfers without holding native gas tokens (ETH, SOL,
 
 ### How to Enable
 
-Pass `--gasless` to `transfer_make_sign_send.py` or `make-transfer-order`. The API parameter `noGas=true` is sent automatically.
+Pass `--gasless` to `transfer_make_sign_send.py` or `social_transfer_make_sign_send.py`. The API parameter `noGas=true` is sent automatically.
 
 ### Supported Chains and Pay Tokens
 
@@ -216,7 +216,7 @@ The `--memo` parameter is passed through to `ms_chain` for on-chain inclusion. C
 - Status comes from real-time chain query, not database cache
 - Gasless orders may have `txid` in format `getgas_task_xxx` (gas-account task ID, not final chain hash)
 - When `orderStatus=FAILED`, the `failReason` field contains the failure description
-- `gasAccountData` in the make-transfer-order response is for server internal use; clients should ignore it
+- `gasAccountData` in the API response is for server internal use; clients should ignore it
 - Poll `get-transfer-order` until terminal status (SUCCESS/FAILED)
 
 ## Error Codes

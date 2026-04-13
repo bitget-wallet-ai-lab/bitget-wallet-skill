@@ -1486,7 +1486,7 @@ def make_transfer_order(
         body["noGasPayToken"] = no_gas_pay_token
     if override7702:
         body["override7702"] = True
-    return _request("/order/makeTransferOrder", body)
+    return _request("/userv2/order/makeTransferOrder", body)
 
 
 def submit_transfer_order(order_id: str, sig: str) -> dict:
@@ -1495,7 +1495,7 @@ def submit_transfer_order(order_id: str, sig: str) -> dict:
     Server broadcasts and tracks on-chain status.
     """
     body = {"orderId": order_id, "sig": sig}
-    return _request("/order/submitTransferOrder", body)
+    return _request("/userv2/order/submitTransferOrder", body)
 
 
 def get_transfer_order(order_id: str) -> dict:
@@ -1503,7 +1503,7 @@ def get_transfer_order(order_id: str) -> dict:
     Query transfer order status via real-time chain query (not DB cache).
     orderStatus: PENDING / PROCESSING / SUCCESS / FAILED.
     """
-    return _request_get(f"/order/getTransferOrder?orderId={order_id}")
+    return _request_get(f"/userv2/order/getTransferOrder?orderId={order_id}")
 
 
 def _cmd_make_transfer_order(args):
