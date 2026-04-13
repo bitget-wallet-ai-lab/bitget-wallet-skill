@@ -1506,26 +1506,6 @@ def get_transfer_order(order_id: str) -> dict:
     return _request_get(f"/userv2/order/getTransferOrder?orderId={order_id}")
 
 
-def _cmd_make_transfer_order(args):
-    out = make_transfer_order(
-        chain=args.chain,
-        contract=args.contract,
-        from_=args.from_address,
-        to=args.to_address,
-        amount=args.amount,
-        memo=getattr(args, "memo", "") or "",
-        no_gas=getattr(args, "gasless", False),
-        no_gas_pay_token=getattr(args, "gasless_pay_token", "") or "",
-        override7702=getattr(args, "override_7702", False),
-    )
-    print(json.dumps(out, indent=2, ensure_ascii=False))
-
-
-def _cmd_submit_transfer_order(args):
-    out = submit_transfer_order(order_id=args.order_id, sig=args.sig)
-    print(json.dumps(out, indent=2, ensure_ascii=False))
-
-
 def _cmd_get_transfer_order(args):
     out = get_transfer_order(order_id=args.order_id)
     print(json.dumps(out, indent=2, ensure_ascii=False))
@@ -1871,25 +1851,8 @@ def main():
     p.set_defaults(func=_cmd_rwa_get_my_holdings)
 
     # ---- Transfer (bgw_transfer) ----
-    p = sub.add_parser("make-transfer-order", help="[Transfer] Create transfer order; returns source+fee+orderId")
-    p.add_argument("--chain", required=True, help="Chain code: eth/bnb/base/arbitrum/matic/morph/sol")
-    p.add_argument("--contract", required=True, help="Token contract address; empty string '' for native token")
-    p.add_argument("--from-address", dest="from_address", required=True, help="Sender address")
-    p.add_argument("--to-address", dest="to_address", required=True, help="Receiver address")
-    p.add_argument("--amount", required=True, help="Transfer amount, decimal string e.g. '10.5'")
-    p.add_argument("--memo", default="", help="Optional memo written to chain transaction")
-    p.add_argument("--gasless", action="store_true", help="Request gasless transfer (gas paid from token balance)")
-    p.add_argument("--gasless-pay-token", dest="gasless_pay_token", default="", help="Gasless: contract address of token to pay gas with")
-    p.add_argument("--override-7702", dest="override_7702", action="store_true", help="Allow overwriting an existing third-party EIP-7702 binding")
-    p.set_defaults(func=_cmd_make_transfer_order)
-
-    p = sub.add_parser("submit-transfer-order", help="[Transfer] Submit signed transfer transaction")
-    p.add_argument("--order-id", dest="order_id", required=True, help="orderId from make-transfer-order")
-    p.add_argument("--sig", required=True, help="Signed tx data (format depends on chain/source.type)")
-    p.set_defaults(func=_cmd_submit_transfer_order)
-
     p = sub.add_parser("get-transfer-order", help="[Transfer] Query transfer order status (real-time chain query)")
-    p.add_argument("--order-id", dest="order_id", required=True, help="orderId from make-transfer-order")
+    p.add_argument("--order-id", dest="order_id", required=True, help="orderId from transfer_make_sign_send.py output")
     p.set_defaults(func=_cmd_get_transfer_order)
 
     args = parser.parse_args()

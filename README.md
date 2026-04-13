@@ -146,10 +146,9 @@ Direct on-chain token transfer where the server handles transaction construction
 
 **How it works:**
 ```
-1. makeTransferOrder  → Get unsigned source data + fee info + orderId
-2. Sign locally       → Sign using the appropriate method for the chain
-3. submitTransferOrder → Submit signed tx; server broadcasts
-4. getTransferOrder    → Poll until SUCCESS or FAILED
+transfer_make_sign_send.py / social_transfer_make_sign_send.py
+  → makeTransferOrder + sign + submitTransferOrder (one shot)
+  → poll getTransferOrder until SUCCESS or FAILED
 ```
 
 **Key features:**
