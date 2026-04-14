@@ -155,7 +155,7 @@ transfer_make_sign_send.py / social_transfer_make_sign_send.py
 - **Gasless (EIP-7702 / FeePayer)** — transfer tokens with zero native gas. Gas deducted from USDT/USDC balance
 - **Multi-chain** — ETH, BNB, Base, Arbitrum, Polygon, Morph, Solana
 - **Server-side broadcast** — client only signs, server handles nonce management and chain tracking
-- **Silent degradation** — if gasless is unavailable, falls back to standard transfer automatically
+- **Explicit fallback** — if gasless is unavailable, prompts for confirmation before falling back to standard transfer
 
 ```bash
 # Standard EVM token transfer

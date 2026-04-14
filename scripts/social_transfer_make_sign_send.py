@@ -67,26 +67,41 @@ def _sign_evm_7702(source: dict, social_chain: str, sw) -> str:
             raise ValueError(f"msgToSign item missing hash: {m}")
         result = sw.sign_message_return(social_chain, f"EthSign:{h}")
         m["sig"] = result.get("result", result.get("signature", ""))
-        print(f"    [{m['msgType']}] signed: {m['sig'][:20]}...", file=sys.stderr)
+        print(f"    [{m['msgType']}] signed", file=sys.stderr)
 
     return json.dumps(msgs)
+
+
+def _parse_hex_or_int(val, default=0):
+    """Parse a hex string (0x-prefixed) or decimal string/int to int."""
+    if isinstance(val, str) and val.startswith("0x"):
+        return int(val, 16)
+    try:
+        return int(val)
+    except (TypeError, ValueError):
+        return default
 
 
 def _sign_evm_standard(source: dict, social_chain: str, sw) -> str:
     """Sign evm_legacy or evm_1559 source via Social Login Wallet TEE."""
     evm = source.get("evm", {})
-    chain_id = evm.get("chainId", 1)
+    source_type = source.get("type", "evm_legacy")
 
     sign_params = {
         "chain": social_chain,
-        "chainId": int(chain_id),
+        "chainId": _parse_hex_or_int(evm.get("chainId", 1), default=1),
         "to": evm.get("to", ""),
-        "value": int(evm.get("value", "0x0"), 16) if isinstance(evm.get("value"), str) and evm.get("value", "").startswith("0x") else int(evm.get("value", 0)),
+        "value": _parse_hex_or_int(evm.get("value", "0x0")),
         "data": evm.get("data", "0x"),
-        "nonce": int(evm.get("nonce", 0)),
-        "gasLimit": str(int(evm.get("gasLimit", "0x0"), 16) if isinstance(evm.get("gasLimit"), str) and evm.get("gasLimit", "").startswith("0x") else int(evm.get("gasLimit", 0))),
-        "gasPrice": str(int(evm.get("gasPrice", "0x0"), 16) if isinstance(evm.get("gasPrice"), str) and evm.get("gasPrice", "").startswith("0x") else int(evm.get("gasPrice", "0") or "0")),
+        "nonce": _parse_hex_or_int(evm.get("nonce", 0)),
+        "gasLimit": str(_parse_hex_or_int(evm.get("gasLimit", 0))),
     }
+
+    if source_type == "evm_1559":
+        sign_params["maxFeePerGas"] = str(_parse_hex_or_int(evm.get("maxFeePerGas", "0x0")))
+        sign_params["maxPriorityFeePerGas"] = str(_parse_hex_or_int(evm.get("maxPriorityFeePerGas", "0x0")))
+    else:
+        sign_params["gasPrice"] = str(_parse_hex_or_int(evm.get("gasPrice", "0x0")))
 
     result = sw.sign_transaction_return(social_chain, sign_params)
     return result.get("result", result.get("signature", ""))
@@ -130,7 +145,8 @@ def main():
     parser.add_argument("--gasless-pay-token", dest="gasless_pay_token", default="",
                         help="Gasless: contract address of token to pay gas with")
     parser.add_argument("--override-7702", dest="override_7702", action="store_true",
-                        help="Allow overwriting an existing third-party EIP-7702 binding")
+                        help="[DANGEROUS] Overwrite an existing third-party EIP-7702 binding. "
+                             "Script will prompt for confirmation before proceeding.")
     args = parser.parse_args()
 
     # Import API module
@@ -164,6 +180,12 @@ def main():
     )
 
     if resp.get("status") != 0:
+        error_code = resp.get("error_code") or resp.get("data", {}).get("error_code")
+        if error_code == 30108:
+            print("ERROR: Existing third-party EIP-7702 binding detected on this address.", file=sys.stderr)
+            print("Gasless transfer requires overwriting this binding.", file=sys.stderr)
+            print("To override, re-run with --override-7702 (this will REPLACE the existing binding).", file=sys.stderr)
+            sys.exit(1)
         print(json.dumps(resp, indent=2), file=sys.stderr)
         sys.exit(1)
 
@@ -184,11 +206,33 @@ def main():
     # Gasless status
     no_gas_info = data.get("noGas")
     if args.gasless and not no_gas_info:
-        print("INFO: Gasless not available, proceeding with standard transfer.", file=sys.stderr)
+        print("WARNING: Gasless requested but not available for this transfer.", file=sys.stderr)
+        print("Reason: amount below threshold, chain not supported, or no eligible pay token.", file=sys.stderr)
+        print("This will fall back to a STANDARD transfer (native gas required).", file=sys.stderr)
+        confirm = input("Type 'yes' to proceed with standard transfer, anything else to abort: ").strip()
+        if confirm != "yes":
+            print("Aborted — gasless not available and fallback not confirmed.", file=sys.stderr)
+            sys.exit(1)
+        print("    Proceeding with standard transfer (user confirmed).", file=sys.stderr)
     elif no_gas_info and no_gas_info.get("available"):
         print(f"    gasless: pay {no_gas_info.get('payAmount')} {no_gas_info.get('payTokenSymbol')}", file=sys.stderr)
         if no_gas_info.get("warn"):
             print(f"    WARNING: {no_gas_info['warn']}", file=sys.stderr)
+
+    # EIP-7702 override confirmation
+    if args.override_7702 and no_gas_info and no_gas_info.get("need7702Auth"):
+        print("", file=sys.stderr)
+        print("⚠️  EIP-7702 OVERRIDE WARNING", file=sys.stderr)
+        print("This will OVERWRITE the existing third-party EIP-7702 binding on this address.", file=sys.stderr)
+        print("This is a permanent account-level change. The previous binding cannot be restored.", file=sys.stderr)
+        if no_gas_info.get("warn"):
+            print(f"Server warning: {no_gas_info['warn']}", file=sys.stderr)
+        print("", file=sys.stderr)
+        confirm = input("Type 'yes' to confirm override, anything else to abort: ").strip()
+        if confirm != "yes":
+            print("Aborted — 7702 override not confirmed.", file=sys.stderr)
+            sys.exit(1)
+        print("    7702 override confirmed by user.", file=sys.stderr)
 
     source = data.get("source", {})
     source_type = source.get("type", "")

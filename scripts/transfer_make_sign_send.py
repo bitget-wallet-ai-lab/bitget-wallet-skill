@@ -60,7 +60,7 @@ def _sign_evm_standard(source: dict, private_key: str) -> str:
     tx_dict = {
         "to": to_addr,
         "data": evm.get("data", "0x"),
-        "gas": int(evm.get("gasLimit", "0x0"), 16) if isinstance(evm.get("gasLimit"), str) else int(evm.get("gasLimit", 0)),
+        "gas": int(evm.get("gasLimit", "0x0"), 16) if isinstance(evm.get("gasLimit"), str) and evm.get("gasLimit", "").startswith("0x") else int(evm.get("gasLimit", 0)),
         "nonce": int(evm.get("nonce", 0)),
         "chainId": int(evm.get("chainId", 1)),
     }
@@ -154,7 +154,8 @@ def main():
     parser.add_argument("--gasless-pay-token", dest="gasless_pay_token", default="",
                         help="Gasless: contract address of token to pay gas with")
     parser.add_argument("--override-7702", dest="override_7702", action="store_true",
-                        help="Allow overwriting an existing third-party EIP-7702 binding")
+                        help="[DANGEROUS] Overwrite an existing third-party EIP-7702 binding. "
+                             "Script will prompt for confirmation before proceeding.")
     args = parser.parse_args()
 
     # Read keys from files
@@ -187,6 +188,12 @@ def main():
 
     status = resp.get("status", -1)
     if status != 0:
+        error_code = resp.get("error_code") or resp.get("data", {}).get("error_code")
+        if error_code == 30108:
+            print("ERROR: Existing third-party EIP-7702 binding detected on this address.", file=sys.stderr)
+            print("Gasless transfer requires overwriting this binding.", file=sys.stderr)
+            print("To override, re-run with --override-7702 (this will REPLACE the existing binding).", file=sys.stderr)
+            sys.exit(1)
         print(json.dumps(resp, indent=2), file=sys.stderr)
         sys.exit(1)
 
@@ -213,15 +220,35 @@ def main():
     # Check gasless availability
     no_gas_info = data.get("noGas")
     if args.gasless and not no_gas_info:
-        print("INFO: Gasless not available for this transfer (amount below threshold, "
-              "chain not supported, or no eligible pay token). Proceeding with standard transfer.",
-              file=sys.stderr)
+        print("WARNING: Gasless requested but not available for this transfer.", file=sys.stderr)
+        print("Reason: amount below threshold, chain not supported, or no eligible pay token.", file=sys.stderr)
+        print("This will fall back to a STANDARD transfer (native gas required).", file=sys.stderr)
+        confirm = input("Type 'yes' to proceed with standard transfer, anything else to abort: ").strip()
+        if confirm != "yes":
+            print("Aborted — gasless not available and fallback not confirmed.", file=sys.stderr)
+            sys.exit(1)
+        print("    Proceeding with standard transfer (user confirmed).", file=sys.stderr)
     elif no_gas_info and no_gas_info.get("available"):
         print(f"    gasless: {no_gas_info.get('payTokenSymbol')} "
               f"(pay: {no_gas_info.get('payAmount')} {no_gas_info.get('payTokenSymbol')})",
               file=sys.stderr)
         if no_gas_info.get("warn"):
             print(f"    WARNING: {no_gas_info['warn']}", file=sys.stderr)
+
+    # EIP-7702 override confirmation
+    if args.override_7702 and no_gas_info and no_gas_info.get("need7702Auth"):
+        print("", file=sys.stderr)
+        print("⚠️  EIP-7702 OVERRIDE WARNING", file=sys.stderr)
+        print("This will OVERWRITE the existing third-party EIP-7702 binding on this address.", file=sys.stderr)
+        print("This is a permanent account-level change. The previous binding cannot be restored.", file=sys.stderr)
+        if no_gas_info.get("warn"):
+            print(f"Server warning: {no_gas_info['warn']}", file=sys.stderr)
+        print("", file=sys.stderr)
+        confirm = input("Type 'yes' to confirm override, anything else to abort: ").strip()
+        if confirm != "yes":
+            print("Aborted — 7702 override not confirmed.", file=sys.stderr)
+            sys.exit(1)
+        print("    7702 override confirmed by user.", file=sys.stderr)
 
     # Fee info
     fee = data.get("fee", {})

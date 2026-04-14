@@ -93,7 +93,7 @@ Pass `--gasless` to `transfer_make_sign_send.py` or `social_transfer_make_sign_s
 | base | `0xfde4C96c8593536E31F229EA8f37b2ADa2699bb2` | `0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913` |
 | arbitrum | `0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9` | `0xaf88d065e77c8cC2239327C5EDb3A432268e5831` |
 | matic | `0xc2132D05D31c914a87C6611C10748AEb04B58e8F` | `0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359` |
-| morph | `0xc7D67A9CBB121B3B0b9c053Dd9F469523243379A` | `0xE34C91815d7FC18A9E2148bcD4241D0a5848b693` |
+| morph | `0xe7cd86e13AC4309349F30B3435a9d337750fC82D` | `0xCfb1186F4e93D60E60a8bDd997427D1F33bc372B` |
 | sol | `Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB` | `EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v` |
 
 ### Token Selection
@@ -115,19 +115,36 @@ When gasless is available, `data.noGas` contains:
 | `need7702Auth` | EVM only: `true` if first-time 7702 binding needed |
 | `acceptableTokens` | Full whitelist of eligible pay tokens |
 
-### Silent Degradation
+### Gasless Unavailable — Explicit Fallback
 
-Gasless silently degrades to standard transfer (no error) when:
+When `--gasless` is requested but gasless is not available (chain not supported, amount below threshold, no eligible pay token with sufficient balance), the scripts **do not silently fall back** to a standard transfer.
+
+Instead, the scripts:
+1. Print a warning explaining why gasless is unavailable
+2. Prompt the user: `"Type 'yes' to proceed with standard transfer (native gas required), anything else to abort"`
+3. Only proceed if the user types `yes` — otherwise abort
+
+**Scenarios where gasless is not available:**
 - The chain is not in the gasless whitelist
 - Transfer amount (USD value) is below the threshold
 - No pay token has sufficient balance or queryable price
 - `noGas` was not requested
 
-The script detects this (no `noGas` field in response) and warns the user.
+**Agent rule:** If the script aborts due to gasless unavailable, inform the user and ask whether they want to retry without `--gasless` (standard transfer). Do NOT automatically retry.
 
 ### EIP-7702 Override
 
-If the sender address is already bound to a third-party EIP-7702 contract, gasless will fail by default. Pass `--override-7702` to allow overwriting the existing binding. The response `noGas.warn` will contain a warning message to display to the user.
+> **DANGER: High-impact account-level change.** Overwriting an existing EIP-7702 binding is permanent and cannot be undone. The previous third-party binding will be lost.
+
+If the sender address is already bound to a third-party EIP-7702 contract, gasless will fail with **error code 30108**. To proceed:
+
+1. Inform the user: *"Your address has an existing third-party EIP-7702 binding. Gasless transfer requires replacing it. This is permanent."*
+2. Only after explicit user confirmation, re-run with `--override-7702`.
+3. The scripts will display an additional interactive confirmation prompt before signing.
+
+The response `noGas.warn` will contain a warning message — **always display it to the user**.
+
+**Agent rule:** NEVER pass `--override-7702` without first explaining the risk and obtaining explicit user confirmation ("yes, override my existing 7702 binding").
 
 ## Signing Modes
 

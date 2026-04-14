@@ -162,6 +162,7 @@ Full domain knowledge in [`docs/address-find.md`](docs/address-find.md).
 - Solana blockhash expires in ~60s — use `transfer_make_sign_send.py` to avoid expiry
 - orderId is single-use; do not resubmit after successful submit
 - Gasless `txid` may be `getgas_task_xxx` format (not final chain hash); poll `get-transfer-order` for final status
+- **EIP-7702 override is DANGEROUS**: NEVER pass `--override-7702` without first warning the user that it permanently replaces their existing third-party EIP-7702 binding. If API returns error 30108, explain the risk and get explicit user confirmation before retrying with `--override-7702`
 
 Full domain knowledge in [`docs/transfer.md`](docs/transfer.md).
 
