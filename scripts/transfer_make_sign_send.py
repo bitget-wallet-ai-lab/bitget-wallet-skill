@@ -172,6 +172,25 @@ def main():
     # Import API module
     _api = importlib.import_module("bitget-wallet-agent-api")
 
+    # EIP-7702 override pre-flight confirmation (before API call)
+    if args.override_7702:
+        print("", file=sys.stderr)
+        print("⚠️  EIP-7702 OVERRIDE WARNING", file=sys.stderr)
+        print("This will OVERWRITE the existing third-party EIP-7702 binding on this address.", file=sys.stderr)
+        print("This is a permanent account-level change. The previous binding cannot be restored.", file=sys.stderr)
+        print("", file=sys.stderr)
+        if not sys.stdin.isatty():
+            print("ERROR: --override-7702 requires interactive confirmation (TTY). Aborting.", file=sys.stderr)
+            sys.exit(1)
+        try:
+            confirm = input("Type 'yes' to confirm override, anything else to abort: ").strip()
+        except EOFError:
+            confirm = ""
+        if confirm != "yes":
+            print("Aborted — 7702 override not confirmed.", file=sys.stderr)
+            sys.exit(1)
+        print("    7702 override confirmed by user.", file=sys.stderr)
+
     # Step 1: makeTransferOrder
     print(">>> Step 1: makeTransferOrder", file=sys.stderr)
     resp = _api.make_transfer_order(
@@ -217,38 +236,30 @@ def main():
                           "orderId": order_id, "fee": data.get("fee")}, indent=2))
         sys.exit(1)
 
-    # Check gasless availability
+    # Check gasless availability (check available first, then catch all unavailable cases)
     no_gas_info = data.get("noGas")
-    if args.gasless and not no_gas_info:
-        print("WARNING: Gasless requested but not available for this transfer.", file=sys.stderr)
-        print("Reason: amount below threshold, chain not supported, or no eligible pay token.", file=sys.stderr)
-        print("This will fall back to a STANDARD transfer (native gas required).", file=sys.stderr)
-        confirm = input("Type 'yes' to proceed with standard transfer, anything else to abort: ").strip()
-        if confirm != "yes":
-            print("Aborted — gasless not available and fallback not confirmed.", file=sys.stderr)
-            sys.exit(1)
-        print("    Proceeding with standard transfer (user confirmed).", file=sys.stderr)
-    elif no_gas_info and no_gas_info.get("available"):
+    if no_gas_info and no_gas_info.get("available"):
         print(f"    gasless: {no_gas_info.get('payTokenSymbol')} "
               f"(pay: {no_gas_info.get('payAmount')} {no_gas_info.get('payTokenSymbol')})",
               file=sys.stderr)
         if no_gas_info.get("warn"):
             print(f"    WARNING: {no_gas_info['warn']}", file=sys.stderr)
-
-    # EIP-7702 override confirmation
-    if args.override_7702 and no_gas_info and no_gas_info.get("need7702Auth"):
-        print("", file=sys.stderr)
-        print("⚠️  EIP-7702 OVERRIDE WARNING", file=sys.stderr)
-        print("This will OVERWRITE the existing third-party EIP-7702 binding on this address.", file=sys.stderr)
-        print("This is a permanent account-level change. The previous binding cannot be restored.", file=sys.stderr)
-        if no_gas_info.get("warn"):
-            print(f"Server warning: {no_gas_info['warn']}", file=sys.stderr)
-        print("", file=sys.stderr)
-        confirm = input("Type 'yes' to confirm override, anything else to abort: ").strip()
-        if confirm != "yes":
-            print("Aborted — 7702 override not confirmed.", file=sys.stderr)
+    elif args.gasless:
+        # Gasless requested but not available (regardless of whether noGas field exists)
+        print("WARNING: Gasless requested but not available for this transfer.", file=sys.stderr)
+        print("Reason: amount below threshold, chain not supported, or no eligible pay token.", file=sys.stderr)
+        print("This will fall back to a STANDARD transfer (native gas required).", file=sys.stderr)
+        if not sys.stdin.isatty():
+            print("ERROR: Gasless fallback requires interactive confirmation (TTY). Aborting.", file=sys.stderr)
             sys.exit(1)
-        print("    7702 override confirmed by user.", file=sys.stderr)
+        try:
+            confirm = input("Type 'yes' to proceed with standard transfer, anything else to abort: ").strip()
+        except EOFError:
+            confirm = ""
+        if confirm != "yes":
+            print("Aborted — gasless not available and fallback not confirmed.", file=sys.stderr)
+            sys.exit(1)
+        print("    Proceeding with standard transfer (user confirmed).", file=sys.stderr)
 
     # Fee info
     fee = data.get("fee", {})
