@@ -57,11 +57,21 @@ def _sign_evm_standard(source: dict, private_key: str) -> str:
         from eth_utils import to_checksum_address
         to_addr = to_checksum_address(to_addr)
 
+    raw_nonce = evm.get("nonce")
+    if raw_nonce is None:
+        raise ValueError("Missing required field 'nonce' in EVM source")
+    raw_gas = evm.get("gasLimit")
+    if not raw_gas:
+        raise ValueError("Missing required field 'gasLimit' in EVM source")
+    gas_val = int(raw_gas, 16) if isinstance(raw_gas, str) and raw_gas.startswith("0x") else int(raw_gas)
+    if gas_val == 0:
+        raise ValueError("gasLimit is zero — refusing to sign transaction that will certainly fail")
+
     tx_dict = {
         "to": to_addr,
         "data": evm.get("data", "0x"),
-        "gas": int(evm.get("gasLimit", "0x0"), 16) if isinstance(evm.get("gasLimit"), str) and evm.get("gasLimit", "").startswith("0x") else int(evm.get("gasLimit", 0)),
-        "nonce": int(evm.get("nonce", 0)),
+        "gas": gas_val,
+        "nonce": int(raw_nonce, 16) if isinstance(raw_nonce, str) and raw_nonce.startswith("0x") else int(raw_nonce),
         "chainId": int(evm.get("chainId", 1)),
     }
 
@@ -105,6 +115,8 @@ def _sign_evm_7702(source: dict, private_key: str) -> str:
         if not msg_hash:
             raise ValueError(f"msgToSign item missing 'hash': {msg}")
         hash_bytes = bytes.fromhex(msg_hash.replace("0x", ""))
+        if len(hash_bytes) != 32:
+            raise ValueError(f"Invalid hash length {len(hash_bytes)} bytes (expected 32): {msg_hash!r}")
         signed = acct.unsafe_sign_hash(hash_bytes)
         sig_hex = signed.signature.hex()
         msg["sig"] = sig_hex if sig_hex.startswith("0x") else "0x" + sig_hex

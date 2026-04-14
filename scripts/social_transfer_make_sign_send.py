@@ -65,9 +65,11 @@ def _sign_evm_7702(source: dict, social_chain: str, sw) -> str:
         h = m.get("hash", "")
         if not h:
             raise ValueError(f"msgToSign item missing hash: {m}")
+        if len(h.replace("0x", "")) != 64:  # 32 bytes = 64 hex chars
+            raise ValueError(f"Invalid hash length for msgType={m.get('msgType')!r}: {h!r} (expected 32 bytes)")
         result = sw.sign_message_return(social_chain, f"EthSign:{h}")
         m["sig"] = result.get("result", result.get("signature", ""))
-        print(f"    [{m['msgType']}] signed", file=sys.stderr)
+        print(f"    [{m.get('msgType', 'unknown')}] signed", file=sys.stderr)
 
     return json.dumps(msgs)
 
@@ -87,14 +89,24 @@ def _sign_evm_standard(source: dict, social_chain: str, sw) -> str:
     evm = source.get("evm", {})
     source_type = source.get("type", "evm_legacy")
 
+    raw_nonce = evm.get("nonce")
+    if raw_nonce is None:
+        raise ValueError("Missing required field 'nonce' in EVM source")
+    raw_gas = evm.get("gasLimit")
+    if not raw_gas:
+        raise ValueError("Missing required field 'gasLimit' in EVM source")
+    gas_val = _parse_hex_or_int(raw_gas)
+    if gas_val == 0:
+        raise ValueError("gasLimit is zero — refusing to sign transaction that will certainly fail")
+
     sign_params = {
         "chain": social_chain,
         "chainId": _parse_hex_or_int(evm.get("chainId", 1), default=1),
         "to": evm.get("to", ""),
         "value": _parse_hex_or_int(evm.get("value", "0x0")),
         "data": evm.get("data", "0x"),
-        "nonce": _parse_hex_or_int(evm.get("nonce", 0)),
-        "gasLimit": str(_parse_hex_or_int(evm.get("gasLimit", 0))),
+        "nonce": _parse_hex_or_int(raw_nonce),
+        "gasLimit": str(gas_val),
     }
 
     if source_type == "evm_1559":

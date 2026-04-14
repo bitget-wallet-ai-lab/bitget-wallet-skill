@@ -1503,7 +1503,8 @@ def get_transfer_order(order_id: str) -> dict:
     Query transfer order status via real-time chain query (not DB cache).
     orderStatus: PENDING / PROCESSING / SUCCESS / FAILED.
     """
-    return _request_get(f"/userv2/order/getTransferOrder?orderId={order_id}")
+    from urllib.parse import quote as _quote
+    return _request_get(f"/userv2/order/getTransferOrder?orderId={_quote(order_id, safe='')}")
 
 
 def _cmd_get_transfer_order(args):
