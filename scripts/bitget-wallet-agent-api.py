@@ -453,6 +453,12 @@ def agent_alpha_hunter_find(chain: str, tag: str, page: int = 1, limit: int = 20
     return _request("/market/v3/address/agent-tag-list", body)
 
 
+def multi_agent_signal(chain: str = "all", page: int = 1, size: int = 20) -> dict:
+    """Get Multi-Agent Signal list — tokens bought by Agent-tagged addresses (cross-strategy)."""
+    body: dict = {"chain": chain, "page": page, "size": size}
+    return _request("/market/v3/agent/signals", body)
+
+
 def liquidity(chain: str, contract: str) -> dict:
     """Get liquidity pool info for a token."""
     body = {"chain": chain, "contract": contract}
@@ -1186,6 +1192,15 @@ def _cmd_agent_alpha_hunter_find(args):
     print(json.dumps(out, indent=2, ensure_ascii=False))
 
 
+def _cmd_multi_agent_signal(args):
+    out = multi_agent_signal(
+        chain=args.chain,
+        page=args.page,
+        size=args.size,
+    )
+    print(json.dumps(out, indent=2, ensure_ascii=False))
+
+
 def _cmd_liquidity(args):
     out = liquidity(chain=args.chain, contract=args.contract)
     print(json.dumps(out, indent=2, ensure_ascii=False))
@@ -1633,6 +1648,12 @@ def main():
     p.add_argument("--page", type=int, default=1, help="Page number (default: 1)")
     p.add_argument("--limit", type=int, default=20, help="Page size (default: 20, max: 200)")
     p.set_defaults(func=_cmd_agent_alpha_hunter_find)
+
+    p = sub.add_parser("multi-agent-signal", help="[Alpha] Multi-agent signals — tokens bought by Agent-tagged addresses (cross-strategy)")
+    p.add_argument("--chain", default="all", help="Chain filter (sol, eth, bnb, base, all; default: all)")
+    p.add_argument("--page", type=int, default=1, help="Page number (default: 1)")
+    p.add_argument("--size", type=int, default=20, help="Page size (default: 20, max: 100)")
+    p.set_defaults(func=_cmd_multi_agent_signal)
 
     p = sub.add_parser("liquidity", help="[Market] Get liquidity pool info for a token")
     p.add_argument("--chain", required=True)

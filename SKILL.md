@@ -112,6 +112,7 @@ Full domain knowledge and Skills-layer computation rules in [`docs/market-data.m
 | Alpha hunter detail | `alpha-hunter-detail` | Detailed scoring factors for a specific address |
 | Agent alpha tags | `agent-alpha-tags` | List available Agent tag labels |
 | Agent alpha hunter find | `agent-alpha-hunter-find` | Find addresses by Agent tag with scores |
+| Multi-agent signal | `multi-agent-signal` | Tokens currently bought by Agent-tagged addresses (cross-strategy consensus) |
 
 Full domain knowledge in [`docs/alpha.md`](docs/alpha.md).
 
