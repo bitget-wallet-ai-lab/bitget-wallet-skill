@@ -101,6 +101,13 @@ def _sign_evm_7702(source: dict, private_key: str) -> str:
     """
     Sign evm_7702 source data. Returns JSON.stringify(signedMsgs).
     Each msgToSign item has a 'hash' field to sign with unsafe_sign_hash.
+
+    SECURITY NOTE (trust boundary): The hash values come from the Bitget Wallet
+    backend (makeTransferOrder response). The client validates length (32 bytes)
+    but does NOT locally re-derive the EIP-7702 authorization digest. This is an
+    accepted trust-server architecture — security relies on TLS integrity of the
+    backend connection. If local re-derivation is needed in the future:
+      auth_hash = keccak256(0x05 || rlp([chain_id, address, nonce]))
     """
     from eth_account import Account
     acct = Account.from_key(private_key)

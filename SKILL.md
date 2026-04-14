@@ -154,7 +154,7 @@ Full domain knowledge in [`docs/address-find.md`](docs/address-find.md).
 
 **Supported chains:** eth, bnb, base, arbitrum, matic, morph, sol
 
-**Gasless mode:** Pass `--gasless` to enable gas payment from stablecoin balance (USDT/USDC) instead of native token. Supports all chains above. Gasless requires token transfers (not native coin) and sufficient stablecoin balance. If gasless is unavailable, silently degrades to standard transfer.
+**Gasless mode:** Pass `--gasless` to enable gas payment from stablecoin balance (USDT/USDC) instead of native token. Supports all chains above. Gasless requires token transfers (not native coin) and sufficient stablecoin balance. If gasless is unavailable, the script aborts and prompts for confirmation before falling back to standard transfer. The agent must NOT auto-confirm — inform the user and let them decide.
 
 **Key rules:**
 - Always check balance (`batch-v2`) before transfer
