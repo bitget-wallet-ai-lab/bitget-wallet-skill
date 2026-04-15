@@ -1,7 +1,7 @@
 ---
 name: bitget-wallet
-version: "2026.4.13-1"
-updated: "2026-04-13"
+version: "2026.4.15-1"
+updated: "2026-04-15"
 description: "Interact with Bitget Wallet API for crypto market data, token info, swap quotes, RWA (real-world asset) stock trading, and security audits. Use when the user asks about wallet, token prices, market data, swap/trading quotes, RWA stock discovery and trading, token security checks, K-line charts, or token rankings on supported chains (ETH, SOL, BSC, Base, etc.)."
 ---
 
@@ -17,7 +17,7 @@ description: "Interact with Bitget Wallet API for crypto market data, token info
 |----------------|----------------|----------------|
 | Swap / Trade | [`docs/swap.md`](docs/swap.md) | quote, confirm, make-order, send, get-order-details |
 | Market Data / Token Analysis | [`docs/market-data.md`](docs/market-data.md) | coin-market-info, security, coin-dev, kline, tx-info, liquidity, rankings, launchpad-tokens, search-tokens-v3 |
-| Alpha Intelligence | [`docs/alpha.md`](docs/alpha.md) | alpha-gems, alpha-signals, alpha-hunter-find, alpha-hunter-detail, agent-alpha-tags, agent-alpha-hunter-find |
+| Alpha Intelligence | [`docs/alpha.md`](docs/alpha.md) | alpha-gems, alpha-signals, alpha-hunter-find, alpha-hunter-detail, agent-alpha-tags, agent-alpha-hunter-find, multi-agent-signal |
 | Token Deep Analysis | [`docs/token-analyze.md`](docs/token-analyze.md) | simple-kline, trading-dynamics, transaction-list, holders-info, profit-address-analysis, top-profit, compare-tokens |
 | Address Discovery | [`docs/address-find.md`](docs/address-find.md) | recommend-address-list |
 | Wallet / Signing | [`docs/wallet-signing.md`](docs/wallet-signing.md) | Any signing operation, key derivation, order_sign.py, order_make_sign_send.py |
@@ -113,6 +113,7 @@ Full domain knowledge and Skills-layer computation rules in [`docs/market-data.m
 | Alpha hunter detail | `alpha-hunter-detail` | Detailed scoring factors for a specific address |
 | Agent alpha tags | `agent-alpha-tags` | List available Agent tag labels |
 | Agent alpha hunter find | `agent-alpha-hunter-find` | Find addresses by Agent tag with scores |
+| Multi-agent signal | `multi-agent-signal` | Tokens currently bought by Agent-tagged addresses (cross-strategy consensus) |
 
 Full domain knowledge in [`docs/alpha.md`](docs/alpha.md).
 
