@@ -6,6 +6,19 @@ Format: date-based versioning (`YYYY.M.DD`). Each release includes a sequential 
 
 ---
 
+## [2026.4.13-1] - 2026-04-13
+
+### Added — Token Transfer with Gasless Support (bgw_transfer)
+
+- `scripts/transfer_make_sign_send.py` — One-shot transfer (mnemonic/private-key): makeTransferOrder + sign + submit. Supports EVM (legacy/1559/7702) and Solana (raw/partial). `--gasless` flag for gasless mode.
+- `scripts/social_transfer_make_sign_send.py` — One-shot transfer (Social Login Wallet): makeTransferOrder + sign (TEE) + submit. No local private key needed. `--gasless` supported.
+- `scripts/bitget-wallet-agent-api.py` — Added `get-transfer-order` subcommand for polling order status.
+- `docs/transfer.md` — Domain knowledge: flow, gasless mode, signing modes, Morph AltFee, chain notes, error codes.
+- Updated `SKILL.md` — Added `bgw_transfer` tool section, domain knowledge table, scripts table, quick reference. Version bumped to 2026.4.13-1.
+- Updated `README.md` — Added Token Transfer / Gasless Transfer to core capabilities and usage examples.
+
+---
+
 ## [2026.3.27-1] - 2026-03-27
 
 ### Added — Token Deep Analysis (bgw_token_analyze)

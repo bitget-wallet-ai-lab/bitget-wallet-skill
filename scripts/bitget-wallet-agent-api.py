@@ -1450,6 +1450,68 @@ def _cmd_rwa_get_my_holdings(args):
     print(json.dumps(out, indent=2, ensure_ascii=False))
 
 
+# ---------------------------------------------------------------------------
+# Transfer API (bgw_transfer) — ms-user-go service
+# ---------------------------------------------------------------------------
+
+def make_transfer_order(
+    chain: str,
+    contract: str,
+    from_: str,
+    to: str,
+    amount: str,
+    memo: str = "",
+    no_gas: bool = False,
+    no_gas_pay_token: str = "",
+    override7702: bool = False,
+) -> dict:
+    """
+    Create a transfer order. Returns source (unsigned tx data), fee info, orderId.
+    noGas=True enables gasless transfer (gas paid from token balance, e.g. USDT/USDC).
+    noGasPayToken: optional contract address of token to use for gas payment.
+    override7702: allow overwriting an existing third-party EIP-7702 binding.
+    """
+    body: dict = {
+        "chain": chain,
+        "contract": contract,
+        "from": from_,
+        "to": to,
+        "amount": amount,
+    }
+    if memo:
+        body["memo"] = memo
+    if no_gas:
+        body["noGas"] = True
+    if no_gas_pay_token:
+        body["noGasPayToken"] = no_gas_pay_token
+    if override7702:
+        body["override7702"] = True
+    return _request("/userv2/order/makeTransferOrder", body)
+
+
+def submit_transfer_order(order_id: str, sig: str) -> dict:
+    """
+    Submit signed transfer transaction. sig format depends on chain/source.type.
+    Server broadcasts and tracks on-chain status.
+    """
+    body = {"orderId": order_id, "sig": sig}
+    return _request("/userv2/order/submitTransferOrder", body)
+
+
+def get_transfer_order(order_id: str) -> dict:
+    """
+    Query transfer order status via real-time chain query (not DB cache).
+    orderStatus: PENDING / PROCESSING / SUCCESS / FAILED.
+    """
+    from urllib.parse import quote as _quote
+    return _request_get(f"/userv2/order/getTransferOrder?orderId={_quote(order_id, safe='')}")
+
+
+def _cmd_get_transfer_order(args):
+    out = get_transfer_order(order_id=args.order_id)
+    print(json.dumps(out, indent=2, ensure_ascii=False))
+
+
 def main():
     global WALLET_ID
     parser = argparse.ArgumentParser(description="Bitget Wallet Agent API (new swap flow, no apiKey)")
@@ -1788,6 +1850,11 @@ def main():
     p = sub.add_parser("rwa-get-my-holdings", help="[RWA] Get user RWA stock holdings")
     p.add_argument("--user-address", dest="user_address", required=True)
     p.set_defaults(func=_cmd_rwa_get_my_holdings)
+
+    # ---- Transfer (bgw_transfer) ----
+    p = sub.add_parser("get-transfer-order", help="[Transfer] Query transfer order status (real-time chain query)")
+    p.add_argument("--order-id", dest="order_id", required=True, help="orderId from transfer_make_sign_send.py output")
+    p.set_defaults(func=_cmd_get_transfer_order)
 
     args = parser.parse_args()
     if args.wallet_id:

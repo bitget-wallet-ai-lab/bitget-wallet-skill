@@ -10,6 +10,8 @@ wallet/
 .replit/
 .aider/
 .social-wallet-secret
+.mnemonic
+.pk_*
 node_modules/
 package.json
 package-lock.json
