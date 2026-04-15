@@ -6,6 +6,16 @@ Format: date-based versioning (`YYYY.M.DD`). Each release includes a sequential 
 
 ---
 
+## [2026.4.15-1] - 2026-04-15
+
+### Added — Multi-Agent Signal (bgw_alpha)
+
+- `scripts/bitget-wallet-agent-api.py` — Added `multi-agent-signal` subcommand (`POST /market/v3/agent/signals`). Surfaces tokens where multiple Agent-tagged addresses are buying (cross-strategy consensus), complementing the existing single-strategy `alpha-signals`. Response includes triggering Agent `tags` and per-address `buy_amount` / `order_count`.
+- `docs/alpha.md` — Added `multi_agent_signal` section with parameters, response schema, and usage examples. Bumped intro from "Six watch_types" to "Seven watch_types". Added entry to the Alpha discovery flow.
+- `SKILL.md` — Added `multi-agent-signal` to the Alpha Intelligence row of the top-level "Before calling" table and to the `bgw_alpha` use-case table.
+
+---
+
 ## [2026.4.13-1] - 2026-04-13
 
 ### Added — Token Transfer with Gasless Support (bgw_transfer)
