@@ -580,7 +580,7 @@ def sign_order_txs_evm(order_data: dict, private_key: str, chain_id: int = None)
         tx_dict = {
             "to": tx_data["to"],
             "data": tx_data.get("calldata") or tx_data.get("data"),
-            "gas": int(tx_data.get("gasLimit", 0)),
+            "gas": int(tx_data.get("gasLimit", "0x0"), 16) if isinstance(tx_data.get("gasLimit"), str) and tx_data.get("gasLimit", "").startswith("0x") else int(tx_data.get("gasLimit", 0)),
             "nonce": int(tx_data.get("nonce", 0)),
             "chainId": cid,
         }
