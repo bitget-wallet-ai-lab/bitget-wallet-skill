@@ -49,10 +49,6 @@ def _request(path: str, body: dict) -> dict:
         "X-SIGN": sign,
         "X-TIMESTAMP": ts,
     }
-    if os.environ.get("BGW_DEBUG"):
-        print(f"========== REQUEST {path} ==========", file=sys.stderr)
-        print(json.dumps(body, indent=2, ensure_ascii=False), file=sys.stderr)
-        print("====================================", file=sys.stderr)
     try:
         resp = requests.post(url, data=body_str, headers=headers, timeout=30)
         if resp.status_code != 200:
