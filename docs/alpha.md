@@ -4,7 +4,7 @@
 
 **Covers:** AI-curated token discovery (gems), real-time trading signals (smart money flow, KOL calls, buyer growth), and alpha hunter (smart money) address intelligence.
 
-**Design principle:** One tool covers the "alpha intelligence" domain. Six watch_types: `alpha` for curated gems, `alpha_signals` for real-time signals, `alpha_hunter_find` for smart money address discovery, `alpha_hunter_detail` for individual address scoring, `agent_alpha_tags` for behavioral tag enum, `agent_alpha_hunter_find` for tag-based address discovery.
+**Design principle:** One tool covers the "alpha intelligence" domain. Seven watch_types: `alpha` for curated gems, `alpha_signals` for real-time signals, `alpha_hunter_find` for smart money address discovery, `alpha_hunter_detail` for individual address scoring, `agent_alpha_tags` for behavioral tag enum, `agent_alpha_hunter_find` for tag-based address discovery, `multi_agent_signal` for cross-strategy Agent-tagged buy signals on tokens.
 
 **vs bgw_token_find:** token_find is keyword/filter-based discovery (user searches). bgw_alpha is AI-curated — the system surfaces tokens based on detected on-chain activity patterns.
 
@@ -18,6 +18,7 @@
 | **alpha_hunter_detail** | `alpha-hunter-detail` | `/market/v3/address/factor-detail` | POST |
 | **agent_alpha_tags** | `agent-alpha-tags` | `/market/v3/address/agent-tags` | GET |
 | **agent_alpha_hunter_find** | `agent-alpha-hunter-find` | `/market/v3/address/agent-tag-list` | POST |
+| **multi_agent_signal** | `multi-agent-signal` | `/market/v3/agent/signals` | POST |
 
 ---
 
@@ -302,13 +303,85 @@ python3 scripts/bitget-wallet-agent-api.py agent-alpha-hunter-find --chain sol -
 
 ---
 
+## multi_agent_signal (multi-agent-signal)
+
+Tokens currently being bought by addresses tagged by Agent strategies — a cross-strategy aggregation of Agent-tagged address activity on a token. Differs from `alpha_signals` (single-strategy real-time signals) in that the signal here is triggered by the *Agent tag classification* of the buyers themselves, and the returned `tags` tell you which Agent types fired on that token.
+
+### Parameters
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `--chain` | string | no | all | Chain filter: sol, eth, bnb, base, all |
+| `--page` | int | no | 1 | Page number |
+| `--size` | int | no | 20 | Page size (max: 100) |
+
+### Response — Top Level
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `list` | array | Multi-agent signal token list (see fields below) |
+
+### Response — Each Item
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `chain` | string | Chain: sol, eth, bnb, base |
+| `contract_address` | string | Token contract address |
+| `icon` | string | Token icon URL |
+| `name` | string | Token name |
+| `symbol` | string | Token symbol |
+| `chain_icon` | string | Chain icon URL |
+| `price` | number | Current price (USD) |
+| `change_24h` | number | 24h price change as decimal, can be negative (e.g. `0.15` = +15%, `-0.82` = -82%) |
+| `market_cap` | number | Market cap (USD) |
+| `holder` | number | Holder count |
+| `signal` | string | Signal type — always `multi_agent` for this endpoint |
+| `push_times` | number | Total push count for this token |
+| `daily_max_change` | number | Today's max price change as decimal (e.g. `1.00` = 100%) |
+| `history_max_change` | number | All-time max price change since first push as decimal (e.g. `2.00` = 200%) |
+| `latest_signal_time` | number | Latest signal timestamp (Unix seconds) |
+| `daily_first_price` | string | Today's first-push price |
+| `daily_first_push_time` | number | Today's first-push timestamp (Unix seconds) |
+| `tags` | array\<string\> | Agent tag types that triggered the signal (e.g. `["early_alpha_hunter", "whale_player"]`) |
+| `addresses` | array | Trigger address details — see below |
+
+### Response — `addresses[]`
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `address` | string | Wallet address |
+| `buy_amount` | number | Buy amount (USD) |
+| `order_count` | number | Number of buy orders |
+
+**Note on `tags`:** values come from the Agent tag enum. Use `agent-alpha-tags` to list currently available tag values — the backend may add or remove tags over time.
+
+**vs alpha-signals:** `alpha-signals` surfaces tokens by single-strategy real-time triggers (`alpha_hunter`, `kol_call`, `buyers_growth_5min`). `multi-agent-signal` surfaces tokens where multiple *Agent-tagged* addresses are buying — the discriminator is the behavioral classification of the buyer (tag), not the trigger pattern. Use `multi-agent-signal` when you want cross-strategy Agent consensus on a token.
+
+### Usage examples
+
+```bash
+# All chains, default page
+python3 scripts/bitget-wallet-agent-api.py multi-agent-signal
+
+# Solana only, top 10
+python3 scripts/bitget-wallet-agent-api.py multi-agent-signal --chain sol --size 10
+
+# Paginated
+python3 scripts/bitget-wallet-agent-api.py multi-agent-signal --chain all --page 2 --size 20
+```
+
+**Note on coverage:** data is currently most active on `sol`. Other chains (`eth`, `bnb`, `base`) may return empty `list` depending on backend coverage — that is not an error, just means no Agent-tagged addresses are currently buying on that chain.
+
+---
+
 ## Combined Usage
 
 **Alpha discovery flow:**
 
 1. `alpha-gems` — get today's AI-curated gems (quick overview, no parameters)
 2. `alpha-signals` — get real-time signals with more detail (ai_summary, signal descriptions)
-3. Follow up with `bgw_token_check` (security + coin-market-info) for any token that looks interesting
+3. `multi-agent-signal` — get tokens with cross-strategy Agent consensus (multiple Agent-tagged addresses buying the same token)
+4. Follow up with `bgw_token_check` (security + coin-market-info) for any token that looks interesting
 
 **Alpha hunter flow:**
 

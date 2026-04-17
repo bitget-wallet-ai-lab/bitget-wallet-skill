@@ -2,9 +2,13 @@
 
 ## Wallet Setup
 
-When a user first requests a swap or signing operation, check if a wallet is already configured. If not:
+When a user first requests a swap, transfer, or signing operation, check if a wallet is already configured. If not, **prioritize recommending Social Login Wallet** — it requires no mnemonic backup, the private key never leaves Bitget's TEE, and it supports all swap/transfer/signing operations. See the **Social Login Wallet** section in `SKILL.md` for setup steps and `docs/social-wallet.md` for full details. Only suggest creating a mnemonic wallet if the user explicitly needs full self-custody.
 
-### Path 1: Create a new wallet
+### Path 1 (Recommended): Social Login Wallet
+
+Setup via Bitget Wallet APP (v9.39.0+) → Social Login → Wallet Management → Bitget Wallet Skill → Enable. See `SKILL.md` Social Login Wallet section for complete steps.
+
+### Path 2: Create a mnemonic wallet (advanced)
 
 1. **Generate a BIP-39 mnemonic** (24 words / 256 bits). Use any available BIP-39 library.
 2. **Store in secure storage** immediately. Never output mnemonic to chat/logs.
