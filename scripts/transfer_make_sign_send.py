@@ -235,6 +235,11 @@ def main():
         print(json.dumps(resp, indent=2), file=sys.stderr)
         sys.exit(1)
 
+    if not resp.get("_security_check_valid") or not resp.get("_security_request_check_valid"):
+        msg = resp.get("msg", "Transaction blocked: security signature verification failed.")
+        print(json.dumps({"status": -1, "error_code": -10000, "msg": msg}, indent=2), file=sys.stderr)
+        sys.exit(1)
+
     data = resp.get("data", {})
     order_id = data.get("orderId")
     if not order_id:

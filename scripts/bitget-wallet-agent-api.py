@@ -20,8 +20,9 @@ import requests
 
 # ---------------------------------------------------------------------------
 # Production RSA public key for security-check / security-request-check verification
+# Override via BGW_SECURITY_PUBLIC_KEY env var to support key rotation without code deploy.
 # ---------------------------------------------------------------------------
-_SECURITY_PUBLIC_KEY_PEM = (
+_SECURITY_PUBLIC_KEY_PEM_DEFAULT = (
     "-----BEGIN PUBLIC KEY-----\n"
     "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAk18NCL9CoiE8OQ588ehJ\n"
     "hVoCenARvVymahlH3Sw8URZATuZw4k8ZKC8Sf7Zu9i9l3L3K5X4m2I20UENkOBzP\n"
@@ -34,19 +35,27 @@ _SECURITY_PUBLIC_KEY_PEM = (
 )
 
 
+def _get_security_public_key_pem() -> str:
+    return os.environ.get("BGW_SECURITY_PUBLIC_KEY") or _SECURITY_PUBLIC_KEY_PEM_DEFAULT
+
+
 def _verify_security_header(signature_hex: str, data: bytes) -> bool:
     """Verify RSA-PKCS1v15-SHA256 signature (0x-prefixed hex) against data bytes."""
+    from cryptography.hazmat.primitives import hashes, serialization
+    from cryptography.hazmat.primitives.asymmetric import padding
+    from cryptography.exceptions import InvalidSignature
     try:
-        from cryptography.hazmat.primitives import hashes, serialization
-        from cryptography.hazmat.primitives.asymmetric import padding
         sig_hex = signature_hex
         if sig_hex.startswith("0x") or sig_hex.startswith("0X"):
             sig_hex = sig_hex[2:]
         sig_bytes = bytes.fromhex(sig_hex)
-        pub_key = serialization.load_pem_public_key(_SECURITY_PUBLIC_KEY_PEM.encode())
+    except ValueError:
+        return False
+    pub_key = serialization.load_pem_public_key(_get_security_public_key_pem().encode())
+    try:
         pub_key.verify(sig_bytes, data, padding.PKCS1v15(), hashes.SHA256())
         return True
-    except Exception:
+    except InvalidSignature:
         return False
 
 BASE_URL = "https://copenapi.bgwapi.io"
