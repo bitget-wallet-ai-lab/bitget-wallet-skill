@@ -18,6 +18,46 @@ from typing import List, Optional
 
 import requests
 
+# ---------------------------------------------------------------------------
+# Production RSA public key for security-check / security-request-check verification
+# Override via BGW_SECURITY_PUBLIC_KEY env var to support key rotation without code deploy.
+# ---------------------------------------------------------------------------
+_SECURITY_PUBLIC_KEY_PEM_DEFAULT = (
+    "-----BEGIN PUBLIC KEY-----\n"
+    "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAk18NCL9CoiE8OQ588ehJ\n"
+    "hVoCenARvVymahlH3Sw8URZATuZw4k8ZKC8Sf7Zu9i9l3L3K5X4m2I20UENkOBzP\n"
+    "YGCRHk3Dy8SQk/e7ucj/hXJH07yNDJuv1t1nWXRhvwpG8rdW03KpDhJy4pgcAMXl\n"
+    "JYnJYqhfj7HW/urMD0KXw7dLNKyWKBoaGzKkoRvvxTSDHk35cjETcYg6H+bEm+Px\n"
+    "a+GnIJkuN5U2/LfZ4WxgNiIdE2zacHLcFoFsM14jTQdcvPid+6ilY8SQCA3GWc72\n"
+    "n1RudWoTj1ThEUVNWXgcwxLFIdiLCNH1YF7qINdRrjOOCCBBBpr6jdANdI2e4Dcy\n"
+    "DQIDAQAB\n"
+    "-----END PUBLIC KEY-----"
+)
+
+
+def _get_security_public_key_pem() -> str:
+    return os.environ.get("BGW_SECURITY_PUBLIC_KEY") or _SECURITY_PUBLIC_KEY_PEM_DEFAULT
+
+
+def _verify_security_header(signature_hex: str, data: bytes) -> bool:
+    """Verify RSA-PKCS1v15-SHA256 signature (0x-prefixed hex) against data bytes."""
+    from cryptography.hazmat.primitives import hashes, serialization
+    from cryptography.hazmat.primitives.asymmetric import padding
+    from cryptography.exceptions import InvalidSignature
+    try:
+        sig_hex = signature_hex
+        if sig_hex.startswith("0x") or sig_hex.startswith("0X"):
+            sig_hex = sig_hex[2:]
+        sig_bytes = bytes.fromhex(sig_hex)
+    except ValueError:
+        return False
+    pub_key = serialization.load_pem_public_key(_get_security_public_key_pem().encode())
+    try:
+        pub_key.verify(sig_bytes, data, padding.PKCS1v15(), hashes.SHA256())
+        return True
+    except InvalidSignature:
+        return False
+
 BASE_URL = "https://copenapi.bgwapi.io"
 WALLET_ID = ""  # Set via --wallet-id flag for Social Login Wallet users
 
@@ -30,6 +70,12 @@ def _make_sign(method: str, path: str, body_str: str, ts: str) -> str:
     message = method + path + body_str + ts
     digest = hashlib.sha256(message.encode("utf-8")).hexdigest()
     return "0x" + digest
+
+
+_SECURITY_CHECK_PATHS = {
+    "/swap-go/swapx/makeOrder",
+    "/userv2/order/makeTransferOrder",
+}
 
 
 def _request(path: str, body: dict) -> dict:
@@ -53,7 +99,44 @@ def _request(path: str, body: dict) -> dict:
         resp = requests.post(url, data=body_str, headers=headers, timeout=30)
         if resp.status_code != 200:
             return {"status": -1, "error_code": resp.status_code, "msg": resp.text[:500]}
-        return resp.json()
+        result = resp.json()
+        if path in _SECURITY_CHECK_PATHS and result.get("status") == 0:
+            body_bytes = resp.content
+            sig_check = resp.headers.get("security-check", "")
+            sig_req_check = resp.headers.get("security-request-check", "")
+
+            # Both headers must be present
+            if not sig_check or not sig_req_check:
+                missing = []
+                if not sig_check:
+                    missing.append("security-check")
+                if not sig_req_check:
+                    missing.append("security-request-check")
+                return {
+                    "status": -1,
+                    "error_code": -10001,
+                    "msg": f"Transaction blocked: missing security header(s): {', '.join(missing)}.",
+                }
+
+            # Verify security-check (server signs response body bytes)
+            if not _verify_security_header(sig_check, body_bytes):
+                return {
+                    "status": -1,
+                    "error_code": -10002,
+                    "msg": "Transaction blocked: security-check signature verification failed.",
+                }
+
+            # Verify security-request-check (server signs request body bytes)
+            if not _verify_security_header(sig_req_check, body_str.encode("utf-8")):
+                return {
+                    "status": -1,
+                    "error_code": -10003,
+                    "msg": "Transaction blocked: security-request-check signature verification failed.",
+                }
+
+            result["_security_check_valid"] = True
+            result["_security_request_check_valid"] = True
+        return result
     except Exception as e:
         return {"status": -1, "error_code": -1, "msg": str(e)}
 
