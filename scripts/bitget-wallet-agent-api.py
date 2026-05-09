@@ -105,13 +105,17 @@ def _request(path: str, body: dict) -> dict:
             sig_check = resp.headers.get("security-check", "")
             sig_req_check = resp.headers.get("security-request-check", "")
 
-            # Both headers must be present
-            if not sig_check or not sig_req_check:
+            sig_double_check = resp.headers.get("security-double-check", "")
+
+            # All three headers must be present
+            if not sig_check or not sig_req_check or not sig_double_check:
                 missing = []
                 if not sig_check:
                     missing.append("security-check")
                 if not sig_req_check:
                     missing.append("security-request-check")
+                if not sig_double_check:
+                    missing.append("security-double-check")
                 return {
                     "status": -1,
                     "error_code": -10001,
@@ -134,8 +138,18 @@ def _request(path: str, body: dict) -> dict:
                     "msg": "Transaction blocked: security-request-check signature verification failed.",
                 }
 
+            # Verify security-double-check (server signs responseBodySignature + requestBodySignature)
+            double_check_data = (sig_check + sig_req_check).encode("utf-8")
+            if not _verify_security_header(sig_double_check, double_check_data):
+                return {
+                    "status": -1,
+                    "error_code": -10004,
+                    "msg": "Transaction blocked: security-double-check signature verification failed.",
+                }
+
             result["_security_check_valid"] = True
             result["_security_request_check_valid"] = True
+            result["_security_double_check_valid"] = True
         return result
     except Exception as e:
         return {"status": -1, "error_code": -1, "msg": str(e)}
