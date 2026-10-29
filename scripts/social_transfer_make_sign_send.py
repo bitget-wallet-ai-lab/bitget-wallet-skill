@@ -130,6 +130,10 @@ def _sign_evm_typed_data_v2(data: dict, social_chain: str, sw) -> str:
     if not items:
         raise ValueError("gasless signDataV2 has no data to sign")
 
+    print("    WARNING: signDataV2/EIP-712 gasless path uses an unverified best-effort TEE call "
+          "(no dedicated EIP-712 method) — not yet confirmed via joint debugging, see docs/transfer.md",
+          file=sys.stderr)
+
     results = []
     for item in items:
         typed = item.get("data", {})
@@ -285,6 +289,19 @@ def main():
         print(f"    fee: {fee.get('fee')}, "
               f"balance: {fee.get('balance')}, enough: {fee.get('balanceForFeeEnough')}",
               file=sys.stderr)
+
+    # estimateRevert now lives under fee.* (moved there from the old top-level
+    # makeTransferOrder response) — abort before signing rather than submitting a
+    # transaction already predicted to fail on-chain.
+    if fee.get("estimateRevert"):
+        reason = fee.get("estimateRevertReason") or "transaction predicted to fail"
+        print(f"ERROR: estimateRevert=true — {reason}. Aborting.", file=sys.stderr)
+        sys.exit(1)
+
+    if data.get("hasPendingTransactionAndOverwriteNonce"):
+        print("WARNING: hasPendingTransactionAndOverwriteNonce=true — the server is reusing a "
+              "nonce from a still-pending transaction for this address. This transfer may not "
+              "land on-chain until the pending one clears.", file=sys.stderr)
 
     # Step 2: Sign via Social Login Wallet TEE
     print(">>> Step 2: sign (Social Login Wallet TEE)", file=sys.stderr)

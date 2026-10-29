@@ -158,7 +158,8 @@ Full domain knowledge in [`docs/address-find.md`](docs/address-find.md).
 
 **Key rules:**
 - Always check balance (`batch-v2`) before transfer
-- Check the response `status` / error code — any non-zero status means abort (no `estimateRevert` flag in this API)
+- Check the response `status` / error code — any non-zero status means abort
+- Check `data.fee.estimateRevert` (nested, not top-level) — the one-shot scripts abort before signing if `true`
 - Solana blockhash expires in ~60s — use `transfer_make_sign_send.py` to avoid expiry
 - `send` broadcasts synchronously and returns the final `txid` directly; no order-status polling needed
 - The actual gasless fee charged can be noticeably higher than the fee preview shown before signing — warn the user

@@ -158,11 +158,15 @@ def _infer_primary_type(types: dict) -> str:
     """
     Infer EIP-712 primaryType when the response omits it: the root type is the one
     (excluding EIP712Domain) that is never referenced as a field type by any other
-    type. Falls back to the sole candidate when there is exactly one.
+    type. Raises if there isn't exactly one unambiguous root — guessing wrong here
+    would sign a fund-moving EIP-712 payload under the wrong primaryType, which is
+    worse than aborting the transfer.
     """
     candidates = [k for k in types if k != "EIP712Domain"]
-    if len(candidates) <= 1:
-        return candidates[0] if candidates else ""
+    if not candidates:
+        raise ValueError("EIP-712 typed data has no non-domain type to infer primaryType from")
+    if len(candidates) == 1:
+        return candidates[0]
     referenced = set()
     for type_name, fields in types.items():
         if type_name == "EIP712Domain":
@@ -172,7 +176,12 @@ def _infer_primary_type(types: dict) -> str:
             if field_type in types:
                 referenced.add(field_type)
     roots = [c for c in candidates if c not in referenced]
-    return roots[0] if len(roots) == 1 else candidates[0]
+    if len(roots) != 1:
+        raise ValueError(
+            f"Cannot unambiguously infer EIP-712 primaryType from types={list(types.keys())} "
+            f"(candidate roots: {roots}); refusing to guess for a fund-moving signature"
+        )
+    return roots[0]
 
 
 def _sign_evm_typed_data_v2(data: dict, private_key: str) -> str:
@@ -310,6 +319,19 @@ def main():
         print(f"    fee: {fee.get('fee')}, "
               f"balance: {fee.get('balance')}, enough: {fee.get('balanceForFeeEnough')}",
               file=sys.stderr)
+
+    # estimateRevert now lives under fee.* (moved there from the old top-level
+    # makeTransferOrder response) — abort before signing rather than submitting a
+    # transaction already predicted to fail on-chain.
+    if fee.get("estimateRevert"):
+        reason = fee.get("estimateRevertReason") or "transaction predicted to fail"
+        print(f"ERROR: estimateRevert=true — {reason}. Aborting.", file=sys.stderr)
+        sys.exit(1)
+
+    if data.get("hasPendingTransactionAndOverwriteNonce"):
+        print("WARNING: hasPendingTransactionAndOverwriteNonce=true — the server is reusing a "
+              "nonce from a still-pending transaction for this address. This transfer may not "
+              "land on-chain until the pending one clears.", file=sys.stderr)
 
     # Step 2: Sign
     print(">>> Step 2: sign", file=sys.stderr)

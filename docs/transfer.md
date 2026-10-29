@@ -79,7 +79,12 @@ Before any transfer, the agent **must**:
 2. **Gas check** (if not gasless): Verify native token balance is sufficient for gas fees.
 3. **Status guard**: The one-shot scripts check the `getTransferDataV4` response `status` / error code
    and abort on any non-zero status (e.g. insufficient balance, invalid address — see Error Codes below).
-   There is no separate `estimateRevert` flag in this API.
+4. **Revert guard**: `estimateRevert` is nested under `data.fee.estimateRevert` (not top-level, unlike
+   the old `makeTransferOrder` response). The one-shot scripts check `data.fee.estimateRevert` and abort
+   with `data.fee.estimateRevertReason` before signing if it's `true`.
+5. **Pending-nonce warning**: if `data.hasPendingTransactionAndOverwriteNonce` is `true`, the server is
+   reusing a nonce from a still-pending transaction on this address — the scripts print a warning but
+   still proceed, since the server (not the client) owns nonce assignment.
 
 ```bash
 python3 scripts/bitget-wallet-agent-api.py batch-v2 \
@@ -210,7 +215,11 @@ promptly — use `transfer_make_sign_send.py` to avoid expiry.
 (`signDataV2` without a 3009 token) is documented by the upstream interface spec itself as "matches the
 App (core-js), to be confirmed via joint debugging." This implementation uses the same
 `[{domain, message, signature}, ...]` output shape as the confirmed EIP-3009 case; verify against a
-real joint-debug session before relying on it in production.
+real joint-debug session before relying on it in production. Both scripts fail closed rather than
+guess on ambiguity: `social_transfer_make_sign_send.py` prints an explicit unverified-path warning
+before attempting the TEE's non-dedicated `signTypeData` call, and `transfer_make_sign_send.py`'s
+`_infer_primary_type` raises instead of falling back to an arbitrary candidate when the EIP-712
+`primaryType` can't be unambiguously inferred from `types`.
 
 ## Chain-Specific Notes
 
