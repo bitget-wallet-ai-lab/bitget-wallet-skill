@@ -147,29 +147,23 @@ Direct on-chain token transfer where the server handles transaction construction
 **How it works:**
 ```
 transfer_make_sign_send.py / social_transfer_make_sign_send.py
-  → makeTransferOrder + sign + submitTransferOrder (one shot)
-  → poll getTransferOrder until SUCCESS or FAILED
+  → getTransferDataV4 + sign + send (one shot, send broadcasts & returns the final txid synchronously)
 ```
 
 **Key features:**
-- **Gasless (EIP-7702 / FeePayer)** — transfer tokens with zero native gas. Gas deducted from USDT/USDC balance
+- **Gasless (EIP-7702 / FeePayer)** — the server automatically pays gas from USDT/USDC balance when the sender has no native token; there's no flag to request it, check `data.gasAccount.selected` in the response
 - **Multi-chain** — ETH, BNB, Base, Arbitrum, Polygon, Morph, Solana
 - **Server-side broadcast** — client only signs, server handles nonce management and chain tracking
-- **Explicit fallback** — if gasless is unavailable, prompts for confirmation before falling back to standard transfer
 
 ```bash
-# Standard EVM token transfer
+# Token transfer — gasless vs. standard is chosen automatically based on native-coin balance
 python3 scripts/transfer_make_sign_send.py --private-key-file /tmp/.pk_evm \
   --chain eth --contract 0xdAC17F958D2ee523a2206206994597C13D831ec7 \
   --from-address 0xAbC... --to-address 0xDeF... --amount 100
 
-# Gasless transfer (no ETH needed for gas)
 python3 scripts/transfer_make_sign_send.py --private-key-file /tmp/.pk_evm \
   --chain base --contract 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913 \
-  --from-address 0xAbC... --to-address 0xDeF... --amount 50 --gasless
-
-# Poll status
-python3 scripts/bitget-wallet-agent-api.py get-transfer-order --order-id <orderId>
+  --from-address 0xAbC... --to-address 0xDeF... --amount 50
 ```
 
 See [`docs/transfer.md`](docs/transfer.md) for domain knowledge, signing modes, and gasless details.
