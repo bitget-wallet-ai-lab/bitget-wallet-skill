@@ -73,22 +73,21 @@ def _parse_hex_or_int(val, default=0):
         return default
 
 
-def _parse_fee_value(val) -> int:
+def _fee_value_to_native_str(val) -> str:
     """
-    Parse a gasPrice/maxFeePerGas/maxPriorityFeePerGas value from getTransferDataV4.
-    Confirmed via a live call: these come back as a plain decimal string in native-coin
-    units (e.g. "0.0000000001" BNB), NOT wei-hex. _parse_hex_or_int would silently return
-    its `default` (0) on a decimal-point string via the swallowed ValueError, signing a
-    tx with gasPrice=0 — this parses it correctly instead.
+    Convert a gasPrice/maxFeePerGas/maxPriorityFeePerGas value from getTransferDataV4 into
+    the decimal native-coin-unit string the Social Login Wallet TEE (sw.sign_transaction_return)
+    expects — the same format social_order_make_sign_send.py already passes through verbatim
+    for the swap flow (see its gasPrice handling: `str(derive.get("gasPrice", ...))`, no wei
+    conversion). getTransferDataV4 returns these fields as a plain decimal string in native-coin
+    units already (e.g. "0.0000000001" BNB); converting that to wei before handing it to the TEE
+    double-converts, since the TEE does its own ×1e18 conversion internally — confirmed live: a
+    wei-converted "100000000" gasPrice was signed into a raw tx with gasPrice=100000000e18.
+    Only 0x-wei-hex (forward-compat, not yet observed) is converted here.
     """
-    if isinstance(val, str):
-        if val.startswith("0x"):
-            return int(val, 16)
-        if "." in val:
-            fval = float(val)
-            return int(fval * 1e18) if 0 < fval < 1 else int(fval * 1e9)
-        return int(val)
-    return int(val)
+    if isinstance(val, str) and val.startswith("0x"):
+        return str(int(val, 16) / 1e18)
+    return str(val)
 
 
 def _sign_evm_gasless_legacy(data: dict, social_chain: str, sw) -> str:
@@ -178,10 +177,10 @@ def _sign_evm_standard(data: dict, social_chain: str, sw) -> str:
     }
 
     if data.get("maxFeePerGas") is not None or data.get("maxPriorityFeePerGas") is not None:
-        sign_params["maxFeePerGas"] = str(_parse_fee_value(data.get("maxFeePerGas", "0x0")))
-        sign_params["maxPriorityFeePerGas"] = str(_parse_fee_value(data.get("maxPriorityFeePerGas", "0x0")))
+        sign_params["maxFeePerGas"] = _fee_value_to_native_str(data.get("maxFeePerGas", "0"))
+        sign_params["maxPriorityFeePerGas"] = _fee_value_to_native_str(data.get("maxPriorityFeePerGas", "0"))
     else:
-        sign_params["gasPrice"] = str(_parse_fee_value(data.get("gasPrice", "0x0")))
+        sign_params["gasPrice"] = _fee_value_to_native_str(data.get("gasPrice", "0"))
 
     result = sw.sign_transaction_return(social_chain, sign_params)
     return result.get("result", result.get("signature", ""))
