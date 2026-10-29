@@ -160,6 +160,7 @@ Full domain knowledge in [`docs/address-find.md`](docs/address-find.md).
 - Always check balance (`batch-v2`) before transfer
 - Check the response `status` / error code — any non-zero status means abort
 - Check `data.fee.estimateRevert` (nested, not top-level) — the one-shot scripts abort before signing if `true`
+- If `data.hasPendingTransactionAndOverwriteNonce` is `true`, the scripts abort by default (would race a still-pending transaction on the same nonce) — only re-run with `--confirm-nonce-override` after the user explicitly confirms they want to override it
 - Solana blockhash expires in ~60s — use `transfer_make_sign_send.py` to avoid expiry
 - `send` broadcasts synchronously and returns the final `txid` directly; no order-status polling needed
 - The actual gasless fee charged can be noticeably higher than the fee preview shown before signing — warn the user

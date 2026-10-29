@@ -256,6 +256,12 @@ def main():
                         help="Receiver address")
     parser.add_argument("--amount", required=True,
                         help="Transfer amount, decimal string e.g. '10.5'")
+    parser.add_argument("--confirm-nonce-override", dest="confirm_nonce_override", action="store_true",
+                        help="Proceed even when the server reports "
+                             "hasPendingTransactionAndOverwriteNonce=true (reusing a nonce from a "
+                             "still-pending transaction on this address, which can replace or race "
+                             "it). Only pass this after the user has explicitly confirmed they want "
+                             "to override the pending transaction.")
     args = parser.parse_args()
 
     # Read keys from files
@@ -329,9 +335,17 @@ def main():
         sys.exit(1)
 
     if data.get("hasPendingTransactionAndOverwriteNonce"):
-        print("WARNING: hasPendingTransactionAndOverwriteNonce=true — the server is reusing a "
-              "nonce from a still-pending transaction for this address. This transfer may not "
-              "land on-chain until the pending one clears.", file=sys.stderr)
+        if not args.confirm_nonce_override:
+            print("ERROR: hasPendingTransactionAndOverwriteNonce=true — the server would reuse a "
+                  "nonce from a still-pending transaction on this address. Signing and sending now "
+                  "would race that pending transaction: whichever one confirms first invalidates the "
+                  "other (replacement, or the new one failing as an already-used nonce). Aborting — "
+                  "wait for the pending transaction to clear and retry, or re-run with "
+                  "--confirm-nonce-override only after the user has explicitly confirmed they want "
+                  "to override the pending transaction.", file=sys.stderr)
+            sys.exit(1)
+        print("WARNING: hasPendingTransactionAndOverwriteNonce=true — proceeding with nonce "
+              "override as explicitly confirmed via --confirm-nonce-override.", file=sys.stderr)
 
     # Step 2: Sign
     print(">>> Step 2: sign", file=sys.stderr)

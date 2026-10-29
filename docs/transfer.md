@@ -82,9 +82,11 @@ Before any transfer, the agent **must**:
 4. **Revert guard**: `estimateRevert` is nested under `data.fee.estimateRevert` (not top-level, unlike
    the old `makeTransferOrder` response). The one-shot scripts check `data.fee.estimateRevert` and abort
    with `data.fee.estimateRevertReason` before signing if it's `true`.
-5. **Pending-nonce warning**: if `data.hasPendingTransactionAndOverwriteNonce` is `true`, the server is
-   reusing a nonce from a still-pending transaction on this address — the scripts print a warning but
-   still proceed, since the server (not the client) owns nonce assignment.
+5. **Pending-nonce guard**: if `data.hasPendingTransactionAndOverwriteNonce` is `true`, the server would
+   reuse a nonce from a still-pending transaction on this address — signing and sending now would race
+   that pending transaction (replacement, or the new one failing as an already-used nonce). The one-shot
+   scripts **abort by default** in this case; proceeding requires `--confirm-nonce-override`, which must
+   only be passed after the user has explicitly confirmed they want to override the pending transaction.
 
 ```bash
 python3 scripts/bitget-wallet-agent-api.py batch-v2 \
@@ -176,11 +178,33 @@ whether `data.gasAccount.selected` is `true`, and which of `signData` / `signDat
 assumed. Two things differ from the old API and from a naive hex-wei assumption, now handled correctly
 by the scripts:
 
-- **`gasPrice` / `maxFeePerGas` / `maxPriorityFeePerGas` are plain decimal strings in native-coin units**
-  (e.g. `"0.0000000001"` BNB), not `0x`-prefixed wei hex like `nonce`/`gasLimit`/`chainId`. This is the
-  same quirk `order_sign.py` already works around for the swap flow. `nonce`/`gasLimit`/`chainId`/`value`
-  came back as plain ints in the observed response, not hex strings either — but the scripts still
-  accept `0x`-hex for all of these for forward compatibility.
+- **`gasPrice` / `maxFeePerGas` / `maxPriorityFeePerGas` come back from `getTransferDataV4` as plain
+  decimal strings in native-coin units** (e.g. `"0.0000000001"` BNB), not `0x`-prefixed wei hex like
+  `nonce`/`gasLimit`/`chainId`. `nonce`/`gasLimit`/`chainId`/`value` came back as plain ints in the
+  observed response, not hex strings either — but the scripts still accept `0x`-hex for all of these
+  for forward compatibility.
+  ⚠️ **The two downstream signers disagree on units for these three fee fields, and it's not the same
+  split for all three** — mixing them up previously caused a live gasPrice to be double-converted into
+  an astronomically large value (caught and fixed 2026-10-29):
+  - `transfer_make_sign_send.py` (local `eth_account.Account.sign_transaction`): **all three must be
+    Wei integers** — `eth_account`'s `tx_dict` always takes Wei, so the native-decimal values from the
+    API are converted (`_parse_fee_value`/×1e18) before signing.
+  - `social_transfer_make_sign_send.py` (`sw.sign_transaction_return` TEE call): per
+    `docs/social-wallet.md`'s ETH/EVM field table, **`gasPrice` and `value` are native-coin units**
+    (pass the API's decimal string/number straight through — `_gas_price_to_native_str`, and the
+    `value` branch in `_sign_evm_standard`) **but `maxFeePerGas`/`maxPriorityFeePerGas` are Wei**
+    (converted via `_fee_value_to_wei`, same ×1e18 as the private-key script). Do not reuse one
+    native-unit-only helper for all four fields in this script — a previous version wei-converted
+    `value` the same way `transfer_make_sign_send.py` correctly does for `eth_account` (which *does*
+    need Wei), which is the wrong direction for the TEE call; caught by review 2026-10-29. ERC-20
+    transfers always carry `value=0`, so this branch isn't exercised by token-transfer testing —
+    needs live confirmation with a nonzero native-coin transfer.
+- **The Social Login Wallet TEE signing helpers fail closed on an empty/missing signature.** All four
+  `sw.sign_transaction_return`/`sw.sign_message_return` call sites in `social_transfer_make_sign_send.py`
+  go through `_extract_sig`, which raises instead of defaulting to `sig=""` when the TEE response has
+  neither a `result` nor a `signature` field — an empty signature must never reach `send`. This applies
+  to the unverified `signDataV2`/EIP-712 path too: the WARNING printed there is informational only, not
+  a substitute for this guard.
 - **The top-level `to` field is the on-chain tx target, not the recipient.** For a token transfer this
   is the token contract address (matching `contract`); the human-entered recipient comes back separately
   as `receiver`. The scripts always use the original `--to-address` CLI argument when calling `send`,

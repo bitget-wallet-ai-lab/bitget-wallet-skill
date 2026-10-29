@@ -37,6 +37,7 @@ import importlib
 import importlib.util
 import json
 import sys
+from decimal import Decimal
 from pathlib import Path
 
 SCRIPTS_DIR = Path(__file__).resolve().parent
@@ -73,21 +74,56 @@ def _parse_hex_or_int(val, default=0):
         return default
 
 
-def _fee_value_to_native_str(val) -> str:
+def _gas_price_to_native_str(val) -> str:
     """
-    Convert a gasPrice/maxFeePerGas/maxPriorityFeePerGas value from getTransferDataV4 into
-    the decimal native-coin-unit string the Social Login Wallet TEE (sw.sign_transaction_return)
-    expects — the same format social_order_make_sign_send.py already passes through verbatim
-    for the swap flow (see its gasPrice handling: `str(derive.get("gasPrice", ...))`, no wei
-    conversion). getTransferDataV4 returns these fields as a plain decimal string in native-coin
-    units already (e.g. "0.0000000001" BNB); converting that to wei before handing it to the TEE
-    double-converts, since the TEE does its own ×1e18 conversion internally — confirmed live: a
-    wei-converted "100000000" gasPrice was signed into a raw tx with gasPrice=100000000e18.
-    Only 0x-wei-hex (forward-compat, not yet observed) is converted here.
+    Convert a getTransferDataV4 gasPrice value into the decimal native-coin-unit string
+    the Social Login Wallet TEE (sw.sign_transaction_return) expects — the same format
+    social_order_make_sign_send.py already passes through verbatim for the swap flow (see
+    its gasPrice handling: `str(derive.get("gasPrice", ...))`, no wei conversion), and
+    matching docs/social-wallet.md's ETH/EVM field table ("gasPrice: Gas price in ETH units").
+    getTransferDataV4 returns gasPrice as a plain decimal string in native-coin units already
+    (e.g. "0.0000000001" BNB); converting that to wei before handing it to the TEE double-
+    converts, since the TEE does its own ×1e18 conversion internally for this field —
+    confirmed live: a wei-converted "100000000" gasPrice was signed into a raw tx with
+    gasPrice=100000000e18. Only 0x-wei-hex (forward-compat, not yet observed) is converted here.
+
+    NOTE: this does NOT apply to maxFeePerGas/maxPriorityFeePerGas — docs/social-wallet.md
+    documents those two as taken in Wei (unlike gasPrice); use _fee_value_to_wei for them.
     """
     if isinstance(val, str) and val.startswith("0x"):
         return str(int(val, 16) / 1e18)
     return str(val)
+
+
+def _fee_value_to_wei(val) -> int:
+    """
+    Convert a getTransferDataV4 maxFeePerGas/maxPriorityFeePerGas value — a plain decimal
+    string in native-coin units (e.g. "0.0000000002" BNB), per the same quirk as gasPrice —
+    into a Wei integer, per docs/social-wallet.md's ETH/EVM field table which documents these
+    two EIP-1559 fields as taken in Wei by sw.sign_transaction_return (unlike gasPrice, which
+    is native units — see _gas_price_to_native_str). 0x-wei-hex is accepted for forward
+    compatibility.
+    """
+    if isinstance(val, str):
+        if val.startswith("0x"):
+            return int(val, 16)
+        return int(float(val) * 1e18)
+    return int(val)
+
+
+def _extract_sig(result: dict, context: str) -> str:
+    """
+    Extract a signature string from a Social Login Wallet TEE response, failing closed
+    instead of silently defaulting to "". An empty/missing signature must never reach
+    `send` — that would broadcast (or attempt to broadcast) an effectively-unsigned
+    transfer. Confirmed by review (2026-10-29): the previous `result.get("result",
+    result.get("signature", ""))` pattern let a malformed/empty TEE response flow all the
+    way through to `send` with signature="".
+    """
+    sig = result.get("result") or result.get("signature") or ""
+    if not sig:
+        raise ValueError(f"{context}: TEE returned no signature (result={result!r})")
+    return sig
 
 
 def _sign_evm_gasless_legacy(data: dict, social_chain: str, sw) -> str:
@@ -108,7 +144,7 @@ def _sign_evm_gasless_legacy(data: dict, social_chain: str, sw) -> str:
         if len(h.replace("0x", "")) != 64:  # 32 bytes = 64 hex chars
             raise ValueError(f"Invalid hash length for msgType={m.get('msgType')!r}: {h!r} (expected 32 bytes)")
         result = sw.sign_message_return(social_chain, f"EthSign:{h}")
-        m["sig"] = result.get("result", result.get("signature", ""))
+        m["sig"] = _extract_sig(result, f"EVM gasless legacy msgType={m.get('msgType')!r}")
         print(f"    [{m.get('msgType', 'unknown')}] signed", file=sys.stderr)
 
     return json.dumps(msgs)
@@ -140,7 +176,7 @@ def _sign_evm_typed_data_v2(data: dict, social_chain: str, sw) -> str:
         domain = typed.get("domain", {})
         message = typed.get("message", {})
         result = sw.sign_transaction_return(social_chain, {"signTypeData": typed})
-        sig = result.get("result", result.get("signature", ""))
+        sig = _extract_sig(result, "EVM gasless signDataV2/EIP-712")
         results.append({
             "domain": domain,
             "message": message,
@@ -163,10 +199,23 @@ def _sign_evm_standard(data: dict, social_chain: str, sw) -> str:
     if gas_val == 0:
         raise ValueError("gasLimit is zero — refusing to sign transaction that will certainly fail")
 
-    raw_value = data.get("value", "0x0")
-    if isinstance(raw_value, str) and "." in raw_value and not raw_value.startswith("0x"):
-        # Same native-coin-decimal quirk as gasPrice below — e.g. "5" BNB, not wei.
-        value_val = int(float(raw_value) * 1e18)
+    raw_value = data.get("value", "0")
+    if isinstance(raw_value, str) and raw_value.startswith("0x"):
+        # value-as-wei-hex (standard EVM tx-field convention) — convert to the native-unit
+        # number sw.sign_transaction_return expects (docs/social-wallet.md ETH/EVM field
+        # table: "value: number, Amount in native token units"). Decimal avoids float
+        # rounding on the division; cast to float only at the end since sign_params needs
+        # a JSON-serializable number, not a Decimal.
+        value_val = float(Decimal(int(raw_value, 16)) / Decimal(10 ** 18))
+    elif isinstance(raw_value, str) and "." in raw_value:
+        # Already a native-coin decimal string (e.g. "0.1" BNB) from getTransferDataV4.
+        # The TEE wants this in native units too — pass it through, do NOT ×1e18.
+        # (A previous version multiplied by 1e18 here, which wei-converts a value the
+        # TEE expects in native units — wrong direction, confirmed by review 2026-10-29.
+        # ERC-20/token transfers always carry value=0 so this branch was never
+        # exercised by live testing; needs live confirmation for a nonzero native
+        # transfer before fully trusting this direction.)
+        value_val = float(raw_value)
     else:
         value_val = _parse_hex_or_int(raw_value)
 
@@ -181,13 +230,13 @@ def _sign_evm_standard(data: dict, social_chain: str, sw) -> str:
     }
 
     if data.get("maxFeePerGas") is not None or data.get("maxPriorityFeePerGas") is not None:
-        sign_params["maxFeePerGas"] = _fee_value_to_native_str(data.get("maxFeePerGas", "0"))
-        sign_params["maxPriorityFeePerGas"] = _fee_value_to_native_str(data.get("maxPriorityFeePerGas", "0"))
+        sign_params["maxFeePerGas"] = str(_fee_value_to_wei(data.get("maxFeePerGas", "0")))
+        sign_params["maxPriorityFeePerGas"] = str(_fee_value_to_wei(data.get("maxPriorityFeePerGas", "0")))
     else:
-        sign_params["gasPrice"] = _fee_value_to_native_str(data.get("gasPrice", "0"))
+        sign_params["gasPrice"] = _gas_price_to_native_str(data.get("gasPrice", "0"))
 
     result = sw.sign_transaction_return(social_chain, sign_params)
-    return result.get("result", result.get("signature", ""))
+    return _extract_sig(result, "EVM standard")
 
 
 def _sign_solana(data: dict, sw) -> str:
@@ -202,7 +251,7 @@ def _sign_solana(data: dict, sw) -> str:
         "signData": {"serializedTransaction": raw_tx, "version": "0"},
     }
     result = sw.sign_transaction_return("sol", sign_params)
-    return result.get("result", result.get("signature", ""))
+    return _extract_sig(result, "Solana")
 
 
 def main():
@@ -221,6 +270,12 @@ def main():
                         help="Receiver address")
     parser.add_argument("--amount", required=True,
                         help="Transfer amount, decimal string e.g. '10.5'")
+    parser.add_argument("--confirm-nonce-override", dest="confirm_nonce_override", action="store_true",
+                        help="Proceed even when the server reports "
+                             "hasPendingTransactionAndOverwriteNonce=true (reusing a nonce from a "
+                             "still-pending transaction on this address, which can replace or race "
+                             "it). Only pass this after the user has explicitly confirmed they want "
+                             "to override the pending transaction.")
     args = parser.parse_args()
 
     # Import API module
@@ -299,9 +354,17 @@ def main():
         sys.exit(1)
 
     if data.get("hasPendingTransactionAndOverwriteNonce"):
-        print("WARNING: hasPendingTransactionAndOverwriteNonce=true — the server is reusing a "
-              "nonce from a still-pending transaction for this address. This transfer may not "
-              "land on-chain until the pending one clears.", file=sys.stderr)
+        if not args.confirm_nonce_override:
+            print("ERROR: hasPendingTransactionAndOverwriteNonce=true — the server would reuse a "
+                  "nonce from a still-pending transaction on this address. Signing and sending now "
+                  "would race that pending transaction: whichever one confirms first invalidates the "
+                  "other (replacement, or the new one failing as an already-used nonce). Aborting — "
+                  "wait for the pending transaction to clear and retry, or re-run with "
+                  "--confirm-nonce-override only after the user has explicitly confirmed they want "
+                  "to override the pending transaction.", file=sys.stderr)
+            sys.exit(1)
+        print("WARNING: hasPendingTransactionAndOverwriteNonce=true — proceeding with nonce "
+              "override as explicitly confirmed via --confirm-nonce-override.", file=sys.stderr)
 
     # Step 2: Sign via Social Login Wallet TEE
     print(">>> Step 2: sign (Social Login Wallet TEE)", file=sys.stderr)
