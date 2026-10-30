@@ -6,6 +6,24 @@ Format: date-based versioning (`YYYY.M.DD`). Each release includes a sequential 
 
 ---
 
+## [2026.10.29-2] - 2026-10-29
+
+### Changed — Transfer Now Uses New Gateway API, Gasless Is Automatic (bgw_transfer)
+
+- Token transfers (`transfer_make_sign_send.py` / `social_transfer_make_sign_send.py`) now go through
+  the toc_agent gateway's `getTransferDataV4` + `send` instead of the old `makeTransferOrder` /
+  `submitTransferOrder` endpoints. `send` broadcasts and returns the final `txid` immediately — no more
+  status polling, so the `get-transfer-order` command is gone.
+- **Gasless is now fully automatic.** There's no flag to request it — the server picks gasless vs.
+  standard based on the sender's native-coin balance. The old `--gasless` flag has been removed.
+- **Removed, no longer supported**: transfer memo, overriding an existing third-party EIP-7702 binding,
+  manually picking which token pays gas fees.
+- **Not yet supported**: TRX chain transfers.
+- Gasless availability isn't guaranteed for every chain/token/amount, and the actual fee charged can
+  exceed the preview shown before signing — see `docs/transfer.md` for details.
+
+---
+
 ## [2026.4.15-1] - 2026-04-15
 
 ### Added — Multi-Agent Signal (bgw_alpha)

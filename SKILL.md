@@ -1,7 +1,7 @@
 ---
 name: bitget-wallet
-version: "2026.4.15-1"
-updated: "2026-04-15"
+version: "2026.10.29-2"
+updated: "2026-10-29"
 description: "Interact with Bitget Wallet API for crypto market data, token info, swap quotes, RWA (real-world asset) stock trading, and security audits. Use when the user asks about wallet, token prices, market data, swap/trading quotes, RWA stock discovery and trading, token security checks, K-line charts, or token rankings on supported chains (ETH, SOL, BSC, Base, etc.)."
 ---
 
@@ -24,7 +24,7 @@ description: "Interact with Bitget Wallet API for crypto market data, token info
 | Social Login Wallet | [`docs/social-wallet.md`](docs/social-wallet.md) | social-wallet.py sign_transaction, sign_message, get_address |
 | RWA Stock Trading | [`docs/rwa.md`](docs/rwa.md) | Any RWA stock discovery, config, order, holdings |
 | x402 Payments | [`docs/x402-payments.md`](docs/x402-payments.md) | x402_pay.py, HTTP 402 payment flow |
-| Token Transfer / Gasless | [`docs/transfer.md`](docs/transfer.md) | transfer_make_sign_send.py, social_transfer_make_sign_send.py, get-transfer-order |
+| Token Transfer / Gasless | [`docs/transfer.md`](docs/transfer.md) | transfer_make_sign_send.py, social_transfer_make_sign_send.py |
 | First-Time Setup | [`docs/first-time-setup.md`](docs/first-time-setup.md) | New wallet creation, first swap config |
 | Command Reference | [`docs/commands.md`](docs/commands.md) | When unsure about subcommand parameters or usage |
 
@@ -149,21 +149,21 @@ Full domain knowledge in [`docs/address-find.md`](docs/address-find.md).
 
 | Use Case | Command / Script | Description |
 |----------|-----------------|-------------|
-| Transfer (mnemonic/private-key) | `transfer_make_sign_send.py` | makeTransferOrder + sign + submit in one run |
-| Transfer (Social Login Wallet) | `social_transfer_make_sign_send.py` | makeTransferOrder + sign (TEE) + submit. No local key needed. |
-| Poll status | `get-transfer-order` | Real-time chain query for order status |
+| Transfer (mnemonic/private-key) | `transfer_make_sign_send.py` | getTransferDataV4 + sign + send in one run |
+| Transfer (Social Login Wallet) | `social_transfer_make_sign_send.py` | getTransferDataV4 + sign (TEE) + send. No local key needed. |
 
 **Supported chains:** eth, bnb, base, arbitrum, matic, morph, sol
 
-**Gasless mode:** Pass `--gasless` to enable gas payment from stablecoin balance (USDT/USDC) instead of native token. Supports all chains above. Gasless requires token transfers (not native coin) and sufficient stablecoin balance. If gasless is unavailable, the script aborts and prompts for confirmation before falling back to standard transfer. The agent must NOT auto-confirm — inform the user and let them decide.
+**Gasless mode:** Chosen automatically by the server based on the sender's native-coin balance — there is no CLI flag to request or force it. The scripts never send `gasAccountSelected`; check the response's `data.gasAccount.selected` to see which path was taken. Gasless requires token transfers (not native coin). Availability per chain/token/amount is not guaranteed — if it's unavailable and the sender also has no native gas, the transfer will fail; inform the user rather than silently retrying.
 
 **Key rules:**
 - Always check balance (`batch-v2`) before transfer
-- Check `estimateRevert` — if `true`, abort the transfer
+- Check the response `status` / error code — any non-zero status means abort
+- Check `data.fee.estimateRevert` (nested, not top-level) — the one-shot scripts abort before signing if `true`
+- If `data.hasPendingTransactionAndOverwriteNonce` is `true`, the scripts abort by default (would race a still-pending transaction on the same nonce) — only re-run with `--confirm-nonce-override` after the user explicitly confirms they want to override it
 - Solana blockhash expires in ~60s — use `transfer_make_sign_send.py` to avoid expiry
-- orderId is single-use; do not resubmit after successful submit
-- Gasless `txid` may be `getgas_task_xxx` format (not final chain hash); poll `get-transfer-order` for final status
-- **EIP-7702 override is DANGEROUS**: NEVER pass `--override-7702` without first warning the user that it permanently replaces their existing third-party EIP-7702 binding. If API returns error 30108, explain the risk and get explicit user confirmation before retrying with `--override-7702`
+- `send` broadcasts synchronously and returns the final `txid` directly; no order-status polling needed
+- The actual gasless fee charged can be noticeably higher than the fee preview shown before signing — warn the user
 
 Full domain knowledge in [`docs/transfer.md`](docs/transfer.md).
 
@@ -352,8 +352,8 @@ Use empty string `""` for native token contract (ETH, SOL, BNB, etc.).
 |--------|---------|-------------|
 | `bitget-wallet-agent-api.py` | Unified API client | Balance, token find (launchpad-tokens/search-tokens-v3/rankings), token check (security/coin-dev/coin-market-info/kline/tx-info), token analyze (simple-kline/trading-dynamics/transaction-list/holders-info/profit-address-analysis/top-profit/compare-tokens), address find (recommend-address-list), swap flow (quote→confirm→make-order→send→get-order-details) |
 | `order_make_sign_send.py` | One-shot swap execution (mnemonic/private-key) | makeOrder + sign + send in one run. `--private-key-file` (EVM) or `--private-key-file-sol` (Solana). Avoids 60s expiry. |
-| `transfer_make_sign_send.py` | One-shot token transfer (mnemonic/private-key) | makeTransferOrder + sign + submit in one run. `--private-key-file` (EVM) or `--private-key-file-sol` (Solana). `--gasless` for gasless mode. |
-| `social_transfer_make_sign_send.py` | One-shot token transfer (Social Login Wallet) | makeTransferOrder + sign (TEE) + submit in one run. `--wallet-id` required. No local private key needed. `--gasless` for gasless mode. |
+| `transfer_make_sign_send.py` | One-shot token transfer (mnemonic/private-key) | getTransferDataV4 + sign + send in one run. `--private-key-file` (EVM) or `--private-key-file-sol` (Solana). Gasless vs. standard is chosen automatically by the server. |
+| `social_transfer_make_sign_send.py` | One-shot token transfer (Social Login Wallet) | getTransferDataV4 + sign (TEE) + send in one run. `--wallet-id` required. No local private key needed. Gasless vs. standard is chosen automatically by the server. |
 | `social_order_make_sign_send.py` | One-shot swap execution (Social Login Wallet) | makeOrder + sign (TEE) + send in one run. `--wallet-id` required. No local private key needed. |
 | `order_sign.py` | Sign makeOrder data | Outputs JSON array of signatures. Supports raw tx, EVM gasPayMaster (eth_sign), EIP-712, Solana Ed25519, Solana gasPayMaster. |
 | `x402_pay.py` | x402 payment | EIP-3009 signing, Solana partial-sign, HTTP 402 pay flow |
@@ -400,24 +400,21 @@ python3 scripts/social_order_make_sign_send.py --wallet-id <walletId> --order-id
 python3 scripts/bitget-wallet-agent-api.py get-order-details --order-id <id>
 
 # Transfer flow (bgw_transfer)
-# Mnemonic/private-key wallet (EVM)
+# Mnemonic/private-key wallet (EVM) — gasless vs. standard chosen automatically by the server
 python3 scripts/transfer_make_sign_send.py --private-key-file /tmp/.pk_evm \
   --chain eth --contract 0xdAC17F958D2ee523a2206206994597C13D831ec7 \
   --from-address <addr> --to-address <addr> --amount 100
-# Mnemonic/private-key wallet (EVM gasless)
 python3 scripts/transfer_make_sign_send.py --private-key-file /tmp/.pk_evm \
   --chain base --contract 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913 \
-  --from-address <addr> --to-address <addr> --amount 50 --gasless
-# Mnemonic/private-key wallet (Solana gasless)
+  --from-address <addr> --to-address <addr> --amount 50
+# Mnemonic/private-key wallet (Solana)
 python3 scripts/transfer_make_sign_send.py --private-key-file-sol /tmp/.pk_sol \
   --chain sol --contract Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB \
-  --from-address <addr> --to-address <addr> --amount 10 --gasless
+  --from-address <addr> --to-address <addr> --amount 10
 # Social Login Wallet (no private key needed)
 python3 scripts/social_transfer_make_sign_send.py --wallet-id <walletId> \
   --chain bnb --contract 0x55d398326f99059fF775485246999027B3197955 \
-  --from-address <addr> --to-address <addr> --amount 1 --gasless
-# Poll transfer status
-python3 scripts/bitget-wallet-agent-api.py get-transfer-order --order-id <id>
+  --from-address <addr> --to-address <addr> --amount 1
 ```
 
 ---

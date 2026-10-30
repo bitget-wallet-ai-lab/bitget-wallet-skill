@@ -1,24 +1,30 @@
 # Transfer (Token Transfer) Domain Knowledge
 
-This document describes the **Transfer flow** for on-chain token transfers via the ToB Transfer API (`ms-user-go`). The server handles transaction construction, broadcasting, and on-chain status tracking. The client (B-side) only manages private keys and signing.
+This document describes the **Transfer flow** for on-chain token transfers via the toc_agent gateway
+(`getTransferDataV4` + `send`). The server handles transaction construction, broadcasting, and
+on-chain status tracking. The client (B-side) only manages private keys and signing.
 
-**MUST read this file before calling any transfer API** (`transfer_make_sign_send.py`, `social_transfer_make_sign_send.py`, or `get-transfer-order`).
+**MUST read this file before calling any transfer API** (`transfer_make_sign_send.py` or
+`social_transfer_make_sign_send.py`).
 
 ## Flow Overview
 
 | Step | Interface / Script | Description |
 |------|--------------------|-------------|
 | 0 | `batch-v2` | **Pre-check**: verify sender has enough token balance and (if not gasless) enough native gas |
-| 1+2+3 | **`transfer_make_sign_send.py`** | One-shot (mnemonic/private-key): make + sign + submit in one run |
-| 1+2+3 | **`social_transfer_make_sign_send.py`** | One-shot (Social Login Wallet): make + sign (TEE) + submit. No local private key needed. |
-| 4 | `get-transfer-order` | Poll order status until SUCCESS or FAILED |
+| 1+2+3 | **`transfer_make_sign_send.py`** | One-shot (mnemonic/private-key): `getTransferDataV4` + sign + `send` in one run |
+| 1+2+3 | **`social_transfer_make_sign_send.py`** | One-shot (Social Login Wallet): `getTransferDataV4` + sign (TEE) + `send` in one run. No local private key needed. |
+
+`send` broadcasts and returns the final result synchronously (`txid`, `txConfirmTimeTxt`) — there is
+no separate order-status polling endpoint.
 
 ### One-Shot Script (Recommended)
 
-Use `transfer_make_sign_send.py` to avoid signature expiry issues. It creates the order, signs locally, and submits immediately.
+Use `transfer_make_sign_send.py` to avoid signature expiry issues. It creates the transfer data,
+signs locally, and submits immediately.
 
 ```bash
-# EVM token transfer (standard)
+# EVM token transfer (server picks gasless vs. standard automatically based on native balance)
 python3 scripts/transfer_make_sign_send.py \
   --private-key-file /tmp/.pk_evm \
   --chain eth \
@@ -26,36 +32,38 @@ python3 scripts/transfer_make_sign_send.py \
   --from-address 0xAbC... --to-address 0xDeF... \
   --amount 100
 
-# EVM gasless transfer
+# EVM token transfer on a chain where the sender has no native gas — same command,
+# the response will come back with gasAccount.selected=true and the script signs accordingly
 python3 scripts/transfer_make_sign_send.py \
   --private-key-file /tmp/.pk_evm \
   --chain base \
   --contract 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913 \
   --from-address 0xAbC... --to-address 0xDeF... \
-  --amount 50 --gasless
+  --amount 50
 
-# Solana gasless transfer
+# Solana token transfer
 python3 scripts/transfer_make_sign_send.py \
   --private-key-file-sol /tmp/.pk_sol \
   --chain sol \
   --contract Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB \
   --from-address ApPjj... --to-address 7xKXt... \
-  --amount 10 --gasless
+  --amount 10
 ```
 
 ### One-Shot Script — Social Login Wallet
 
-Use `social_transfer_make_sign_send.py` when the user has a Social Login Wallet. No local private key needed — signing happens via Bitget Wallet TEE.
+Use `social_transfer_make_sign_send.py` when the user has a Social Login Wallet. No local private key
+needed — signing happens via Bitget Wallet TEE.
 
 ```bash
-# Social Login Wallet: gasless transfer
+# Social Login Wallet: token transfer
 python3 scripts/social_transfer_make_sign_send.py \
   --wallet-id <walletId> \
   --chain bnb --contract 0x55d398326f99059fF775485246999027B3197955 \
   --from-address 0xAbC... --to-address 0xDeF... \
-  --amount 1 --gasless
+  --amount 1
 
-# Social Login Wallet: standard Solana transfer
+# Social Login Wallet: Solana transfer
 python3 scripts/social_transfer_make_sign_send.py \
   --wallet-id <walletId> \
   --chain sol --contract Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB \
@@ -69,7 +77,16 @@ Before any transfer, the agent **must**:
 
 1. **Balance check**: Run `batch-v2` to verify sender has enough token balance for the transfer amount.
 2. **Gas check** (if not gasless): Verify native token balance is sufficient for gas fees.
-3. **estimateRevert guard**: The one-shot scripts automatically check `data.estimateRevert` and abort if `true` (insufficient balance, contract revert, etc.).
+3. **Status guard**: The one-shot scripts check the `getTransferDataV4` response `status` / error code
+   and abort on any non-zero status (e.g. insufficient balance, invalid address — see Error Codes below).
+4. **Revert guard**: `estimateRevert` is nested under `data.fee.estimateRevert` (not top-level, unlike
+   the old `makeTransferOrder` response). The one-shot scripts check `data.fee.estimateRevert` and abort
+   with `data.fee.estimateRevertReason` before signing if it's `true`.
+5. **Pending-nonce guard**: if `data.hasPendingTransactionAndOverwriteNonce` is `true`, the server would
+   reuse a nonce from a still-pending transaction on this address — signing and sending now would race
+   that pending transaction (replacement, or the new one failing as an already-used nonce). The one-shot
+   scripts **abort by default** in this case; proceeding requires `--confirm-nonce-override`, which must
+   only be passed after the user has explicitly confirmed they want to override the pending transaction.
 
 ```bash
 python3 scripts/bitget-wallet-agent-api.py batch-v2 \
@@ -78,13 +95,28 @@ python3 scripts/bitget-wallet-agent-api.py batch-v2 \
 
 ## Gasless Transfer
 
-Gasless mode allows token transfers without holding native gas tokens (ETH, SOL, BNB, etc.). Gas fees are paid from the user's stablecoin balance (USDT/USDC).
+Gasless mode allows token transfers without holding native gas tokens (ETH, SOL, BNB, etc.). Gas fees
+are paid from the user's stablecoin balance (USDT/USDC), via one of three server-side payment plans
+(`sid`): `transfer_no_gas` (EVM 7702 paymaster / SOL), `transfer_3009_no_gas` (EIP-3009 tokens like
+USDC), `transfer_no_gas_trx` (TRX — **not yet supported by this skill's scripts**, see Signing Modes).
 
 ### How to Enable
 
-Pass `--gasless` to `transfer_make_sign_send.py` or `social_transfer_make_sign_send.py`. The API parameter `noGas=true` is sent automatically.
+There is no CLI flag — the scripts never send `gasAccountSelected` at all, so the server picks
+automatically per its own documented default (§3.3 of the interface spec): if the sender's native-coin
+balance is sufficient to cover gas, it builds a standard self-pay transfer; if not, it matches a
+gasless plan automatically (`skipWhenUserNativeEnough`). The scripts just sign whatever comes back —
+check `data.gasAccount.selected` to see which path was taken (both scripts print it).
+
+This is a deliberate behavior change from the old `makeTransferOrder` API (which required an explicit
+`noGas=true` to ever use gasless) — see `CHANGELOG.md` for the migration note.
 
 ### Supported Chains and Pay Tokens
+
+Which chains/tokens are eligible for gasless is controlled server-side by Apollo config (`gasAccount`),
+shared with the App. The server automatically picks the pay token from the eligible whitelist — there
+is **no way to manually specify a pay token** with this API (the old `--gasless-pay-token` flag has
+been removed; it has no equivalent in the new interface).
 
 | Chain | USDT | USDC |
 |-------|------|------|
@@ -96,165 +128,159 @@ Pass `--gasless` to `transfer_make_sign_send.py` or `social_transfer_make_sign_s
 | morph | `0xe7cd86e13AC4309349F30B3435a9d337750fC82D` | `0xCfb1186F4e93D60E60a8bDd997427D1F33bc372B` |
 | sol | `Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB` | `EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v` |
 
-### Token Selection
-
-- **Automatic** (default): Server selects the best pay token from the whitelist (sufficient balance + stable price).
-- **Manual**: Pass `--gasless-pay-token <contract>` to specify a particular token.
-
 ### Gasless Response Fields
 
-When gasless is available, `data.noGas` contains:
+When `getTransferDataV4` matches a gasless plan, `data.gasAccount` is present:
 
 | Field | Description |
 |-------|-------------|
-| `available` | `true` if gasless is active |
-| `payToken` | Contract address of the selected pay token |
-| `payTokenSymbol` | Symbol (e.g. "USDC") |
-| `payAmount` | Gas fee amount deducted from token balance |
-| `payTokenPriceUsd` | Current USD price of pay token |
-| `need7702Auth` | EVM only: `true` if first-time 7702 binding needed |
-| `acceptableTokens` | Full whitelist of eligible pay tokens |
+| `gasAccount.selected` | `true` only if gasless will actually be used for this transfer — only then does the response carry gasless signing data (`signData`/`signDataV2`) |
+| `gasAccount.sid` / `gasAccount.pay.sid` | The matched plan: `transfer_no_gas` / `transfer_3009_no_gas` / `transfer_no_gas_trx` |
+| `gasAccount.pay.payToken.{contract,symbol,amount}` | The token/amount the user pays gas with |
+| `gasAccount.payTotal` / `gasAccount.payAmount` | Gas fee in USD / in on-chain pay-token units |
 
-### Gasless Unavailable — Explicit Fallback
+If `gasAccount` is absent, no gasless plan matched this chain/token — the scripts proceed with a
+standard transfer, which will fail on broadcast if the sender also has no native gas.
 
-When `--gasless` is requested but gasless is not available (chain not supported, amount below threshold, no eligible pay token with sufficient balance), the scripts **do not silently fall back** to a standard transfer.
+**Observed in live testing (2026-10-29)**: BSC USDT (`0x55d398326f99059fF775485246999027B3197955`),
+sender with 0 BNB — a 1 USDT transfer matched gasless (`gasAccount.selected=true`, actual fee charged
+≈0.016 USDT, noticeably higher than the fee preview shown before signing); several earlier attempts at
+0.1/1/5/11 USDT (back when the scripts still sent an explicit `gasAccountSelected`) returned no
+`gasAccount` at all. Gasless availability for a given chain/token/amount appears to vary and should not
+be assumed reliable — the agent should always check `data.gasAccount` on each call rather than assuming
+a prior result still holds, and warn the user that the actual fee can exceed the preview.
 
-Instead, the scripts:
-1. Print a warning explaining why gasless is unavailable
-2. Prompt the user: `"Type 'yes' to proceed with standard transfer (native gas required), anything else to abort"`
-3. Only proceed if the user types `yes` — otherwise abort
+**Agent rule:** If `gasAccount` is absent and the sender's native-gas balance is also insufficient,
+inform the user before letting the standard-transfer signing/broadcast fail — suggest topping up native
+gas or retrying with a different amount. Do NOT silently retry with different parameters.
 
-**Scenarios where gasless is not available:**
-- The chain is not in the gasless whitelist
-- Transfer amount (USD value) is below the threshold
-- No pay token has sufficient balance or queryable price
-- `noGas` was not requested
 
-**Agent rule:** If the script aborts due to gasless unavailable, inform the user and ask whether they want to retry without `--gasless` (standard transfer). Do NOT automatically retry.
-
-### EIP-7702 Override
-
-> **DANGER: High-impact account-level change.** Overwriting an existing EIP-7702 binding is permanent and cannot be undone. The previous third-party binding will be lost.
-
-If the sender address is already bound to a third-party EIP-7702 contract, gasless will fail with **error code 30108**. To proceed:
-
-1. Inform the user: *"Your address has an existing third-party EIP-7702 binding. Gasless transfer requires replacing it. This is permanent."*
-2. Only after explicit user confirmation, re-run with `--override-7702`.
-3. The scripts will display an additional interactive confirmation prompt before signing.
-
-The response `noGas.warn` will contain a warning message — **always display it to the user**.
-
-**Agent rule:** NEVER pass `--override-7702` without first explaining the risk and obtaining explicit user confirmation ("yes, override my existing 7702 binding").
+> **Removed capability**: the old EIP-7702 third-party-binding override (`--override-7702`, error code
+> `30108`) has no equivalent in the new interface and has been removed. If a sender address already has
+> a third-party EIP-7702 binding, gasless transfers on that address may simply fail — there is currently
+> no agent-side override path; this needs backend confirmation if it blocks real users.
 
 ## Signing Modes
 
-The `source.type` field determines which signing logic to use:
+`getTransferDataV4` no longer returns a `source.type` discriminator. The signing path is determined by
+whether `data.gasAccount.selected` is `true`, and which of `signData` / `signDataV2` is present:
 
-| source.type | Signing Method | Applicable Chains |
-|-------------|---------------|-------------------|
-| `evm_legacy` | Build and sign Legacy (type 0) raw tx | bnb |
-| `evm_1559` | Build and sign EIP-1559 (type 2) raw tx | eth, base, arbitrum, matic, morph |
-| `evm_7702` | Sign `msgToSign[].hash` via `unsafe_sign_hash`, return `JSON.stringify(msgs)` | EVM gasless |
-| `evm_morph_altfee` | Morph type-0x7f custom serialization (requires viem + Morph serializer) | morph AltFee |
-| `sol_raw` | Full Ed25519 sign of Solana transaction | sol (standard) |
-| `sol_partial` | Partial-sign (feePayer already signed slot 0, user signs slot 1) | sol gasless |
+| Condition | Signing Method | Applicable |
+|-----------|----------------|-----------|
+| No `gasAccount`, or `gasAccount.selected != true` | Build and sign a standard raw tx from the flat top-level fields (`to`/`data`/`nonce`/`gasLimit`/`chainId`/`value` + `gasPrice` or `maxFeePerGas`/`maxPriorityFeePerGas`) | EVM standard self-pay |
+| Same as above | Full Ed25519 sign of the Solana transaction | sol standard self-pay |
+| `gasAccount.selected == true` and `data.signData.sign_type == "sign_7702_msgs"` | Sign each `signData.data[i].hash` via `unsafe_sign_hash`, write back `sig`, `JSON.stringify(signData.data)` | EVM gasless (legacy `signData` format) |
+| `gasAccount.selected == true` and `data.signDataV2` present | Sign each `signDataV2[i].data` as EIP-712 typed data, collect `[{domain, message, signature}, ...]`, `JSON.stringify(...)` | EVM gasless (EIP-712, incl. EIP-3009 tokens) |
+| `gasAccount.selected == true` and `gasAccount.sid/pay.sid == "transfer_no_gas_trx"` | **Not implemented** — the scripts abort with an error | TRX gasless (out of scope for this round) |
 
-### EVM 7702 Signing Detail
+✅ **Live-confirmed** (2026-10-29, BSC USDT standard transfer): the flattened field layout is correct
+— `to`/`data`/`nonce`/`gasLimit`/`chainId`/`gasPrice`/`value` all appear at the top level of `data` as
+assumed. Two things differ from the old API and from a naive hex-wei assumption, now handled correctly
+by the scripts:
 
-The `source.evm7702.msgToSign` array contains 1-2 items:
+- **`gasPrice` / `maxFeePerGas` / `maxPriorityFeePerGas` come back from `getTransferDataV4` as plain
+  decimal strings in native-coin units** (e.g. `"0.0000000001"` BNB), not `0x`-prefixed wei hex like
+  `nonce`/`gasLimit`/`chainId`. `nonce`/`gasLimit`/`chainId`/`value` came back as plain ints in the
+  observed response, not hex strings either — but the scripts still accept `0x`-hex for all of these
+  for forward compatibility.
+  ⚠️ **The two downstream signers disagree on units for these three fee fields, and it's not the same
+  split for all three** — mixing them up previously caused a live gasPrice to be double-converted into
+  an astronomically large value (caught and fixed 2026-10-29):
+  - `transfer_make_sign_send.py` (local `eth_account.Account.sign_transaction`): **all three must be
+    Wei integers** — `eth_account`'s `tx_dict` always takes Wei, so the native-decimal values from the
+    API are converted (`_parse_fee_value`/×1e18) before signing.
+  - `social_transfer_make_sign_send.py` (`sw.sign_transaction_return` TEE call): per
+    `docs/social-wallet.md`'s ETH/EVM field table, **`gasPrice` and `value` are native-coin units**
+    (pass the API's decimal string/number straight through — `_gas_price_to_native_str`, and the
+    `value` branch in `_sign_evm_standard`) **but `maxFeePerGas`/`maxPriorityFeePerGas` are Wei**
+    (converted via `_fee_value_to_wei`, same ×1e18 as the private-key script). Do not reuse one
+    native-unit-only helper for all four fields in this script — a previous version wei-converted
+    `value` the same way `transfer_make_sign_send.py` correctly does for `eth_account` (which *does*
+    need Wei), which is the wrong direction for the TEE call; caught by review 2026-10-29. ERC-20
+    transfers always carry `value=0`, so this branch isn't exercised by token-transfer testing —
+    needs live confirmation with a nonzero native-coin transfer.
+- **The Social Login Wallet TEE signing helpers fail closed on an empty/missing signature.** All four
+  `sw.sign_transaction_return`/`sw.sign_message_return` call sites in `social_transfer_make_sign_send.py`
+  go through `_extract_sig`, which raises instead of defaulting to `sig=""` when the TEE response has
+  neither a `result` nor a `signature` field — an empty signature must never reach `send`. This applies
+  to the unverified `signDataV2`/EIP-712 path too: the WARNING printed there is informational only, not
+  a substitute for this guard.
+- **The top-level `to` field is the on-chain tx target, not the recipient.** For a token transfer this
+  is the token contract address (matching `contract`); the human-entered recipient comes back separately
+  as `receiver`. The scripts always use the original `--to-address` CLI argument when calling `send`,
+  never `data.get("to")`, to avoid sending the wrong recipient.
 
-1. **`msgType=auth`** (first-time only): Authorization to bind 7702 contract. Sign `hash` with ECDSA secp256k1 (`unsafe_sign_hash`).
+### EVM Gasless Legacy (`signData`) Signing Detail
+
+`data.signData.data` contains 1-2 items (same msg shape as before):
+
+1. **`msgType=auth`** (first-time only): Authorization to bind the 7702 contract. Sign `hash` with ECDSA secp256k1 (`unsafe_sign_hash`).
 2. **`msgType=call`**: Transfer execution call. Sign `hash` with eth_sign (`unsafe_sign_hash`).
 
-Fill each item's `sig` field, then `JSON.stringify(msgToSign)` is submitted as the `sig` parameter.
+Fill each item's `sig` field, then `JSON.stringify(signData.data)` is submitted as the `sig` parameter.
+Both auth + call signing and the transfer itself are bundled into **one on-chain transaction**
+(EIP-7702 Type-4 tx) by the server.
 
-Both auth + call signing and the transfer itself are bundled into **one on-chain transaction** (EIP-7702 Type-4 tx) by the server.
+### Solana Signing Detail
 
-### Solana Partial Signing
+`getTransferDataV4` does not give an explicit field name for the Solana pending transaction in its
+documented response fields — the scripts probe `data.rawTx`, then `data.serializedTx`, then
+`data.serializedTransaction`, in that order, and raise a clear error if none is present.
+⚠️ **Pending live confirmation** — this field name has not been verified against a real API response.
 
-For gasless Solana transfers:
-1. Server constructs the transaction with a feePayer (gas account) and pre-signs slot 0
-2. `source.sol.rawTx` contains the base58 partial-signed transaction
-3. Client adds user signature to slot 1 (Ed25519 partial-sign)
-4. The fully-signed transaction is submitted
+For gasless Solana transfers specifically: the server pre-signs the feePayer slot, the client signs
+its own slot (Ed25519 partial-sign, same `sign_solana_tx` helper handles both full-sign and
+partial-sign automatically by locating the signer's own slot).
 
-**blockhash expiry**: Solana `recentBlockhash` expires after ~60 seconds (~150 slots). Sign and submit promptly.
+**blockhash expiry**: Solana `recentBlockhash` expires after ~60 seconds (~150 slots). Sign and submit
+promptly — use `transfer_make_sign_send.py` to avoid expiry.
 
-## Morph AltFee
-
-When `chain=morph` and the response contains both `source` (evm_1559) and `altFeeSource` (evm_morph_altfee), two gas payment options exist:
-
-| Option | Source Field | Gas Payment |
-|--------|-------------|-------------|
-| Standard | `source` (evm_1559) | ETH |
-| AltFee | `altFeeSource` (evm_morph_altfee) | USDT/USDC/BGB |
-
-**AltFee token contracts (Morph mainnet, chainId=2818):**
-
-| feeTokenID | Symbol | Contract |
-|-----------|--------|----------|
-| 1 | USDT | `0xc7D67A9CBB121B3B0b9c053Dd9F469523243379A` |
-| 2 | USDC | `0xE34C91815d7FC18A9E2148bcD4241D0a5848b693` |
-| 3 | BGB | `0x55d1F1879969bDbb9960d269974564C58dbc3238` |
-
-The response `altFee.feeTokenID` indicates which token was selected by the server. The `altFee` object also includes `feeTokenContract`, `feeTokenSymbol`, `feeTokenDecimal`, and `feeTokenPrice`.
-
-**Signing (type-0x7f):** Uses viem + Morph custom serializer (`serializeAltFeeTransaction`, `ALT_FEE_TX_TYPE = "0x7f"`). RLP structure: `[chainId, nonce, maxPriorityFeePerGas, maxFeePerGas, gas, to, value, data, accessList(empty), feeTokenID, feeLimit, yParity, r, s]`. Sign hash: `keccak256(0x7f || rlp(unsigned_fields))`.
-
-`transfer_make_sign_send.py` signs the standard `source` (evm_1559). For AltFee signing, use external tooling (viem + Morph custom serializer).
+⚠️ **Pending live confirmation**: the EIP-712 signing output format for non-EIP-3009 EVM gasless
+(`signDataV2` without a 3009 token) is documented by the upstream interface spec itself as "matches the
+App (core-js), to be confirmed via joint debugging." This implementation uses the same
+`[{domain, message, signature}, ...]` output shape as the confirmed EIP-3009 case; verify against a
+real joint-debug session before relying on it in production. Both scripts fail closed rather than
+guess on ambiguity: `social_transfer_make_sign_send.py` prints an explicit unverified-path warning
+before attempting the TEE's non-dedicated `signTypeData` call, and `transfer_make_sign_send.py`'s
+`_infer_primary_type` raises instead of falling back to an arbitrary candidate when the EIP-712
+`primaryType` can't be unambiguously inferred from `types`.
 
 ## Chain-Specific Notes
 
 ### EVM (eth/bnb/base/arbitrum/matic/morph)
-- **Native token transfer**: `contract=""`, `source.evm.to` = receiver, `source.evm.data="0x"`
-- **Token transfer**: `contract` = ERC-20 address, `source.evm.to` = contract, `data` = `transfer(address,uint256)` calldata
-- **EIP-1559** (eth/base/arbitrum/matic/morph): `fee.eip1559` is non-null
-- **L2 chains** (base/arbitrum/morph): `fee.l1FeeMax` is non-empty (L1 calldata fee)
+- **Native token transfer**: `contract=""`, top-level `to` = receiver, `data="0x"`
+- **Token transfer**: `contract` = ERC-20 address, top-level `to` = contract, `data` = `transfer(address,uint256)` calldata
+- **EIP-1559** (eth/base/arbitrum/matic/morph): response carries `maxFeePerGas`/`maxPriorityFeePerGas`
 - **Gasless**: Only for token transfers (`contract` must be non-empty; native token gasless is not supported)
 
 ### Solana (sol)
 - **Native SOL transfer**: `contract=""`
 - **SPL Token transfer**: `contract` = SPL Token Mint address
-- **Fee units**: `fee.stdPriPrice` (lamports/CU), `fee.stdPriLimit` (compute unit limit)
 - **blockhash expiry**: ~60 seconds. Use `transfer_make_sign_send.py` to avoid expiry.
-
-### Memo Field
-The `--memo` parameter is passed through to `ms_chain` for on-chain inclusion. Chain support varies — not all chains support memo. Pass `""` or omit for no memo.
 
 ## Order Status
 
-| Status | Description | txid |
-|--------|-------------|------|
-| `PENDING` | Order created, not yet broadcast | — |
-| `PROCESSING` | Transaction broadcast, awaiting chain confirmation | present |
-| `SUCCESS` | Transaction confirmed on-chain | present |
-| `FAILED` | Transaction failed (broadcast failure, chain revert, etc.) | may be present |
-
-- Status comes from real-time chain query, not database cache
-- Gasless orders may have `txid` in format `getgas_task_xxx` (gas-account task ID, not final chain hash)
-- When `orderStatus=FAILED`, the `failReason` field contains the failure description
-- `gasAccountData` in the API response is for server internal use; clients should ignore it
-- Poll `get-transfer-order` until terminal status (SUCCESS/FAILED)
+`send` broadcasts and returns the final result **synchronously** — `data.txid` is the on-chain
+transaction hash and `data.txConfirmTimeTxt` is an estimated confirmation-time message. There is no
+async order record and no separate status-polling endpoint to call after `send` succeeds.
 
 ## Error Codes
 
-| Code | Description | Action |
-|------|-------------|--------|
-| 0 | Success | — |
-| 30101 | Missing or invalid parameters | Check request params; `msg` contains the missing field |
-| 30102 | Unsupported chain | Verify chain code |
-| 30103 | Insufficient balance | Top up or enable gasless |
-| 30104 | estimateRevert (predicted failure) | Do not proceed; investigate root cause |
-| 30105 | orderId not found | Check orderId or re-create order |
-| 30106 | Order already submitted | Do not resubmit; orderId is single-use |
-| 30107 | Invalid gasless signature (7702 auth failed) | Check signing logic for auth message |
-| 30108 | Third-party 7702 binding exists, override7702=false | Prompt user, re-request with `--override-7702` |
-| 30201 | ms_chain service error | Retry; `msg` has details |
-| 30202 | gas-account service unavailable | Fall back to standard transfer |
-| 30500 | Internal error | Contact backend; `msg` has details |
+| Scenario | status | data |
+|----------|--------|------|
+| Request carries `source` (DApp transaction) | `1` | `toc_agent does not support dapp transactions` |
+| `send`'s `gasAccount` is not an enabled gasless plan | `1` | `toc_agent only supports no-gas payment or native coin payment` |
+| Receiver address is transfer-restricted | `1` | `当前地址不支持转账` (localized) |
+| Transaction construction failed (insufficient balance, invalid address, etc.) | `27xxx` | Localized error text |
+| Token is in a split/merge blackout window | `26060` | Localized error text (includes recovery time) |
+| Token info lookup failed (`send` step, fail-close) | `26061` | Localized error text |
+| Invalid EIP-3009 signature format, token doesn't support EIP-3009, or TRX gasless has fewer than 2 signed txs | `1` | `System error please wait` |
 
 ## Timing Constraints
 
-- **EVM orderId**: No hard expiry, but nonce may be consumed. Recommend submit within **10 minutes**.
-- **Solana blockhash**: Expires in ~**60 seconds**. Must sign and submit promptly (use `transfer_make_sign_send.py`).
-- **orderId is single-use**: Once submitted successfully, the same orderId cannot be resubmitted.
+- **EVM**: no hard expiry documented for the constructed data, but nonce may be consumed by other
+  activity — submit promptly.
+- **Solana blockhash**: Expires in ~**60 seconds**. Must sign and submit promptly (use
+  `transfer_make_sign_send.py`).
+- `amount` sent to `send` must match the value returned by `getTransferDataV4` exactly (it may be
+  server-adjusted for full-balance transfers or EIP-3009 tokens).

@@ -1,34 +1,36 @@
 #!/usr/bin/env python3
 """
-One-shot: makeTransferOrder -> sign -> submitTransferOrder.
+One-shot: getTransferDataV4 -> sign -> send.
 
-Gasless token transfer for EVM (eth/bnb/base/arbitrum/matic/morph) and Solana.
+Token transfer for EVM (eth/bnb/base/arbitrum/matic/morph) and Solana. Gasless
+mode (gas paid from token balance) is chosen automatically by the server based
+on the sender's native-coin balance — there is no client-side flag to request
+or force it; the script just signs whatever the response comes back with.
 Signing is done locally; the server handles broadcasting and on-chain tracking.
 
-Supports all source.type modes:
-  - evm_legacy     : BNB Chain legacy gasPrice tx
-  - evm_1559       : EIP-1559 (ETH/Base/Arbitrum/Polygon/Morph)
-  - evm_7702       : EIP-7702 gasless (auth + call message signing)
-  - evm_morph_altfee: Morph type-0x7f AltFee (NOT handled here; use altFeeSource externally)
-  - sol_raw         : Solana full unsigned transaction
-  - sol_partial     : Solana partial-signed (feePayer already signed)
+Signature dispatch is driven by the getTransferDataV4 response:
+  - Standard self-pay EVM : sign the flat tx fields (EIP-1559 or legacy gasPrice)
+  - Standard self-pay SOL : sign the raw unsigned transaction
+  - EVM gasless (signDataV2) : EIP-712 typed-data signing
+  - EVM gasless (signData)   : legacy gasless message signing (sign_7702_msgs)
+  - SOL gasless             : sign the raw unsigned transaction
 
 Security: Private keys are NEVER passed as CLI arguments.
 Write the key to a unique temp file programmatically, pass the file path.
 
-Example (EVM gasless transfer):
+Example (EVM transfer — gasless/standard chosen automatically by the server):
   python3 scripts/transfer_make_sign_send.py \\
     --private-key-file /tmp/.pk_evm \\
     --chain base --contract 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913 \\
     --from-address 0xAbC... --to-address 0xDeF... \\
-    --amount 50 --gasless
+    --amount 50
 
-Example (Solana gasless transfer):
+Example (Solana transfer):
   python3 scripts/transfer_make_sign_send.py \\
     --private-key-file-sol /tmp/.pk_sol \\
     --chain sol --contract Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB \\
     --from-address ApPjj... --to-address 7xKXt... \\
-    --amount 10 --gasless
+    --amount 10
 """
 
 from __future__ import annotations
@@ -44,66 +46,88 @@ if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
 
 
-def _sign_evm_standard(source: dict, private_key: str) -> str:
+def _parse_fee_value(val) -> int:
     """
-    Sign evm_legacy or evm_1559 source data. Returns signed raw tx hex (0x-prefixed).
+    Parse a gasPrice/maxFeePerGas/maxPriorityFeePerGas value from getTransferDataV4.
+    Confirmed via a live call: these come back as a plain decimal string in native-coin
+    units (e.g. "0.0000000001" BNB), NOT wei-hex like the rest of the EVM fields
+    (nonce/gasLimit/chainId are plain ints or 0x-hex). A bare int(val) would raise
+    ValueError on the decimal-point string. Falls back to hex/int for forward
+    compatibility in case the shape changes.
+    """
+    if isinstance(val, str):
+        if val.startswith("0x"):
+            return int(val, 16)
+        if "." in val:
+            fval = float(val)
+            return int(fval * 1e18) if 0 < fval < 1 else int(fval * 1e9)
+        return int(val)
+    return int(val)
+
+
+def _sign_evm_standard(data: dict, private_key: str) -> str:
+    """
+    Sign a standard self-pay EVM transaction from the flat response data.
+    Chooses EIP-1559 vs legacy by the presence of maxFeePerGas/maxPriorityFeePerGas.
+    Returns signed raw tx hex (0x-prefixed).
     """
     from eth_account import Account
     acct = Account.from_key(private_key)
 
-    evm = source.get("evm", {})
-    to_addr = evm.get("to", "")
+    to_addr = data.get("to", "")
     if to_addr and to_addr.startswith("0x"):
         from eth_utils import to_checksum_address
         to_addr = to_checksum_address(to_addr)
 
-    raw_nonce = evm.get("nonce")
+    raw_nonce = data.get("nonce")
     if raw_nonce is None:
-        raise ValueError("Missing required field 'nonce' in EVM source")
-    raw_gas = evm.get("gasLimit")
+        raise ValueError("Missing required field 'nonce' in EVM data")
+    raw_gas = data.get("gasLimit")
     if not raw_gas:
-        raise ValueError("Missing required field 'gasLimit' in EVM source")
+        raise ValueError("Missing required field 'gasLimit' in EVM data")
     gas_val = int(raw_gas, 16) if isinstance(raw_gas, str) and raw_gas.startswith("0x") else int(raw_gas)
     if gas_val == 0:
         raise ValueError("gasLimit is zero — refusing to sign transaction that will certainly fail")
 
+    raw_chain_id = data.get("chainId", 1)
+    chain_id_val = int(raw_chain_id, 16) if isinstance(raw_chain_id, str) and raw_chain_id.startswith("0x") else int(raw_chain_id)
+
     tx_dict = {
         "to": to_addr,
-        "data": evm.get("data", "0x"),
+        "data": data.get("data", "0x"),
         "gas": gas_val,
         "nonce": int(raw_nonce, 16) if isinstance(raw_nonce, str) and raw_nonce.startswith("0x") else int(raw_nonce),
-        "chainId": int(evm.get("chainId", 1)),
+        "chainId": chain_id_val,
     }
 
-    value = evm.get("value", "0x0")
+    value = data.get("value", "0x0")
     if isinstance(value, str) and value.startswith("0x"):
         tx_dict["value"] = int(value, 16)
+    elif isinstance(value, str) and "." in value:
+        # Same native-coin-decimal quirk as gasPrice below — "5" BNB, not wei.
+        tx_dict["value"] = int(float(value) * 1e18)
     else:
         tx_dict["value"] = int(value)
 
-    source_type = source.get("type", "")
-
-    if source_type == "evm_1559":
-        max_fee = evm.get("maxFeePerGas", "0x0")
-        max_priority = evm.get("maxPriorityFeePerGas", "0x0")
-        tx_dict["maxFeePerGas"] = int(max_fee, 16) if isinstance(max_fee, str) and max_fee.startswith("0x") else int(max_fee)
-        tx_dict["maxPriorityFeePerGas"] = int(max_priority, 16) if isinstance(max_priority, str) and max_priority.startswith("0x") else int(max_priority)
+    if data.get("maxFeePerGas") is not None or data.get("maxPriorityFeePerGas") is not None:
+        tx_dict["maxFeePerGas"] = _parse_fee_value(data.get("maxFeePerGas", "0x0"))
+        tx_dict["maxPriorityFeePerGas"] = _parse_fee_value(data.get("maxPriorityFeePerGas", "0x0"))
         tx_dict["type"] = 2
     else:
-        gas_price = evm.get("gasPrice", "0x0")
-        tx_dict["gasPrice"] = int(gas_price, 16) if isinstance(gas_price, str) and gas_price.startswith("0x") else int(gas_price)
+        tx_dict["gasPrice"] = _parse_fee_value(data.get("gasPrice", "0x0"))
 
     signed_tx = acct.sign_transaction(tx_dict)
     return "0x" + signed_tx.raw_transaction.hex()
 
 
-def _sign_evm_7702(source: dict, private_key: str) -> str:
+def _sign_evm_gasless_legacy(data: dict, private_key: str) -> str:
     """
-    Sign evm_7702 source data. Returns JSON.stringify(signedMsgs).
-    Each msgToSign item has a 'hash' field to sign with unsafe_sign_hash.
+    Sign EVM gasless legacy message data (signData.sign_type == "sign_7702_msgs").
+    Returns JSON.stringify(signedMsgs). Each msg item has a 'hash' field to sign
+    with unsafe_sign_hash; the signature is written back to the item's 'sig' field.
 
     SECURITY NOTE (trust boundary): The hash values come from the Bitget Wallet
-    backend (makeTransferOrder response). The client validates length (32 bytes)
+    backend (getTransferDataV4 response). The client validates length (32 bytes)
     but does NOT locally re-derive the EIP-7702 authorization digest. This is an
     accepted trust-server architecture — security relies on TLS integrity of the
     backend connection. If local re-derivation is needed in the future:
@@ -112,15 +136,14 @@ def _sign_evm_7702(source: dict, private_key: str) -> str:
     from eth_account import Account
     acct = Account.from_key(private_key)
 
-    evm7702 = source.get("evm7702", {})
-    msgs = evm7702.get("msgToSign", [])
+    msgs = data.get("signData", {}).get("data", [])
     if not msgs:
-        raise ValueError("evm_7702 source has no msgToSign")
+        raise ValueError("gasless signData has no data to sign")
 
     for msg in msgs:
         msg_hash = msg.get("hash", "")
         if not msg_hash:
-            raise ValueError(f"msgToSign item missing 'hash': {msg}")
+            raise ValueError(f"signData item missing 'hash': {msg}")
         hash_bytes = bytes.fromhex(msg_hash.replace("0x", ""))
         if len(hash_bytes) != 32:
             raise ValueError(f"Invalid hash length {len(hash_bytes)} bytes (expected 32): {msg_hash!r}")
@@ -131,17 +154,84 @@ def _sign_evm_7702(source: dict, private_key: str) -> str:
     return json.dumps(msgs)
 
 
-def _sign_solana(source: dict, private_key_sol: str) -> str:
+def _infer_primary_type(types: dict) -> str:
     """
-    Sign sol_raw or sol_partial source data. Returns base58 signed transaction.
-    For sol_partial, feePayer has already signed slot 0.
+    Infer EIP-712 primaryType when the response omits it: the root type is the one
+    (excluding EIP712Domain) that is never referenced as a field type by any other
+    type. Raises if there isn't exactly one unambiguous root — guessing wrong here
+    would sign a fund-moving EIP-712 payload under the wrong primaryType, which is
+    worse than aborting the transfer.
+    """
+    candidates = [k for k in types if k != "EIP712Domain"]
+    if not candidates:
+        raise ValueError("EIP-712 typed data has no non-domain type to infer primaryType from")
+    if len(candidates) == 1:
+        return candidates[0]
+    referenced = set()
+    for type_name, fields in types.items():
+        if type_name == "EIP712Domain":
+            continue
+        for f in fields:
+            field_type = f.get("type", "").rstrip("[]")
+            if field_type in types:
+                referenced.add(field_type)
+    roots = [c for c in candidates if c not in referenced]
+    if len(roots) != 1:
+        raise ValueError(
+            f"Cannot unambiguously infer EIP-712 primaryType from types={list(types.keys())} "
+            f"(candidate roots: {roots}); refusing to guess for a fund-moving signature"
+        )
+    return roots[0]
+
+
+def _sign_evm_typed_data_v2(data: dict, private_key: str) -> str:
+    """
+    Sign EVM gasless EIP-712 typed data (signDataV2). Each item carries a
+    typed-data payload under item["data"] with domain/types/message. Returns
+    JSON.stringify of a list of {"domain", "message", "signature"} objects.
+    """
+    from eth_account import Account
+    from order_sign import _normalize_eip712_domain
+    acct = Account.from_key(private_key)
+
+    items = data.get("signDataV2", [])
+    if not items:
+        raise ValueError("gasless signDataV2 has no data to sign")
+
+    results = []
+    for item in items:
+        typed = item.get("data", {})
+        domain = _normalize_eip712_domain(typed.get("domain", {}))
+        types = typed.get("types", {})
+        message = typed.get("message", {})
+        primary_type = typed.get("primaryType") or _infer_primary_type(types)
+        signed = acct.sign_typed_data(full_message={
+            "types": types,
+            "primaryType": primary_type,
+            "domain": domain,
+            "message": message,
+        })
+        sig_hex = signed.signature.hex()
+        results.append({
+            "domain": domain,
+            "message": message,
+            "signature": sig_hex if sig_hex.startswith("0x") else "0x" + sig_hex,
+        })
+
+    return json.dumps(results)
+
+
+def _sign_solana(data: dict, private_key_sol: str) -> str:
+    """
+    Sign a Solana raw unsigned transaction from the flat response data.
+    Tries rawTx / serializedTx / serializedTransaction in order.
+    Returns base58 signed transaction.
     """
     from order_sign import sign_solana_tx, _load_sol_keypair
 
-    sol = source.get("sol", {})
-    raw_tx = sol.get("rawTx", "")
+    raw_tx = data.get("rawTx") or data.get("serializedTx") or data.get("serializedTransaction")
     if not raw_tx:
-        raise ValueError("Solana source has no rawTx")
+        raise ValueError(f"Solana source has no recognized raw-tx field, got keys: {list(data.keys())}")
 
     seed, pubkey = _load_sol_keypair(private_key_sol)
     return sign_solana_tx(raw_tx, seed, pubkey)
@@ -149,7 +239,7 @@ def _sign_solana(source: dict, private_key_sol: str) -> str:
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Gasless token transfer: makeTransferOrder + sign + submitTransferOrder. "
+        description="Token transfer: getTransferDataV4 + sign + send. "
                     "Keys used in memory only, never output."
     )
     parser.add_argument("--private-key-file", default=None,
@@ -166,15 +256,12 @@ def main():
                         help="Receiver address")
     parser.add_argument("--amount", required=True,
                         help="Transfer amount, decimal string e.g. '10.5'")
-    parser.add_argument("--memo", default="",
-                        help="Optional memo written to chain transaction")
-    parser.add_argument("--gasless", action="store_true",
-                        help="Request gasless transfer (gas paid from token balance)")
-    parser.add_argument("--gasless-pay-token", dest="gasless_pay_token", default="",
-                        help="Gasless: contract address of token to pay gas with")
-    parser.add_argument("--override-7702", dest="override_7702", action="store_true",
-                        help="[DANGEROUS] Overwrite an existing third-party EIP-7702 binding. "
-                             "Script will prompt for confirmation before proceeding.")
+    parser.add_argument("--confirm-nonce-override", dest="confirm_nonce_override", action="store_true",
+                        help="Proceed even when the server reports "
+                             "hasPendingTransactionAndOverwriteNonce=true (reusing a nonce from a "
+                             "still-pending transaction on this address, which can replace or race "
+                             "it). Only pass this after the user has explicitly confirmed they want "
+                             "to override the pending transaction.")
     args = parser.parse_args()
 
     # Read keys from files
@@ -191,47 +278,18 @@ def main():
     # Import API module
     _api = importlib.import_module("bitget-wallet-agent-api")
 
-    # EIP-7702 override pre-flight confirmation (before API call)
-    if args.override_7702:
-        print("", file=sys.stderr)
-        print("⚠️  EIP-7702 OVERRIDE WARNING", file=sys.stderr)
-        print("This will OVERWRITE the existing third-party EIP-7702 binding on this address.", file=sys.stderr)
-        print("This is a permanent account-level change. The previous binding cannot be restored.", file=sys.stderr)
-        print("", file=sys.stderr)
-        if not sys.stdin.isatty():
-            print("ERROR: --override-7702 requires interactive confirmation (TTY). Aborting.", file=sys.stderr)
-            sys.exit(1)
-        try:
-            confirm = input("Type 'yes' to confirm override, anything else to abort: ").strip()
-        except EOFError:
-            confirm = ""
-        if confirm != "yes":
-            print("Aborted — 7702 override not confirmed.", file=sys.stderr)
-            sys.exit(1)
-        print("    7702 override confirmed by user.", file=sys.stderr)
-
-    # Step 1: makeTransferOrder
-    print(">>> Step 1: makeTransferOrder", file=sys.stderr)
-    resp = _api.make_transfer_order(
+    # Step 1: getTransferDataV4
+    print(">>> Step 1: getTransferDataV4", file=sys.stderr)
+    resp = _api.get_transfer_data_v4(
         chain=args.chain,
         contract=args.contract,
         from_=args.from_address,
         to=args.to_address,
         amount=args.amount,
-        memo=args.memo,
-        no_gas=args.gasless,
-        no_gas_pay_token=args.gasless_pay_token,
-        override7702=args.override_7702,
     )
 
     status = resp.get("status", -1)
     if status != 0:
-        error_code = resp.get("error_code") or resp.get("data", {}).get("error_code")
-        if error_code == 30108:
-            print("ERROR: Existing third-party EIP-7702 binding detected on this address.", file=sys.stderr)
-            print("Gasless transfer requires overwriting this binding.", file=sys.stderr)
-            print("To override, re-run with --override-7702 (this will REPLACE the existing binding).", file=sys.stderr)
-            sys.exit(1)
         print(json.dumps(resp, indent=2), file=sys.stderr)
         sys.exit(1)
 
@@ -243,102 +301,119 @@ def main():
     data = resp.get("data", {})
     order_id = data.get("orderId")
     if not order_id:
-        print("Error: no orderId in makeTransferOrder response", file=sys.stderr)
-        print(json.dumps(resp, indent=2), file=sys.stderr)
-        sys.exit(1)
+        print("WARNING: no orderId in getTransferDataV4 response (not required by send, continuing)",
+              file=sys.stderr)
 
     print(f"    orderId: {order_id}", file=sys.stderr)
     print(f"    chain: {data.get('chain')}, from: {data.get('from')}, to: {data.get('to')}", file=sys.stderr)
     print(f"    amount: {data.get('amount')}, contract: {data.get('contract')}", file=sys.stderr)
 
-    # Check estimateRevert
-    if data.get("estimateRevert"):
-        print("WARNING: Transaction is estimated to fail (insufficient balance, contract revert, etc.).",
+    # The server auto-selects gasless vs. standard based on native-coin balance
+    # (gasAccountSelected is never sent — see module docstring). Just report what it picked.
+    gas_account = data.get("gasAccount")
+    if gas_account and gas_account.get("selected"):
+        pay_token = gas_account.get("pay", {}).get("payToken", {})
+        print(f"    gasless: {pay_token.get('symbol')} "
+              f"(pay: {gas_account.get('payAmount')} {pay_token.get('symbol')})",
               file=sys.stderr)
-        print("Aborting — do not proceed with this transfer.", file=sys.stderr)
-        print(json.dumps({"status": -1, "msg": "estimateRevert=true, transaction likely to fail",
-                          "orderId": order_id, "fee": data.get("fee")}, indent=2))
-        sys.exit(1)
-
-    # Check gasless availability (check available first, then catch all unavailable cases)
-    no_gas_info = data.get("noGas")
-    if no_gas_info and no_gas_info.get("available"):
-        print(f"    gasless: {no_gas_info.get('payTokenSymbol')} "
-              f"(pay: {no_gas_info.get('payAmount')} {no_gas_info.get('payTokenSymbol')})",
-              file=sys.stderr)
-        if no_gas_info.get("warn"):
-            print(f"    WARNING: {no_gas_info['warn']}", file=sys.stderr)
-    elif args.gasless:
-        # Gasless requested but not available (regardless of whether noGas field exists)
-        print("WARNING: Gasless requested but not available for this transfer.", file=sys.stderr)
-        print("Reason: amount below threshold, chain not supported, or no eligible pay token.", file=sys.stderr)
-        print("This will fall back to a STANDARD transfer (native gas required).", file=sys.stderr)
-        if not sys.stdin.isatty():
-            print("ERROR: Gasless fallback requires interactive confirmation (TTY). Aborting.", file=sys.stderr)
-            sys.exit(1)
-        try:
-            confirm = input("Type 'yes' to proceed with standard transfer, anything else to abort: ").strip()
-        except EOFError:
-            confirm = ""
-        if confirm != "yes":
-            print("Aborted — gasless not available and fallback not confirmed.", file=sys.stderr)
-            sys.exit(1)
-        print("    Proceeding with standard transfer (user confirmed).", file=sys.stderr)
+    else:
+        print("    standard transfer (native gas)", file=sys.stderr)
 
     # Fee info
     fee = data.get("fee", {})
     if fee:
-        print(f"    fee: {fee.get('fee')} {fee.get('coin')}, "
+        print(f"    fee: {fee.get('fee')}, "
               f"balance: {fee.get('balance')}, enough: {fee.get('balanceForFeeEnough')}",
               file=sys.stderr)
 
-    source = data.get("source", {})
-    source_type = source.get("type", "")
-    print(f"    source.type: {source_type}", file=sys.stderr)
+    # estimateRevert now lives under fee.* (moved there from the old top-level
+    # makeTransferOrder response) — abort before signing rather than submitting a
+    # transaction already predicted to fail on-chain.
+    if fee.get("estimateRevert"):
+        reason = fee.get("estimateRevertReason") or "transaction predicted to fail"
+        print(f"ERROR: estimateRevert=true — {reason}. Aborting.", file=sys.stderr)
+        sys.exit(1)
+
+    if data.get("hasPendingTransactionAndOverwriteNonce"):
+        if not args.confirm_nonce_override:
+            print("ERROR: hasPendingTransactionAndOverwriteNonce=true — the server would reuse a "
+                  "nonce from a still-pending transaction on this address. Signing and sending now "
+                  "would race that pending transaction: whichever one confirms first invalidates the "
+                  "other (replacement, or the new one failing as an already-used nonce). Aborting — "
+                  "wait for the pending transaction to clear and retry, or re-run with "
+                  "--confirm-nonce-override only after the user has explicitly confirmed they want "
+                  "to override the pending transaction.", file=sys.stderr)
+            sys.exit(1)
+        print("WARNING: hasPendingTransactionAndOverwriteNonce=true — proceeding with nonce "
+              "override as explicitly confirmed via --confirm-nonce-override.", file=sys.stderr)
 
     # Step 2: Sign
     print(">>> Step 2: sign", file=sys.stderr)
     sig = None
 
-    if source_type in ("evm_legacy", "evm_1559"):
-        if not private_key:
-            print("Error: EVM transfer detected but --private-key-file not provided", file=sys.stderr)
+    if gas_account and gas_account.get("selected"):
+        sid = gas_account.get("pay", {}).get("sid") or gas_account.get("sid")
+        if sid == "transfer_no_gas_trx":
+            print("ERROR: TRX gasless not supported yet.", file=sys.stderr)
             sys.exit(1)
-        sig = _sign_evm_standard(source, private_key)
-        print(f"    signed EVM {source_type} raw tx", file=sys.stderr)
-
-    elif source_type == "evm_7702":
-        if not private_key:
-            print("Error: EVM 7702 transfer detected but --private-key-file not provided", file=sys.stderr)
+        elif data.get("signDataV2"):
+            if not private_key:
+                print("Error: EVM gasless transfer detected but --private-key-file not provided", file=sys.stderr)
+                sys.exit(1)
+            sig = _sign_evm_typed_data_v2(data, private_key)
+            print("    signed EVM gasless (signDataV2/EIP-712)", file=sys.stderr)
+        elif data.get("signData", {}).get("sign_type") == "sign_7702_msgs":
+            if not private_key:
+                print("Error: EVM gasless transfer detected but --private-key-file not provided", file=sys.stderr)
+                sys.exit(1)
+            sig = _sign_evm_gasless_legacy(data, private_key)
+            print("    signed EVM gasless (signData legacy)", file=sys.stderr)
+        elif data.get("chainType") == "sol" or (private_key_sol and not private_key):
+            if not private_key_sol:
+                print("Error: Solana gasless transfer detected but --private-key-file-sol not provided", file=sys.stderr)
+                sys.exit(1)
+            sig = _sign_solana(data, private_key_sol)
+            print("    signed Solana gasless tx", file=sys.stderr)
+        else:
+            print(f"Error: unrecognized gasless signature shape for sid={sid!r}", file=sys.stderr)
             sys.exit(1)
-        sig = _sign_evm_7702(source, private_key)
-        print(f"    signed EVM 7702 ({len(source.get('evm7702', {}).get('msgToSign', []))} msg(s))",
-              file=sys.stderr)
-
-    elif source_type in ("sol_raw", "sol_partial"):
-        if not private_key_sol:
-            print("Error: Solana transfer detected but --private-key-file-sol not provided", file=sys.stderr)
-            sys.exit(1)
-        sig = _sign_solana(source, private_key_sol)
-        print(f"    signed Solana {source_type} tx", file=sys.stderr)
-
-    elif source_type == "evm_morph_altfee":
-        print("Error: evm_morph_altfee (Morph AltFee) requires viem + Morph serializer. "
-              "Use the standard source (evm_1559) with --no-altfee, or sign externally.",
-              file=sys.stderr)
-        sys.exit(1)
-
     else:
-        print(f"Error: unsupported source.type: {source_type!r}", file=sys.stderr)
-        sys.exit(1)
+        if data.get("chainType") == "sol" or (private_key_sol and not private_key):
+            if not private_key_sol:
+                print("Error: Solana transfer detected but --private-key-file-sol not provided", file=sys.stderr)
+                sys.exit(1)
+            sig = _sign_solana(data, private_key_sol)
+            print("    signed Solana tx", file=sys.stderr)
+        else:
+            if not private_key:
+                print("Error: EVM transfer detected but --private-key-file not provided", file=sys.stderr)
+                sys.exit(1)
+            sig = _sign_evm_standard(data, private_key)
+            print("    signed EVM tx", file=sys.stderr)
 
     # Clear keys from memory
     private_key = None
     private_key_sol = None
 
-    # Step 3: submitTransferOrder
-    print(">>> Step 3: submitTransferOrder", file=sys.stderr)
-    submit_resp = _api.submit_transfer_order(order_id=order_id, sig=sig)
+    # Step 3: send
+    print(">>> Step 3: send", file=sys.stderr)
+    # gasAccount must only be sent when it was actually selected by the server;
+    # a present-but-unselected gasAccount would make `send` reject a standard transfer
+    # (see docs/transfer.md Error Codes: "toc_agent only supports no-gas payment or native coin payment").
+    send_gas_account = gas_account if (gas_account and gas_account.get("selected")) else None
+    # NOTE: data.get("to") is NOT the recipient for token transfers — confirmed via a live
+    # getTransferDataV4 call, the response's top-level "to" is the on-chain tx target (the
+    # token contract), while the actual recipient comes back separately as "receiver". `send`'s
+    # "to" must echo the original request's recipient, so always use args.to_address here.
+    submit_resp = _api.send_transfer(
+        chain=data.get("chain", args.chain),
+        contract=data.get("contract", args.contract),
+        from_=data.get("from", args.from_address),
+        to=args.to_address,
+        amount=data.get("amount", args.amount),
+        sig=sig,
+        gas_account=send_gas_account,
+    )
     print(json.dumps(submit_resp, indent=2))
 
     if submit_resp.get("status") != 0:
@@ -346,12 +421,12 @@ def main():
 
     submit_data = submit_resp.get("data", {})
     print(f"\nOrderId: {order_id}", file=sys.stderr)
-    print(f"Status: {submit_data.get('orderStatus', 'unknown')}", file=sys.stderr)
     txid = submit_data.get("txid", "")
     if txid:
         print(f"TxID: {txid}", file=sys.stderr)
-    print(f"Check: python3 scripts/bitget-wallet-agent-api.py get-transfer-order --order-id {order_id}",
-          file=sys.stderr)
+    confirm_txt = submit_data.get("txConfirmTimeTxt", "")
+    if confirm_txt:
+        print(f"Confirm time: {confirm_txt}", file=sys.stderr)
 
 
 if __name__ == "__main__":
